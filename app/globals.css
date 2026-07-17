@@ -1,0 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #c9a84c;
+  --gold-dim: rgba(201, 168, 76, 0.25);
+  --gold-subtle: rgba(201, 168, 76, 0.08);
+  --obsidian: #0a0a0a;
+  --cream: #ededed;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: var(--obsidian);
+  color: var(--cream);
+  font-family: Georgia, Cambria, "Times New Roman", serif;
+  height: 100%;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollable pages (dashboard) */
+.scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100vh;
+}
+
+/* Gold text utility */
+.text-gold {
+  color: var(--gold);
+}
+
+/* Thin gold separator */
+.gold-rule {
+  width: 48px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--gold),
+    transparent
+  );
+  margin: 0 auto;
+}
+
+/* Button base */
+.btn-discord {
+  display: inline-block;
+  padding: 16px 40px;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold);
+  background: transparent;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.35s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-discord::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--gold-subtle);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.btn-discord:hover::before {
+  opacity: 1;
+}
+
+.btn-discord:hover {
+  border-color: rgba(201, 168, 76, 0.6);
+  letter-spacing: 5px;
+}
+
+/* Vertical brand text */
+.brand-vertical {
+  position: fixed;
+  left: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform-origin: center;
+  letter-spacing: 0.3em;
+  font-size: 11px;
+  color: rgba(201, 168, 76, 0.7);
+  text-transform: uppercase;
+  z-index: 10;
+  user-select: none;
+  rotate: 180deg;
+}
+
+/* Version tag */
+.version-tag {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(201, 168, 76, 0.35);
+  text-transform: uppercase;
+  z-index: 10;
+  user-select: none;
+}
+
+/* Login modal card */
+.login-card {
+  position: relative;
+  z-index: 20;
+  text-align: center;
+  padding: 64px 56px;
+  background: rgba(10, 10, 10, 0.75);
+  border: 1px solid rgba(201, 168, 76, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  max-width: 440px;
+  width: 100%;
+}
+
+/* Dashboard sidebar */
+.sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: #080808;
+  border-right: 1px solid rgba(201, 168, 76, 0.1);
+  padding: 40px 0;
+  position: fixed;
+  left: 0;
+  top: 0;
+}
+
+.sidebar-link {
+  display: block;
+  padding: 12px 28px;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(237, 237, 237, 0.45);
+  transition: color 0.2s ease, background 0.2s ease;
+  cursor: pointer;
+}
+
+.sidebar-link:hover,
+.sidebar-link.active {
+  color: var(--gold);
+  background: rgba(201, 168, 76, 0.05);
+}
+
+.sidebar-link.active {
+  border-left: 1px solid var(--gold);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--obsidian);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(201, 168, 76, 0.3);
+  border-radius: 2px;
+}

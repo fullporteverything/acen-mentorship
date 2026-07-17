@@ -16,10 +16,7 @@ export default function LoginCard() {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: {
-        staggerChildren: 0.15,
-        delayChildren: 0.3,
-      },
+      transition: { staggerChildren: 0.15, delayChildren: 0.3 },
     },
   };
 
@@ -43,8 +40,8 @@ export default function LoginCard() {
   return (
     <motion.div
       className="login-card"
-      initial={{ opacity: 0, y: 24, backdropFilter: "blur(0px)" }}
-      animate={{ opacity: 1, y: 0, backdropFilter: "blur(14px)" }}
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
       <motion.div
@@ -59,7 +56,7 @@ export default function LoginCard() {
           style={{
             fontSize: "10px",
             letterSpacing: "5px",
-            color: "rgba(139,26,26,0.65)",
+            color: "#C41818",
             textTransform: "uppercase",
             marginBottom: "16px",
             fontFamily: "Georgia, serif",
@@ -81,7 +78,7 @@ export default function LoginCard() {
             marginBottom: "20px",
           }}
         >
-          Acen
+          Dojo
         </motion.h1>
 
         {/* Top rule */}
@@ -90,7 +87,7 @@ export default function LoginCard() {
           style={{
             width: "48px",
             height: "1px",
-            background: "linear-gradient(90deg, transparent, #8B1A1A, transparent)",
+            background: "linear-gradient(90deg, transparent, #C41818, transparent)",
             marginBottom: "24px",
             transformOrigin: "center",
           }}
@@ -102,7 +99,7 @@ export default function LoginCard() {
           style={{
             fontSize: "10px",
             letterSpacing: "4px",
-            color: "rgba(139,26,26,0.85)",
+            color: "#C41818",
             textTransform: "uppercase",
             marginBottom: "16px",
             fontFamily: "Georgia, serif",
@@ -116,7 +113,7 @@ export default function LoginCard() {
           variants={itemVariants}
           style={{
             fontSize: "13px",
-            color: "rgba(240,237,230,0.5)",
+            color: "rgba(240,237,230,0.6)",
             textAlign: "center",
             lineHeight: "1.8",
             marginBottom: "36px",
@@ -125,9 +122,9 @@ export default function LoginCard() {
             maxWidth: "260px",
           }}
         >
-          Master the markets. Understand liquidity.
+          Discipline is forged in silence.
           <br />
-          See what others cannot.
+          The way reveals itself to those who stay.
         </motion.p>
 
         {/* Discord button */}
@@ -159,7 +156,6 @@ export default function LoginCard() {
             </span>
           ) : (
             <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              {/* Discord icon */}
               <svg width="14" height="11" viewBox="0 0 20 15" fill="currentColor">
                 <path d="M16.93 1.33A16.47 16.47 0 0 0 12.87 0c-.18.33-.4.77-.54 1.12a15.26 15.26 0 0 0-4.66 0C7.53.77 7.3.33 7.12 0A16.45 16.45 0 0 0 3.06 1.34C.44 5.37-.27 9.3.08 13.17a16.6 16.6 0 0 0 5.07 2.59c.41-.56.77-1.16 1.09-1.8a10.77 10.77 0 0 1-1.71-.83l.41-.32a11.83 11.83 0 0 0 10.12 0l.42.32c-.54.33-1.11.6-1.72.83.32.64.68 1.24 1.09 1.8a16.55 16.55 0 0 0 5.08-2.6c.42-4.44-.72-8.3-3.02-11.86ZM6.68 10.8c-1 0-1.83-.93-1.83-2.08 0-1.15.81-2.09 1.83-2.09 1.02 0 1.85.94 1.83 2.09 0 1.15-.81 2.08-1.83 2.08Zm6.64 0c-1.01 0-1.84-.93-1.84-2.08 0-1.15.81-2.09 1.84-2.09 1.01 0 1.84.94 1.82 2.09 0 1.15-.8 2.08-1.82 2.08Z" />
               </svg>
@@ -173,7 +169,7 @@ export default function LoginCard() {
           variants={itemVariants}
           style={{
             fontSize: "10px",
-            color: "rgba(240,237,230,0.22)",
+            color: "rgba(240,237,230,0.3)",
             letterSpacing: "1px",
             marginBottom: "24px",
             fontFamily: "Georgia, serif",
@@ -188,7 +184,7 @@ export default function LoginCard() {
           style={{
             width: "48px",
             height: "1px",
-            background: "linear-gradient(90deg, transparent, #8B1A1A, transparent)",
+            background: "linear-gradient(90deg, transparent, #C41818, transparent)",
             transformOrigin: "center",
           }}
         />

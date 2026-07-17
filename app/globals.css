@@ -5,8 +5,8 @@
 @tailwind utilities;
 
 :root {
-  --burgundy: #8B1A1A;
-  --burgundy-bright: #A01515;
+  --burgundy: #C41818;
+  --burgundy-bright: #D42020;
   --burgundy-dim: rgba(139, 26, 26, 0.3);
   --burgundy-subtle: rgba(139, 26, 26, 0.08);
   --void: #EADAC0;
@@ -59,8 +59,8 @@ body {
 .btn-discord {
   display: inline-block;
   padding: 16px 40px;
-  border: 1px solid var(--burgundy-dim);
-  color: var(--burgundy-bright);
+  border: 1px solid rgba(196, 24, 24, 0.4);
+  color: #C41818;
   background: transparent;
   font-family: Georgia, serif;
   font-size: 13px;
@@ -127,10 +127,8 @@ body {
   z-index: 20;
   text-align: center;
   padding: 64px 56px;
-  background: rgba(13, 5, 5, 0.78);
-  border: 1px solid rgba(139, 26, 26, 0.12);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: #000000;
+  border: 1px solid rgba(196, 24, 24, 0.15);
   max-width: 440px;
   width: 100%;
 }

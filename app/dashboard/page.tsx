@@ -2,6 +2,9 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { signOut } from "@/auth";
 
+// Subtle kanji used as decorative corner/accent elements
+const KANJI_ACCENTS = ["道", "剣", "心", "武", "礼", "修", "練", "気"];
+
 export default async function DashboardPage() {
   const session = await auth();
 
@@ -17,7 +20,7 @@ export default async function DashboardPage() {
         <div
           style={{
             padding: "0 28px 40px",
-            borderBottom: "1px solid rgba(139,26,26,0.12)",
+            borderBottom: "1px solid rgba(196,24,24,0.12)",
             marginBottom: "24px",
           }}
         >
@@ -25,18 +28,18 @@ export default async function DashboardPage() {
             style={{
               fontSize: "11px",
               letterSpacing: "5px",
-              color: "#8B1A1A",
+              color: "#C41818",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
             }}
           >
-            Acen
+            Dojo
           </p>
           <p
             style={{
               fontSize: "9px",
               letterSpacing: "2px",
-              color: "rgba(139,26,26,0.45)",
+              color: "rgba(196,24,24,0.45)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginTop: "4px",
@@ -44,6 +47,20 @@ export default async function DashboardPage() {
           >
             Mentorship
           </p>
+        </div>
+
+        {/* Kanji accent — sidebar decoration */}
+        <div
+          style={{
+            padding: "0 28px 20px",
+            fontSize: "22px",
+            color: "rgba(196,24,24,0.12)",
+            fontFamily: "serif",
+            letterSpacing: "8px",
+            userSelect: "none",
+          }}
+        >
+          道剣心
         </div>
 
         {/* Nav links */}
@@ -63,7 +80,7 @@ export default async function DashboardPage() {
             left: 0,
             right: 0,
             padding: "20px 28px",
-            borderTop: "1px solid rgba(139,26,26,0.12)",
+            borderTop: "1px solid rgba(196,24,24,0.12)",
           }}
         >
           <div
@@ -81,7 +98,7 @@ export default async function DashboardPage() {
                 alt="avatar"
                 width={28}
                 height={28}
-                style={{ borderRadius: "50%", border: "1px solid rgba(139,26,26,0.35)" }}
+                style={{ borderRadius: "50%", border: "1px solid rgba(196,24,24,0.35)" }}
               />
             )}
             <p
@@ -109,7 +126,7 @@ export default async function DashboardPage() {
               style={{
                 fontSize: "9px",
                 letterSpacing: "3px",
-                color: "rgba(139,26,26,0.55)",
+                color: "rgba(196,24,24,0.55)",
                 textTransform: "uppercase",
                 fontFamily: "Georgia, serif",
                 background: "none",
@@ -131,12 +148,29 @@ export default async function DashboardPage() {
           marginLeft: "220px",
           padding: "60px 56px",
           minHeight: "100vh",
+          position: "relative",
         }}
       >
+        {/* Kanji corner accent — top right */}
+        <div
+          style={{
+            position: "absolute",
+            top: "24px",
+            right: "40px",
+            fontSize: "64px",
+            color: "rgba(196,24,24,0.07)",
+            fontFamily: "serif",
+            userSelect: "none",
+            lineHeight: 1,
+          }}
+        >
+          武
+        </div>
+
         {/* Header */}
         <div
           style={{
-            borderBottom: "1px solid rgba(139,26,26,0.15)",
+            borderBottom: "1px solid rgba(196,24,24,0.15)",
             paddingBottom: "32px",
             marginBottom: "48px",
           }}
@@ -145,7 +179,7 @@ export default async function DashboardPage() {
             style={{
               fontSize: "10px",
               letterSpacing: "4px",
-              color: "rgba(139,26,26,0.65)",
+              color: "#C41818",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginBottom: "10px",
@@ -177,23 +211,40 @@ export default async function DashboardPage() {
           }}
         >
           {[
-            { label: "Lessons", value: "—", sub: "Coming soon" },
-            { label: "Resources", value: "—", sub: "Coming soon" },
-            { label: "Members", value: "—", sub: "Private" },
+            { label: "Lessons", value: "—", sub: "Coming soon", kanji: "修" },
+            { label: "Resources", value: "—", sub: "Coming soon", kanji: "練" },
+            { label: "Members", value: "—", sub: "Private", kanji: "礼" },
           ].map((card) => (
             <div
               key={card.label}
               style={{
                 padding: "28px 24px",
-                border: "1px solid rgba(139,26,26,0.12)",
-                background: "rgba(139,26,26,0.03)",
+                border: "1px solid rgba(196,24,24,0.12)",
+                background: "rgba(196,24,24,0.02)",
+                position: "relative",
+                overflow: "hidden",
               }}
             >
+              {/* Kanji watermark */}
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: "-4px",
+                  right: "12px",
+                  fontSize: "52px",
+                  color: "rgba(196,24,24,0.06)",
+                  fontFamily: "serif",
+                  userSelect: "none",
+                  lineHeight: 1,
+                }}
+              >
+                {card.kanji}
+              </span>
               <p
                 style={{
                   fontSize: "9px",
                   letterSpacing: "3px",
-                  color: "rgba(139,26,26,0.6)",
+                  color: "rgba(196,24,24,0.6)",
                   textTransform: "uppercase",
                   fontFamily: "Georgia, serif",
                   marginBottom: "12px",
@@ -204,7 +255,7 @@ export default async function DashboardPage() {
               <p
                 style={{
                   fontSize: "32px",
-                  color: "#8B1A1A",
+                  color: "#C41818",
                   fontFamily: "Georgia, serif",
                   fontWeight: 300,
                   marginBottom: "8px",
@@ -230,16 +281,33 @@ export default async function DashboardPage() {
         <div
           style={{
             padding: "36px 32px",
-            border: "1px solid rgba(139,26,26,0.10)",
-            background: "rgba(139,26,26,0.02)",
+            border: "1px solid rgba(196,24,24,0.10)",
+            background: "rgba(196,24,24,0.02)",
             maxWidth: "640px",
+            position: "relative",
+            overflow: "hidden",
           }}
         >
+          {/* Kanji accent — announcement block */}
+          <span
+            style={{
+              position: "absolute",
+              top: "8px",
+              right: "20px",
+              fontSize: "48px",
+              color: "rgba(196,24,24,0.06)",
+              fontFamily: "serif",
+              userSelect: "none",
+              lineHeight: 1,
+            }}
+          >
+            気
+          </span>
           <p
             style={{
               fontSize: "9px",
               letterSpacing: "4px",
-              color: "rgba(139,26,26,0.6)",
+              color: "rgba(196,24,24,0.6)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginBottom: "16px",
@@ -263,10 +331,24 @@ export default async function DashboardPage() {
             style={{
               width: "32px",
               height: "1px",
-              background: "linear-gradient(90deg, #8B1A1A, transparent)",
+              background: "linear-gradient(90deg, #C41818, transparent)",
               marginTop: "24px",
             }}
           />
+        </div>
+
+        {/* Kanji footer accent */}
+        <div
+          style={{
+            marginTop: "64px",
+            fontSize: "13px",
+            color: "rgba(196,24,24,0.18)",
+            fontFamily: "serif",
+            letterSpacing: "12px",
+            userSelect: "none",
+          }}
+        >
+          道剣心武礼修練気
         </div>
       </main>
     </div>

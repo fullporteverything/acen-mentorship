@@ -2,39 +2,31 @@
 
 import React from "react";
 
-interface KanjiItem {
-  char: string;
-  size: string;
-  left: string;
+// 3D flowing silk ribbons — fly across the screen with CSS perspective
+interface RibbonProps {
+  height: number;
   top: string;
-  opacity: number;
-  dur: number;
+  angle: number;
+  tiltX: number;
   delay: number;
-  drift: number;
+  dur: number;
+  opacity: number;
 }
 
-// Kanji: 道 way/path · 場 place/dojo · 師 master · 勝 victory · 錬 forge/training
-//        武 martial · 心 heart/mind · 極 ultimate · 覚 awakening · 剣 sword
-//        力 power · 精 spirit/precision · 義 righteousness · 闘 fight
-const KANJI_DATA: KanjiItem[] = [
-  { char: "道", size: "18rem", left: "7%",  top: "11%", opacity: 0.11, dur: 25, delay: 0,  drift: -22 },
-  { char: "場", size: "14rem", left: "72%", top: "5%",  opacity: 0.07, dur: 33, delay: 5,  drift: 16  },
-  { char: "師", size: "10rem", left: "17%", top: "63%", opacity: 0.09, dur: 20, delay: 8,  drift: -12 },
-  { char: "勝", size: "16rem", left: "57%", top: "51%", opacity: 0.07, dur: 36, delay: 2,  drift: 18  },
-  { char: "錬", size: "12rem", left: "81%", top: "31%", opacity: 0.10, dur: 22, delay: 12, drift: -10 },
-  { char: "武", size: "24rem", left: "35%", top: "17%", opacity: 0.04, dur: 44, delay: 3,  drift: 10  },
-  { char: "心", size: "9rem",  left: "4%",  top: "79%", opacity: 0.10, dur: 18, delay: 7,  drift: -16 },
-  { char: "極", size: "13rem", left: "47%", top: "73%", opacity: 0.07, dur: 29, delay: 15, drift: 12  },
-  { char: "覚", size: "11rem", left: "27%", top: "4%",  opacity: 0.09, dur: 31, delay: 1,  drift: -9  },
-  { char: "剣", size: "15rem", left: "85%", top: "64%", opacity: 0.06, dur: 26, delay: 9,  drift: 20  },
-  { char: "力", size: "21rem", left: "13%", top: "37%", opacity: 0.04, dur: 50, delay: 11, drift: -18 },
-  { char: "精", size: "11rem", left: "67%", top: "84%", opacity: 0.08, dur: 24, delay: 4,  drift: 11  },
-  { char: "義", size: "9rem",  left: "42%", top: "89%", opacity: 0.08, dur: 19, delay: 13, drift: -14 },
-  { char: "道", size: "8rem",  left: "62%", top: "17%", opacity: 0.14, dur: 16, delay: 6,  drift: 6   },
-  { char: "闘", size: "17rem", left: "2%",  top: "19%", opacity: 0.05, dur: 40, delay: 10, drift: 14  },
+const RIBBONS: RibbonProps[] = [
+  { height: 4,  top: "6%",  angle: -2, tiltX: 14,  delay: 0,    dur: 14, opacity: 0.22 },
+  { height: 1,  top: "18%", angle: 5,  tiltX: -8,  delay: 4.5,  dur: 20, opacity: 0.13 },
+  { height: 7,  top: "30%", angle: -5, tiltX: 22,  delay: 8,    dur: 12, opacity: 0.17 },
+  { height: 2,  top: "43%", angle: 3,  tiltX: -6,  delay: 2,    dur: 22, opacity: 0.11 },
+  { height: 5,  top: "57%", angle: -4, tiltX: 16,  delay: 6.5,  dur: 16, opacity: 0.19 },
+  { height: 1,  top: "69%", angle: 6,  tiltX: -14, delay: 11,   dur: 25, opacity: 0.09 },
+  { height: 8,  top: "79%", angle: -3, tiltX: 20,  delay: 3,    dur: 18, opacity: 0.15 },
+  { height: 2,  top: "90%", angle: 4,  tiltX: -10, delay: 7.5,  dur: 21, opacity: 0.10 },
+  { height: 3,  top: "13%", angle: -1, tiltX: 9,   delay: 13,   dur: 13, opacity: 0.12 },
+  { height: 6,  top: "50%", angle: 2,  tiltX: -18, delay: 9,    dur: 17, opacity: 0.14 },
 ];
 
-export default function KanjiBackground() {
+export default function ThreeBackground() {
   return (
     <div
       style={{
@@ -43,44 +35,47 @@ export default function KanjiBackground() {
         zIndex: 0,
         background: "#EADAC0",
         overflow: "hidden",
+        perspective: "600px",
+        perspectiveOrigin: "50% 50%",
       }}
     >
       <style>{`
-        @keyframes kanjiDrift {
-          0%, 100% {
-            transform: translateY(0px);
-            opacity: var(--k-hi);
-          }
-          50% {
-            transform: translateY(var(--k-drift));
-            opacity: var(--k-lo);
-          }
+        @keyframes ribbonFly {
+          0%   { transform: translateX(-110%) rotateZ(var(--rz)) rotateX(var(--rx)); opacity: 0; }
+          8%   { opacity: var(--op); }
+          92%  { opacity: var(--op); }
+          100% { transform: translateX(115vw) rotateZ(var(--rz)) rotateX(var(--rx)); opacity: 0; }
         }
       `}</style>
 
-      {KANJI_DATA.map((k, i) => (
+      {RIBBONS.map((r, i) => (
         <div
           key={i}
           style={
             {
               position: "absolute",
-              left: k.left,
-              top: k.top,
-              fontSize: k.size,
-              color: "#8B1A1A",
-              fontFamily: "Georgia, 'Times New Roman', serif",
-              userSelect: "none",
-              pointerEvents: "none",
-              lineHeight: 1,
-              "--k-hi": k.opacity,
-              "--k-lo": k.opacity * 0.25,
-              "--k-drift": `${k.drift}px`,
-              animation: `kanjiDrift ${k.dur}s ease-in-out ${k.delay}s infinite`,
+              left: 0,
+              top: r.top,
+              width: "100vw",
+              height: `${r.height}px`,
+              background: `linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(100,15,15,0.3) 8%,
+                rgba(139,26,26,0.7) 25%,
+                rgba(120,20,20,0.9) 50%,
+                rgba(139,26,26,0.7) 75%,
+                rgba(100,15,15,0.3) 92%,
+                transparent 100%
+              )`,
+              boxShadow: `0 0 ${r.height * 3}px rgba(100,15,15,0.15)`,
+              "--rz": `${r.angle}deg`,
+              "--rx": `${r.tiltX}deg`,
+              "--op": r.opacity,
+              animation: `ribbonFly ${r.dur}s ease-in-out ${r.delay}s infinite`,
             } as React.CSSProperties
           }
-        >
-          {k.char}
-        </div>
+        />
       ))}
     </div>
   );

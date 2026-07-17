@@ -25,11 +25,8 @@ export default function LoginPage() {
 
       {/* Fixed vertical brand text — left side */}
       <div className="brand-vertical">
-        Acen&nbsp;&nbsp;Mentorship
+        Dojo&nbsp;&nbsp;Mentorship
       </div>
-
-      {/* Version tag — bottom right */}
-      <div className="version-tag">Acen V1</div>
 
       {/* Center login card */}
       <LoginCard />

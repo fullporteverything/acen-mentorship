@@ -1,188 +1,87 @@
 "use client";
 
-import { useRef, useMemo } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import * as THREE from "three";
+import React from "react";
 
-// Individual floating geometry — each is a small 3D shape slowly drifting and rotating
-function FloatingShape({
-  position,
-  rotation,
-  scale,
-  speed,
-  geometry,
-  opacity,
-}: {
-  position: [number, number, number];
-  rotation: [number, number, number];
-  scale: number;
-  speed: number;
-  geometry: "octa" | "icosa" | "tetra" | "box";
+interface KanjiItem {
+  char: string;
+  size: string;
+  left: string;
+  top: string;
   opacity: number;
-}) {
-  const meshRef = useRef<THREE.Mesh>(null!);
-  const driftRef = useRef({
-    x: (Math.random() - 0.5) * 0.002 * speed,
-    y: (Math.random() - 0.5) * 0.002 * speed,
-    z: 0,
-  });
-
-  useFrame((state) => {
-    const t = state.clock.elapsedTime;
-    meshRef.current.rotation.x += 0.003 * speed;
-    meshRef.current.rotation.y += 0.005 * speed;
-    meshRef.current.rotation.z += 0.002 * speed;
-
-    // Gentle drift with slight sine wave
-    meshRef.current.position.x += driftRef.current.x;
-    meshRef.current.position.y += driftRef.current.y + Math.sin(t * 0.3 * speed) * 0.0005;
-
-    // Wrap around when out of bounds
-    if (meshRef.current.position.x > 14) driftRef.current.x *= -1;
-    if (meshRef.current.position.x < -14) driftRef.current.x *= -1;
-    if (meshRef.current.position.y > 8) driftRef.current.y *= -1;
-    if (meshRef.current.position.y < -8) driftRef.current.y *= -1;
-
-    // Pulsing scale
-    const pulse = 1 + Math.sin(t * 0.8 * speed + position[0]) * 0.04;
-    meshRef.current.scale.setScalar(scale * pulse);
-  });
-
-  const geo = useMemo(() => {
-    switch (geometry) {
-      case "octa": return new THREE.OctahedronGeometry(1, 0);
-      case "icosa": return new THREE.IcosahedronGeometry(1, 0);
-      case "tetra": return new THREE.TetrahedronGeometry(1, 0);
-      case "box": return new THREE.BoxGeometry(1, 1, 1);
-      default: return new THREE.OctahedronGeometry(1, 0);
-    }
-  }, [geometry]);
-
-  return (
-    <mesh
-      ref={meshRef}
-      position={position}
-      rotation={rotation}
-      scale={scale}
-      geometry={geo}
-    >
-      <meshStandardMaterial
-        color={new THREE.Color("#c9a84c")}
-        emissive={new THREE.Color("#7a5c1e")}
-        emissiveIntensity={0.3}
-        transparent
-        opacity={opacity}
-        wireframe={Math.random() > 0.5}
-        roughness={0.4}
-        metalness={0.8}
-      />
-    </mesh>
-  );
+  dur: number;
+  delay: number;
+  drift: number;
 }
 
-// Particle field of tiny gold dots
-function ParticleField() {
-  const count = 200;
-  const positions = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 30;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 15;
-    }
-    return pos;
-  }, []);
+// Kanji: 道 way/path · 場 place/dojo · 師 master · 勝 victory · 錬 forge/training
+//        武 martial · 心 heart/mind · 極 ultimate · 覚 awakening · 剣 sword
+//        力 power · 精 spirit/precision · 義 righteousness · 闘 fight
+const KANJI_DATA: KanjiItem[] = [
+  { char: "道", size: "18rem", left: "7%",  top: "11%", opacity: 0.11, dur: 25, delay: 0,  drift: -22 },
+  { char: "場", size: "14rem", left: "72%", top: "5%",  opacity: 0.07, dur: 33, delay: 5,  drift: 16  },
+  { char: "師", size: "10rem", left: "17%", top: "63%", opacity: 0.09, dur: 20, delay: 8,  drift: -12 },
+  { char: "勝", size: "16rem", left: "57%", top: "51%", opacity: 0.07, dur: 36, delay: 2,  drift: 18  },
+  { char: "錬", size: "12rem", left: "81%", top: "31%", opacity: 0.10, dur: 22, delay: 12, drift: -10 },
+  { char: "武", size: "24rem", left: "35%", top: "17%", opacity: 0.04, dur: 44, delay: 3,  drift: 10  },
+  { char: "心", size: "9rem",  left: "4%",  top: "79%", opacity: 0.10, dur: 18, delay: 7,  drift: -16 },
+  { char: "極", size: "13rem", left: "47%", top: "73%", opacity: 0.07, dur: 29, delay: 15, drift: 12  },
+  { char: "覚", size: "11rem", left: "27%", top: "4%",  opacity: 0.09, dur: 31, delay: 1,  drift: -9  },
+  { char: "剣", size: "15rem", left: "85%", top: "64%", opacity: 0.06, dur: 26, delay: 9,  drift: 20  },
+  { char: "力", size: "21rem", left: "13%", top: "37%", opacity: 0.04, dur: 50, delay: 11, drift: -18 },
+  { char: "精", size: "11rem", left: "67%", top: "84%", opacity: 0.08, dur: 24, delay: 4,  drift: 11  },
+  { char: "義", size: "9rem",  left: "42%", top: "89%", opacity: 0.08, dur: 19, delay: 13, drift: -14 },
+  { char: "道", size: "8rem",  left: "62%", top: "17%", opacity: 0.14, dur: 16, delay: 6,  drift: 6   },
+  { char: "闘", size: "17rem", left: "2%",  top: "19%", opacity: 0.05, dur: 40, delay: 10, drift: 14  },
+];
 
-  const pointsRef = useRef<THREE.Points>(null!);
-
-  useFrame((state) => {
-    pointsRef.current.rotation.y = state.clock.elapsedTime * 0.01;
-    pointsRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.005) * 0.05;
-  });
-
-  return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[positions, 3]}
-        />
-      </bufferGeometry>
-      <pointsMaterial
-        color="#c9a84c"
-        size={0.04}
-        transparent
-        opacity={0.4}
-        sizeAttenuation
-      />
-    </points>
-  );
-}
-
-// The main scene
-function Scene() {
-  const shapes = useMemo(() => {
-    const types: Array<"octa" | "icosa" | "tetra" | "box"> = ["octa", "icosa", "tetra", "box"];
-    return Array.from({ length: 28 }, (_, i) => ({
-      id: i,
-      position: [
-        (Math.random() - 0.5) * 26,
-        (Math.random() - 0.5) * 16,
-        (Math.random() - 0.5) * 10 - 2,
-      ] as [number, number, number],
-      rotation: [
-        Math.random() * Math.PI,
-        Math.random() * Math.PI,
-        Math.random() * Math.PI,
-      ] as [number, number, number],
-      scale: 0.08 + Math.random() * 0.32,
-      speed: 0.4 + Math.random() * 1.2,
-      geometry: types[Math.floor(Math.random() * types.length)],
-      opacity: 0.12 + Math.random() * 0.35,
-    }));
-  }, []);
-
-  return (
-    <>
-      {/* Ambient and directional light */}
-      <ambientLight intensity={0.15} color="#2a1a00" />
-      <directionalLight position={[5, 5, 5]} intensity={0.8} color="#c9a84c" />
-      <directionalLight position={[-5, -3, -5]} intensity={0.3} color="#4a2a00" />
-      <pointLight position={[0, 0, 3]} intensity={0.6} color="#e0bf6a" distance={15} />
-
-      {/* Floating 3D shapes */}
-      {shapes.map((s) => (
-        <FloatingShape key={s.id} {...s} />
-      ))}
-
-      {/* Micro particle field */}
-      <ParticleField />
-    </>
-  );
-}
-
-export default function ThreeBackground() {
+export default function KanjiBackground() {
   return (
     <div
       style={{
         position: "fixed",
         inset: 0,
         zIndex: 0,
-        background: "#0a0a0a",
+        background: "#0D0505",
+        overflow: "hidden",
       }}
     >
-      <Canvas
-        camera={{ position: [0, 0, 8], fov: 60 }}
-        style={{ background: "transparent" }}
-        dpr={[1, 1.5]}
-        gl={{
-          antialias: true,
-          alpha: true,
-          powerPreference: "default",
-        }}
-      >
-        <Scene />
-      </Canvas>
+      <style>{`
+        @keyframes kanjiDrift {
+          0%, 100% {
+            transform: translateY(0px);
+            opacity: var(--k-hi);
+          }
+          50% {
+            transform: translateY(var(--k-drift));
+            opacity: var(--k-lo);
+          }
+        }
+      `}</style>
+
+      {KANJI_DATA.map((k, i) => (
+        <div
+          key={i}
+          style={
+            {
+              position: "absolute",
+              left: k.left,
+              top: k.top,
+              fontSize: k.size,
+              color: "#8B1A1A",
+              fontFamily: "Georgia, 'Times New Roman', serif",
+              userSelect: "none",
+              pointerEvents: "none",
+              lineHeight: 1,
+              "--k-hi": k.opacity,
+              "--k-lo": k.opacity * 0.25,
+              "--k-drift": `${k.drift}px`,
+              animation: `kanjiDrift ${k.dur}s ease-in-out ${k.delay}s infinite`,
+            } as React.CSSProperties
+          }
+        >
+          {k.char}
+        </div>
+      ))}
     </div>
   );
 }

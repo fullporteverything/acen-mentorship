@@ -1,8 +1,8 @@
 import dynamic from "next/dynamic";
 import LoginCard from "@/components/LoginCard";
 
-// Load Three.js only on client side (no SSR) to avoid server-side errors
-const ThreeBackground = dynamic(() => import("@/components/ThreeBackground"), {
+// Load kanji background only on client side (no SSR)
+const KanjiBackground = dynamic(() => import("@/components/ThreeBackground"), {
   ssr: false,
 });
 
@@ -14,14 +14,14 @@ export default function LoginPage() {
         width: "100vw",
         height: "100vh",
         overflow: "hidden",
-        background: "#0a0a0a",
+        background: "#0D0505",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      {/* 3D animated background */}
-      <ThreeBackground />
+      {/* Drifting kanji background */}
+      <KanjiBackground />
 
       {/* Fixed vertical brand text — left side */}
       <div className="brand-vertical">

@@ -44,7 +44,7 @@ export default function LoginCard() {
     <motion.div
       className="login-card"
       initial={{ opacity: 0, y: 24, backdropFilter: "blur(0px)" }}
-      animate={{ opacity: 1, y: 0, backdropFilter: "blur(12px)" }}
+      animate={{ opacity: 1, y: 0, backdropFilter: "blur(14px)" }}
       transition={{ duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
       <motion.div
@@ -59,7 +59,7 @@ export default function LoginCard() {
           style={{
             fontSize: "10px",
             letterSpacing: "5px",
-            color: "rgba(201,168,76,0.6)",
+            color: "rgba(139,26,26,0.65)",
             textTransform: "uppercase",
             marginBottom: "16px",
             fontFamily: "Georgia, serif",
@@ -74,7 +74,7 @@ export default function LoginCard() {
           style={{
             fontSize: "36px",
             letterSpacing: "12px",
-            color: "#ededed",
+            color: "#F0EDE6",
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
             fontWeight: 400,
@@ -90,7 +90,7 @@ export default function LoginCard() {
           style={{
             width: "48px",
             height: "1px",
-            background: "linear-gradient(90deg, transparent, #c9a84c, transparent)",
+            background: "linear-gradient(90deg, transparent, #8B1A1A, transparent)",
             marginBottom: "24px",
             transformOrigin: "center",
           }}
@@ -102,7 +102,7 @@ export default function LoginCard() {
           style={{
             fontSize: "10px",
             letterSpacing: "4px",
-            color: "rgba(201,168,76,0.8)",
+            color: "rgba(139,26,26,0.85)",
             textTransform: "uppercase",
             marginBottom: "16px",
             fontFamily: "Georgia, serif",
@@ -116,7 +116,7 @@ export default function LoginCard() {
           variants={itemVariants}
           style={{
             fontSize: "13px",
-            color: "rgba(237,237,237,0.5)",
+            color: "rgba(240,237,230,0.5)",
             textAlign: "center",
             lineHeight: "1.8",
             marginBottom: "36px",
@@ -173,7 +173,7 @@ export default function LoginCard() {
           variants={itemVariants}
           style={{
             fontSize: "10px",
-            color: "rgba(237,237,237,0.22)",
+            color: "rgba(240,237,230,0.22)",
             letterSpacing: "1px",
             marginBottom: "24px",
             fontFamily: "Georgia, serif",
@@ -188,7 +188,7 @@ export default function LoginCard() {
           style={{
             width: "48px",
             height: "1px",
-            background: "linear-gradient(90deg, transparent, #c9a84c, transparent)",
+            background: "linear-gradient(90deg, transparent, #8B1A1A, transparent)",
             transformOrigin: "center",
           }}
         />

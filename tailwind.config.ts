@@ -9,18 +9,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        gold: {
-          DEFAULT: "#c9a84c",
-          dim: "rgba(201, 168, 76, 0.25)",
-          subtle: "rgba(201, 168, 76, 0.08)",
-          bright: "#e0bf6a",
+        burgundy: {
+          DEFAULT: "#8B1A1A",
+          bright: "#A01515",
+          dim: "rgba(139, 26, 26, 0.3)",
+          subtle: "rgba(139, 26, 26, 0.08)",
+          deep: "#4A0808",
         },
-        obsidian: {
-          DEFAULT: "#0a0a0a",
-          light: "#111111",
-          mid: "#1a1a1a",
+        void: {
+          DEFAULT: "#0D0505",
+          light: "#0A0404",
+          mid: "#160808",
         },
-        cream: "#ededed",
+        cream: "#F0EDE6",
       },
       fontFamily: {
         serif: ["Georgia", "Cambria", "'Times New Roman'", "serif"],

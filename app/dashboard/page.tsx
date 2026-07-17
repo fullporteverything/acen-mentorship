@@ -10,14 +10,14 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="scrollable" style={{ background: "#0a0a0a" }}>
+    <div className="scrollable" style={{ background: "#0D0505" }}>
       {/* Sidebar */}
       <aside className="sidebar">
         {/* Logo */}
         <div
           style={{
             padding: "0 28px 40px",
-            borderBottom: "1px solid rgba(201,168,76,0.1)",
+            borderBottom: "1px solid rgba(139,26,26,0.12)",
             marginBottom: "24px",
           }}
         >
@@ -25,7 +25,7 @@ export default async function DashboardPage() {
             style={{
               fontSize: "11px",
               letterSpacing: "5px",
-              color: "#c9a84c",
+              color: "#8B1A1A",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
             }}
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
             style={{
               fontSize: "9px",
               letterSpacing: "2px",
-              color: "rgba(201,168,76,0.4)",
+              color: "rgba(139,26,26,0.45)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginTop: "4px",
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
             left: 0,
             right: 0,
             padding: "20px 28px",
-            borderTop: "1px solid rgba(201,168,76,0.1)",
+            borderTop: "1px solid rgba(139,26,26,0.12)",
           }}
         >
           <div
@@ -81,13 +81,13 @@ export default async function DashboardPage() {
                 alt="avatar"
                 width={28}
                 height={28}
-                style={{ borderRadius: "50%", border: "1px solid rgba(201,168,76,0.3)" }}
+                style={{ borderRadius: "50%", border: "1px solid rgba(139,26,26,0.35)" }}
               />
             )}
             <p
               style={{
                 fontSize: "11px",
-                color: "rgba(237,237,237,0.6)",
+                color: "rgba(240,237,230,0.6)",
                 fontFamily: "Georgia, serif",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -109,7 +109,7 @@ export default async function DashboardPage() {
               style={{
                 fontSize: "9px",
                 letterSpacing: "3px",
-                color: "rgba(201,168,76,0.45)",
+                color: "rgba(139,26,26,0.55)",
                 textTransform: "uppercase",
                 fontFamily: "Georgia, serif",
                 background: "none",
@@ -136,7 +136,7 @@ export default async function DashboardPage() {
         {/* Header */}
         <div
           style={{
-            borderBottom: "1px solid rgba(201,168,76,0.12)",
+            borderBottom: "1px solid rgba(139,26,26,0.15)",
             paddingBottom: "32px",
             marginBottom: "48px",
           }}
@@ -145,7 +145,7 @@ export default async function DashboardPage() {
             style={{
               fontSize: "10px",
               letterSpacing: "4px",
-              color: "rgba(201,168,76,0.55)",
+              color: "rgba(139,26,26,0.65)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginBottom: "10px",
@@ -158,7 +158,7 @@ export default async function DashboardPage() {
               fontSize: "28px",
               fontWeight: 400,
               letterSpacing: "4px",
-              color: "#ededed",
+              color: "#F0EDE6",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
             }}
@@ -185,15 +185,15 @@ export default async function DashboardPage() {
               key={card.label}
               style={{
                 padding: "28px 24px",
-                border: "1px solid rgba(201,168,76,0.1)",
-                background: "rgba(201,168,76,0.03)",
+                border: "1px solid rgba(139,26,26,0.12)",
+                background: "rgba(139,26,26,0.03)",
               }}
             >
               <p
                 style={{
                   fontSize: "9px",
                   letterSpacing: "3px",
-                  color: "rgba(201,168,76,0.5)",
+                  color: "rgba(139,26,26,0.6)",
                   textTransform: "uppercase",
                   fontFamily: "Georgia, serif",
                   marginBottom: "12px",
@@ -204,7 +204,7 @@ export default async function DashboardPage() {
               <p
                 style={{
                   fontSize: "32px",
-                  color: "#c9a84c",
+                  color: "#8B1A1A",
                   fontFamily: "Georgia, serif",
                   fontWeight: 300,
                   marginBottom: "8px",
@@ -215,7 +215,7 @@ export default async function DashboardPage() {
               <p
                 style={{
                   fontSize: "11px",
-                  color: "rgba(237,237,237,0.25)",
+                  color: "rgba(240,237,230,0.28)",
                   fontFamily: "Georgia, serif",
                   fontStyle: "italic",
                 }}
@@ -230,8 +230,8 @@ export default async function DashboardPage() {
         <div
           style={{
             padding: "36px 32px",
-            border: "1px solid rgba(201,168,76,0.08)",
-            background: "rgba(201,168,76,0.02)",
+            border: "1px solid rgba(139,26,26,0.10)",
+            background: "rgba(139,26,26,0.02)",
             maxWidth: "640px",
           }}
         >
@@ -239,7 +239,7 @@ export default async function DashboardPage() {
             style={{
               fontSize: "9px",
               letterSpacing: "4px",
-              color: "rgba(201,168,76,0.5)",
+              color: "rgba(139,26,26,0.6)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginBottom: "16px",
@@ -250,7 +250,7 @@ export default async function DashboardPage() {
           <p
             style={{
               fontSize: "15px",
-              color: "rgba(237,237,237,0.8)",
+              color: "rgba(240,237,230,0.82)",
               fontFamily: "Georgia, serif",
               lineHeight: "1.9",
               fontStyle: "italic",
@@ -263,7 +263,7 @@ export default async function DashboardPage() {
             style={{
               width: "32px",
               height: "1px",
-              background: "linear-gradient(90deg, #c9a84c, transparent)",
+              background: "linear-gradient(90deg, #8B1A1A, transparent)",
               marginTop: "24px",
             }}
           />

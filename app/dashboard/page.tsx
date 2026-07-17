@@ -10,7 +10,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="scrollable" style={{ background: "#0D0505" }}>
+    <div className="scrollable" style={{ background: "#EADAC0" }}>
       {/* Sidebar */}
       <aside className="sidebar">
         {/* Logo */}

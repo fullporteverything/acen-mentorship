@@ -41,7 +41,7 @@ export default function KanjiBackground() {
         position: "fixed",
         inset: 0,
         zIndex: 0,
-        background: "#0D0505",
+        background: "#EADAC0",
         overflow: "hidden",
       }}
     >

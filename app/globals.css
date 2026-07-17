@@ -9,7 +9,7 @@
   --burgundy-bright: #A01515;
   --burgundy-dim: rgba(139, 26, 26, 0.3);
   --burgundy-subtle: rgba(139, 26, 26, 0.08);
-  --void: #0D0505;
+  --void: #EADAC0;
   --cream: #F0EDE6;
 }
 
@@ -22,7 +22,7 @@
 html,
 body {
   background-color: var(--void);
-  color: var(--cream);
+  color: #1A0808;
   font-family: Georgia, Cambria, "Times New Roman", serif;
   height: 100%;
   overflow: hidden;

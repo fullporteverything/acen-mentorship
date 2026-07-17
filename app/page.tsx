@@ -14,7 +14,7 @@ export default function LoginPage() {
         width: "100vw",
         height: "100vh",
         overflow: "hidden",
-        background: "#0D0505",
+        background: "#EADAC0",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

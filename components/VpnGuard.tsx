@@ -50,7 +50,7 @@ export default function VpnGuard({ children }: VpnGuardProps) {
         <h1
           style={{
             fontFamily: "Georgia, serif",
-            color: "#C41818",
+            color: "#E8A0A0",
             textTransform: "uppercase",
             letterSpacing: "6px",
             fontSize: "clamp(20px, 4vw, 34px)",
@@ -65,14 +65,14 @@ export default function VpnGuard({ children }: VpnGuardProps) {
             width: "40px",
             height: "1px",
             background:
-              "linear-gradient(90deg, transparent, #C41818, transparent)",
+              "linear-gradient(90deg, transparent, #E8A0A0, transparent)",
             marginBottom: "20px",
           }}
         />
         <p
           style={{
             fontFamily: "Georgia, serif",
-            color: "rgba(240,237,230,0.55)",
+            color: "rgba(245,240,240,0.55)",
             fontStyle: "italic",
             fontSize: "14px",
             letterSpacing: "1px",

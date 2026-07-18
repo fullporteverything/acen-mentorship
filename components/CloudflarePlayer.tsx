@@ -34,7 +34,7 @@ export default function CloudflarePlayer({
         // 16:9 aspect ratio box.
         aspectRatio: "16 / 9",
         background: "#000",
-        border: "1px solid rgba(196,24,24,0.15)",
+        border: "1px solid rgba(232,160,160,0.15)",
         overflow: "hidden",
       }}
     >

@@ -16,7 +16,7 @@ export default async function LessonsPage() {
   }
 
   return (
-    <div className="scrollable" style={{ background: "#EADAC0" }}>
+    <div className="scrollable" style={{ background: "#000000" }}>
       <Sidebar active="/dashboard/lessons" />
 
       <main
@@ -34,7 +34,7 @@ export default async function LessonsPage() {
             top: "24px",
             right: "40px",
             fontSize: "64px",
-            color: "rgba(196,24,24,0.07)",
+            color: "rgba(232,160,160,0.07)",
             fontFamily: "serif",
             userSelect: "none",
             lineHeight: 1,
@@ -46,7 +46,7 @@ export default async function LessonsPage() {
         {/* Header */}
         <div
           style={{
-            borderBottom: "1px solid rgba(196,24,24,0.15)",
+            borderBottom: "1px solid rgba(232,160,160,0.15)",
             paddingBottom: "32px",
             marginBottom: "48px",
           }}
@@ -55,7 +55,7 @@ export default async function LessonsPage() {
             style={{
               fontSize: "10px",
               letterSpacing: "4px",
-              color: "#C41818",
+              color: "#E8A0A0",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginBottom: "10px",
@@ -68,7 +68,7 @@ export default async function LessonsPage() {
               fontSize: "28px",
               fontWeight: 400,
               letterSpacing: "4px",
-              color: "#F0EDE6",
+              color: "#F5F0F0",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
             }}
@@ -83,7 +83,7 @@ export default async function LessonsPage() {
             style={{
               fontSize: "9px",
               letterSpacing: "4px",
-              color: "rgba(196,24,24,0.6)",
+              color: "rgba(232,160,160,0.6)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginBottom: "16px",
@@ -97,7 +97,7 @@ export default async function LessonsPage() {
           <p
             style={{
               fontSize: "13px",
-              color: "rgba(240,237,230,0.55)",
+              color: "rgba(245,240,240,0.55)",
               fontFamily: "Georgia, serif",
               lineHeight: "1.9",
               fontStyle: "italic",
@@ -112,7 +112,7 @@ export default async function LessonsPage() {
             style={{
               width: "32px",
               height: "1px",
-              background: "linear-gradient(90deg, #C41818, transparent)",
+              background: "linear-gradient(90deg, #E8A0A0, transparent)",
               marginTop: "24px",
             }}
           />
@@ -123,7 +123,7 @@ export default async function LessonsPage() {
           style={{
             marginTop: "64px",
             fontSize: "13px",
-            color: "rgba(196,24,24,0.18)",
+            color: "rgba(232,160,160,0.18)",
             fontFamily: "serif",
             letterSpacing: "12px",
             userSelect: "none",

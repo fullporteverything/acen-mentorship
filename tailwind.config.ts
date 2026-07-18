@@ -10,18 +10,18 @@ const config: Config = {
     extend: {
       colors: {
         burgundy: {
-          DEFAULT: "#8B1A1A",
-          bright: "#A01515",
-          dim: "rgba(139, 26, 26, 0.3)",
-          subtle: "rgba(139, 26, 26, 0.08)",
-          deep: "#4A0808",
+          DEFAULT: "#E8A0A0",
+          bright: "#F0B0B0",
+          dim: "rgba(232, 160, 160, 0.3)",
+          subtle: "rgba(232, 160, 160, 0.08)",
+          deep: "#8A5A5A",
         },
         void: {
-          DEFAULT: "#0D0505",
-          light: "#0A0404",
-          mid: "#160808",
+          DEFAULT: "#000000",
+          light: "#000000",
+          mid: "#000000",
         },
-        cream: "#F0EDE6",
+        cream: "#F5F0F0",
       },
       fontFamily: {
         serif: ["Georgia", "Cambria", "'Times New Roman'", "serif"],

@@ -5,12 +5,12 @@
 @tailwind utilities;
 
 :root {
-  --burgundy: #C41818;
-  --burgundy-bright: #D42020;
-  --burgundy-dim: rgba(139, 26, 26, 0.3);
-  --burgundy-subtle: rgba(139, 26, 26, 0.08);
-  --void: #EADAC0;
-  --cream: #F0EDE6;
+  --burgundy: #E8A0A0;
+  --burgundy-bright: #F0B0B0;
+  --burgundy-dim: rgba(232, 160, 160, 0.3);
+  --burgundy-subtle: rgba(232, 160, 160, 0.08);
+  --void: #000000;
+  --cream: #F5F0F0;
 }
 
 * {
@@ -22,7 +22,7 @@
 html,
 body {
   background-color: var(--void);
-  color: #1A0808;
+  color: #F5F0F0;
   font-family: Georgia, Cambria, "Times New Roman", serif;
   height: 100%;
   overflow: hidden;
@@ -59,8 +59,8 @@ body {
 .btn-discord {
   display: inline-block;
   padding: 16px 40px;
-  border: 1px solid rgba(196, 24, 24, 0.4);
-  color: #C41818;
+  border: 1px solid rgba(232, 160, 160, 0.4);
+  color: #E8A0A0;
   background: transparent;
   font-family: Georgia, serif;
   font-size: 13px;
@@ -86,7 +86,7 @@ body {
 }
 
 .btn-discord:hover {
-  border-color: rgba(139, 26, 26, 0.6);
+  border-color: rgba(232, 160, 160, 0.6);
   letter-spacing: 5px;
 }
 
@@ -101,7 +101,7 @@ body {
   transform-origin: center;
   letter-spacing: 0.3em;
   font-size: 11px;
-  color: rgba(139, 26, 26, 0.55);
+  color: rgba(232, 160, 160, 0.55);
   text-transform: uppercase;
   z-index: 10;
   user-select: none;
@@ -115,7 +115,7 @@ body {
   right: 28px;
   font-size: 10px;
   letter-spacing: 3px;
-  color: rgba(139, 26, 26, 0.35);
+  color: rgba(232, 160, 160, 0.35);
   text-transform: uppercase;
   z-index: 10;
   user-select: none;
@@ -128,7 +128,7 @@ body {
   text-align: center;
   padding: 64px 56px;
   background: #000000;
-  border: 1px solid rgba(196, 24, 24, 0.15);
+  border: 1px solid rgba(232, 160, 160, 0.15);
   max-width: 440px;
   width: 100%;
 }
@@ -137,8 +137,8 @@ body {
 .sidebar {
   width: 220px;
   min-height: 100vh;
-  background: #0A0404;
-  border-right: 1px solid rgba(139, 26, 26, 0.12);
+  background: #000000;
+  border-right: 1px solid rgba(232, 160, 160, 0.12);
   padding: 40px 0;
   position: fixed;
   left: 0;
@@ -151,7 +151,7 @@ body {
   font-size: 11px;
   letter-spacing: 3px;
   text-transform: uppercase;
-  color: rgba(240, 237, 230, 0.4);
+  color: rgba(245, 240, 240, 0.4);
   transition: color 0.2s ease, background 0.2s ease;
   cursor: pointer;
 }
@@ -159,7 +159,7 @@ body {
 .sidebar-link:hover,
 .sidebar-link.active {
   color: var(--burgundy-bright);
-  background: rgba(139, 26, 26, 0.06);
+  background: rgba(232, 160, 160, 0.06);
 }
 
 .sidebar-link.active {
@@ -174,6 +174,6 @@ body {
   background: var(--void);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 26, 26, 0.3);
+  background: rgba(232, 160, 160, 0.3);
   border-radius: 2px;
 }

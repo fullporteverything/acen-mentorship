@@ -35,7 +35,7 @@ export default async function Sidebar({ active = "/dashboard" }: SidebarProps) {
       <div
         style={{
           padding: "0 28px 40px",
-          borderBottom: "1px solid rgba(196,24,24,0.12)",
+          borderBottom: "1px solid rgba(232,160,160,0.12)",
           marginBottom: "24px",
         }}
       >
@@ -43,7 +43,7 @@ export default async function Sidebar({ active = "/dashboard" }: SidebarProps) {
           style={{
             fontSize: "11px",
             letterSpacing: "5px",
-            color: "#C41818",
+            color: "#E8A0A0",
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
           }}
@@ -54,7 +54,7 @@ export default async function Sidebar({ active = "/dashboard" }: SidebarProps) {
           style={{
             fontSize: "9px",
             letterSpacing: "2px",
-            color: "rgba(196,24,24,0.45)",
+            color: "rgba(232,160,160,0.45)",
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
             marginTop: "4px",
@@ -69,7 +69,7 @@ export default async function Sidebar({ active = "/dashboard" }: SidebarProps) {
         style={{
           padding: "0 28px 20px",
           fontSize: "22px",
-          color: "rgba(196,24,24,0.12)",
+          color: "rgba(232,160,160,0.12)",
           fontFamily: "serif",
           letterSpacing: "8px",
           userSelect: "none",
@@ -99,7 +99,7 @@ export default async function Sidebar({ active = "/dashboard" }: SidebarProps) {
           left: 0,
           right: 0,
           padding: "20px 28px",
-          borderTop: "1px solid rgba(196,24,24,0.12)",
+          borderTop: "1px solid rgba(232,160,160,0.12)",
         }}
       >
         <div
@@ -119,14 +119,14 @@ export default async function Sidebar({ active = "/dashboard" }: SidebarProps) {
               height={28}
               style={{
                 borderRadius: "50%",
-                border: "1px solid rgba(196,24,24,0.35)",
+                border: "1px solid rgba(232,160,160,0.35)",
               }}
             />
           )}
           <p
             style={{
               fontSize: "11px",
-              color: "rgba(240,237,230,0.6)",
+              color: "rgba(245,240,240,0.6)",
               fontFamily: "Georgia, serif",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -148,7 +148,7 @@ export default async function Sidebar({ active = "/dashboard" }: SidebarProps) {
             style={{
               fontSize: "9px",
               letterSpacing: "3px",
-              color: "rgba(196,24,24,0.55)",
+              color: "rgba(232,160,160,0.55)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               background: "none",

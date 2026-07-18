@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
-// Falling sakura petals — cream background, mouse parallax, WebGL
+// Falling sakura petals — solid black background, mouse parallax, WebGL
 
 const PETAL_COUNT = 250;
 
@@ -28,7 +28,7 @@ export default function ThreeBackground() {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0xeadac0, 1);
+    renderer.setClearColor(0x000000, 1);
     mount.appendChild(renderer.domElement);
 
     // Petal texture — soft pink ellipse with radial gradient
@@ -37,8 +37,8 @@ export default function ThreeBackground() {
     canvas.height = 128;
     const ctx = canvas.getContext("2d")!;
     const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0, "rgba(255, 192, 203, 1.0)");
-    gradient.addColorStop(1, "rgba(255, 210, 220, 0)");
+    gradient.addColorStop(0, "rgba(255, 182, 193, 1.0)");
+    gradient.addColorStop(1, "rgba(255, 160, 180, 0)");
     ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.ellipse(64, 64, 40, 60, 0, 0, Math.PI * 2);

@@ -56,7 +56,7 @@ export default function LoginCard() {
           style={{
             fontSize: "10px",
             letterSpacing: "5px",
-            color: "#C41818",
+            color: "#E8A0A0",
             textTransform: "uppercase",
             marginBottom: "16px",
             fontFamily: "Georgia, serif",
@@ -71,7 +71,7 @@ export default function LoginCard() {
           style={{
             fontSize: "36px",
             letterSpacing: "12px",
-            color: "#F0EDE6",
+            color: "#F5F0F0",
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
             fontWeight: 400,
@@ -87,7 +87,7 @@ export default function LoginCard() {
           style={{
             width: "48px",
             height: "1px",
-            background: "linear-gradient(90deg, transparent, #C41818, transparent)",
+            background: "linear-gradient(90deg, transparent, #E8A0A0, transparent)",
             marginBottom: "24px",
             transformOrigin: "center",
           }}
@@ -99,7 +99,7 @@ export default function LoginCard() {
           style={{
             fontSize: "10px",
             letterSpacing: "4px",
-            color: "#C41818",
+            color: "#E8A0A0",
             textTransform: "uppercase",
             marginBottom: "16px",
             fontFamily: "Georgia, serif",
@@ -113,7 +113,7 @@ export default function LoginCard() {
           variants={itemVariants}
           style={{
             fontSize: "13px",
-            color: "rgba(240,237,230,0.6)",
+            color: "rgba(245,240,240,0.6)",
             textAlign: "center",
             lineHeight: "1.8",
             marginBottom: "36px",
@@ -169,7 +169,7 @@ export default function LoginCard() {
           variants={itemVariants}
           style={{
             fontSize: "10px",
-            color: "rgba(240,237,230,0.3)",
+            color: "rgba(245,240,240,0.3)",
             letterSpacing: "1px",
             marginBottom: "24px",
             fontFamily: "Georgia, serif",
@@ -184,7 +184,7 @@ export default function LoginCard() {
           style={{
             width: "48px",
             height: "1px",
-            background: "linear-gradient(90deg, transparent, #C41818, transparent)",
+            background: "linear-gradient(90deg, transparent, #E8A0A0, transparent)",
             transformOrigin: "center",
           }}
         />

@@ -13,7 +13,7 @@ interface CaptureLog {
 const sectionLabel: React.CSSProperties = {
   fontSize: "10px",
   letterSpacing: "4px",
-  color: "#C41818",
+  color: "#E8A0A0",
   textTransform: "uppercase",
   fontFamily: "Georgia, serif",
   marginBottom: "18px",
@@ -21,8 +21,8 @@ const sectionLabel: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   padding: "28px 32px",
-  border: "1px solid rgba(196,24,24,0.12)",
-  background: "rgba(196,24,24,0.02)",
+  border: "1px solid rgba(232,160,160,0.12)",
+  background: "rgba(232,160,160,0.02)",
   maxWidth: "760px",
   marginBottom: "40px",
 };
@@ -80,21 +80,21 @@ export default function AdminPanel() {
                 key={i}
                 style={{
                   padding: "14px 16px",
-                  border: "1px solid rgba(196,24,24,0.10)",
+                  border: "1px solid rgba(232,160,160,0.10)",
                   background: "rgba(0,0,0,0.25)",
                   fontFamily: "Georgia, serif",
                 }}
               >
-                <p style={{ fontSize: "13px", color: "#F0EDE6", marginBottom: "4px" }}>
+                <p style={{ fontSize: "13px", color: "#F5F0F0", marginBottom: "4px" }}>
                   {log.discordUsername || "Unknown member"}
                   {log.discordId ? (
-                    <span style={{ color: "rgba(240,237,230,0.35)" }}>
+                    <span style={{ color: "rgba(245,240,240,0.35)" }}>
                       {" "}
                       · {log.discordId}
                     </span>
                   ) : null}
                 </p>
-                <p style={{ fontSize: "11px", color: "rgba(240,237,230,0.45)" }}>
+                <p style={{ fontSize: "11px", color: "rgba(245,240,240,0.45)" }}>
                   {log.timestamp}
                   {log.ip ? ` · ${log.ip}` : ""}
                 </p>
@@ -130,7 +130,7 @@ export default function AdminPanel() {
 
 const mutedItalic: React.CSSProperties = {
   fontSize: "13px",
-  color: "rgba(240,237,230,0.45)",
+  color: "rgba(245,240,240,0.45)",
   fontFamily: "Georgia, serif",
   fontStyle: "italic",
 };

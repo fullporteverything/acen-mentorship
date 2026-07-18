@@ -13,6 +13,7 @@
  */
 
 import { list, put } from "@vercel/blob";
+import type { Lesson, LessonOverrides } from "./lessons-config";
 
 const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 
@@ -208,6 +209,40 @@ export async function saveAnnouncements(
   announcements: Announcement[]
 ): Promise<void> {
   await writeJson(ANNOUNCEMENTS_PATH, announcements);
+}
+
+// ---------------------------------------------------------------------------
+// Lesson content overrides (inline editing) + admin-added lessons
+//
+// The static curriculum in `lib/lessons-config.ts` is the base. These two
+// blobs layer on top so admins can edit copy and append lessons at runtime:
+//   - dojo/lesson-overrides.json  — { [lessonId]: { title?, description?, homeworkPrompt? } }
+//   - dojo/added-lessons.json     — Lesson[] appended after the static list
+// ---------------------------------------------------------------------------
+
+const LESSON_OVERRIDES_PATH = "dojo/lesson-overrides.json";
+const ADDED_LESSONS_PATH = "dojo/added-lessons.json";
+
+/** Admin content overrides keyed by lessonId. Empty object if none/unreadable. */
+export async function getLessonOverrides(): Promise<LessonOverrides> {
+  const overrides = await readJson<LessonOverrides>(LESSON_OVERRIDES_PATH, {});
+  return overrides && typeof overrides === "object" ? overrides : {};
+}
+
+export async function saveLessonOverrides(
+  overrides: LessonOverrides
+): Promise<void> {
+  await writeJson(LESSON_OVERRIDES_PATH, overrides);
+}
+
+/** Admin-added lessons appended after the static curriculum. */
+export async function getAddedLessons(): Promise<Lesson[]> {
+  const lessons = await readJson<Lesson[]>(ADDED_LESSONS_PATH, []);
+  return Array.isArray(lessons) ? lessons : [];
+}
+
+export async function saveAddedLessons(lessons: Lesson[]): Promise<void> {
+  await writeJson(ADDED_LESSONS_PATH, lessons);
 }
 
 // ---------------------------------------------------------------------------

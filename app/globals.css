@@ -166,6 +166,34 @@ body {
   border-left: 1px solid var(--burgundy);
 }
 
+/* Inline editable text (admin) — CSS-only "double-click to edit" hint */
+.editable-admin {
+  position: relative;
+  cursor: text;
+  border-bottom: 1px dashed rgba(232, 160, 160, 0);
+  transition: border-color 0.2s ease;
+}
+.editable-admin:hover {
+  border-bottom-color: rgba(232, 160, 160, 0.35);
+}
+.editable-admin:hover::after {
+  content: "✎ double-click to edit";
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 4px;
+  white-space: nowrap;
+  font-family: Georgia, serif;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: rgba(232, 160, 160, 0.6);
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(232, 160, 160, 0.2);
+  padding: 3px 8px;
+  pointer-events: none;
+  z-index: 20;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 4px;

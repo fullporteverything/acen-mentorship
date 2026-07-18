@@ -44,9 +44,71 @@ export const LESSONS: Lesson[] = [
   },
 ];
 
-/** Look up a single lesson by its id. */
-export function getLesson(lessonId: string): Lesson | undefined {
-  return LESSONS.find((l) => l.id === lessonId);
+// ---------------------------------------------------------------------------
+// Admin overrides + admin-added lessons
+//
+// The static LESSONS array above is the base curriculum. Admins can, at
+// runtime, (a) override a lesson's title/description/homework prompt and
+// (b) append brand-new lessons. Both layers are persisted in Vercel Blob
+// (see `lib/lesson-store.ts`) and merged over the base list for display and
+// gating. Everything below operates on an "effective" lesson list, which
+// defaults to LESSONS when no overrides/additions are supplied.
+// ---------------------------------------------------------------------------
+
+/** The subset of lesson fields an admin may override at runtime. */
+export interface LessonOverride {
+  title?: string;
+  description?: string;
+  homeworkPrompt?: string;
+}
+
+/** Map of lessonId -> override. */
+export type LessonOverrides = Record<string, LessonOverride>;
+
+/** Fields that inline editing / the overrides API accept. */
+export const OVERRIDABLE_FIELDS = [
+  "title",
+  "description",
+  "homeworkPrompt",
+] as const;
+export type OverridableField = (typeof OVERRIDABLE_FIELDS)[number];
+
+/** Apply any override for `lesson` on top of its static values. */
+export function applyOverrides(
+  lesson: Lesson,
+  overrides: LessonOverrides
+): Lesson {
+  const o = overrides[lesson.id];
+  if (!o) return lesson;
+  return {
+    ...lesson,
+    ...(typeof o.title === "string" ? { title: o.title } : {}),
+    ...(typeof o.description === "string"
+      ? { description: o.description }
+      : {}),
+    ...(typeof o.homeworkPrompt === "string"
+      ? { homeworkPrompt: o.homeworkPrompt }
+      : {}),
+  };
+}
+
+/**
+ * Build the effective curriculum: the static lessons plus any admin-added
+ * lessons (appended in order), with per-lesson overrides applied.
+ */
+export function buildEffectiveLessons(
+  added: Lesson[] = [],
+  overrides: LessonOverrides = {}
+): Lesson[] {
+  return [...LESSONS, ...added].map((l) => applyOverrides(l, overrides));
+}
+
+/** Look up a single lesson by its id, within `lessons` (defaults to LESSONS). */
+export function getLesson(
+  lessonId: string,
+  lessons: Lesson[] = LESSONS
+): Lesson | undefined {
+  return lessons.find((l) => l.id === lessonId);
 }
 
 /**
@@ -65,13 +127,16 @@ export interface LessonState {
   current: boolean;
 }
 
-export function computeLessonStates(completedLessons: string[]): LessonState[] {
+export function computeLessonStates(
+  completedLessons: string[],
+  lessons: Lesson[] = LESSONS
+): LessonState[] {
   const completed = new Set(completedLessons);
   let currentAssigned = false;
 
-  return LESSONS.map((lesson, index) => {
+  return lessons.map((lesson, index) => {
     const isCompleted = completed.has(lesson.id);
-    const unlocked = index === 0 || completed.has(LESSONS[index - 1].id);
+    const unlocked = index === 0 || completed.has(lessons[index - 1].id);
 
     let current = false;
     if (unlocked && !isCompleted && !currentAssigned) {
@@ -86,17 +151,20 @@ export function computeLessonStates(completedLessons: string[]): LessonState[] {
 /** Whether a specific lesson is unlocked for a given completed-lessons list. */
 export function isLessonUnlocked(
   lessonId: string,
-  completedLessons: string[]
+  completedLessons: string[],
+  lessons: Lesson[] = LESSONS
 ): boolean {
-  const idx = LESSONS.findIndex((l) => l.id === lessonId);
+  const idx = lessons.findIndex((l) => l.id === lessonId);
   if (idx <= 0) return idx === 0; // first lesson always unlocked; unknown => false
-  return completedLessons.includes(LESSONS[idx - 1].id);
+  return completedLessons.includes(lessons[idx - 1].id);
 }
 
 /** Lessons grouped by their `group` label, preserving curriculum order. */
-export function getLessonGroups(): { group: string; lessons: Lesson[] }[] {
+export function getLessonGroups(
+  lessons: Lesson[] = LESSONS
+): { group: string; lessons: Lesson[] }[] {
   const groups: { group: string; lessons: Lesson[] }[] = [];
-  for (const lesson of LESSONS) {
+  for (const lesson of lessons) {
     let bucket = groups.find((g) => g.group === lesson.group);
     if (!bucket) {
       bucket = { group: lesson.group, lessons: [] };

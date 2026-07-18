@@ -4,8 +4,18 @@ import Sidebar from "@/components/Sidebar";
 import LessonsSidebar from "@/components/LessonsSidebar";
 import CloudflarePlayer from "@/components/CloudflarePlayer";
 import HomeworkUpload from "@/components/HomeworkUpload";
-import { getLesson, isLessonUnlocked, LESSONS } from "@/lib/lessons-config";
-import { getUserProgress, type SubmissionStatus } from "@/lib/lesson-store";
+import EditableText from "@/components/EditableText";
+import {
+  buildEffectiveLessons,
+  getLesson,
+  isLessonUnlocked,
+} from "@/lib/lessons-config";
+import {
+  getAddedLessons,
+  getLessonOverrides,
+  getUserProgress,
+  type SubmissionStatus,
+} from "@/lib/lesson-store";
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +35,30 @@ export default async function LessonPage({
     redirect("/");
   }
 
-  const lesson = getLesson(params.lessonId);
+  const isAdmin =
+    !!process.env.ADMIN_DISCORD_ID &&
+    session.user.discordId === process.env.ADMIN_DISCORD_ID;
+
+  const discordId = session.user.discordId || session.user.id || "unknown";
+  const [progress, addedLessons, overrides] = await Promise.all([
+    getUserProgress(discordId),
+    getAddedLessons(),
+    getLessonOverrides(),
+  ]);
+
+  const lessons = buildEffectiveLessons(addedLessons, overrides);
+  const lesson = getLesson(params.lessonId, lessons);
   if (!lesson) {
     notFound();
   }
 
-  const discordId = session.user.discordId || session.user.id || "unknown";
-  const progress = await getUserProgress(discordId);
-  const unlocked = isLessonUnlocked(lesson.id, progress.completedLessons);
+  const unlocked = isLessonUnlocked(
+    lesson.id,
+    progress.completedLessons,
+    lessons
+  );
   const submission = progress.submissions[lesson.id];
-  const lessonNumber = LESSONS.findIndex((l) => l.id === lesson.id) + 1;
+  const lessonNumber = lessons.findIndex((l) => l.id === lesson.id) + 1;
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
@@ -51,6 +75,8 @@ export default async function LessonPage({
         <LessonsSidebar
           completedLessons={progress.completedLessons}
           activeLessonId={lesson.id}
+          lessons={lessons}
+          isAdmin={isAdmin}
         />
 
         <div
@@ -81,17 +107,21 @@ export default async function LessonPage({
             >
               Lesson {String(lessonNumber).padStart(2, "0")}
             </p>
-            <h1
+            <EditableText
+              as="h1"
+              isAdmin={isAdmin}
+              lessonId={lesson.id}
+              field="title"
+              value={lesson.title}
               style={{
                 fontSize: "28px",
                 fontWeight: 400,
                 letterSpacing: "3px",
                 color: "#F5F0F0",
                 fontFamily: "Georgia, serif",
+                display: "block",
               }}
-            >
-              {lesson.title}
-            </h1>
+            />
           </div>
 
           {!unlocked ? (
@@ -133,7 +163,12 @@ export default async function LessonPage({
               <div style={{ maxWidth: "860px", marginBottom: "16px" }}>
                 <CloudflarePlayer videoId={lesson.videoId} title={lesson.title} />
               </div>
-              <p
+              <EditableText
+                as="p"
+                isAdmin={isAdmin}
+                lessonId={lesson.id}
+                field="description"
+                value={lesson.description}
                 style={{
                   fontSize: "13px",
                   color: "rgba(245,240,240,0.55)",
@@ -141,10 +176,9 @@ export default async function LessonPage({
                   lineHeight: 1.8,
                   maxWidth: "760px",
                   marginBottom: "48px",
+                  display: "block",
                 }}
-              >
-                {lesson.description}
-              </p>
+              />
 
               {/* Homework */}
               <section style={{ maxWidth: "760px" }}>
@@ -168,17 +202,21 @@ export default async function LessonPage({
                   }}
                 />
 
-                <p
+                <EditableText
+                  as="p"
+                  isAdmin={isAdmin}
+                  lessonId={lesson.id}
+                  field="homeworkPrompt"
+                  value={lesson.homeworkPrompt}
                   style={{
                     fontSize: "14px",
                     color: "#F5F0F0",
                     fontFamily: "Georgia, serif",
                     lineHeight: 1.8,
                     marginBottom: "28px",
+                    display: "block",
                   }}
-                >
-                  {lesson.homeworkPrompt}
-                </p>
+                />
 
                 {/* Status box */}
                 {submission && (

@@ -1,29 +1,41 @@
-import { computeLessonStates, getLessonGroups } from "@/lib/lessons-config";
+import {
+  computeLessonStates,
+  getLessonGroups,
+  LESSONS,
+  type Lesson,
+} from "@/lib/lessons-config";
+import AddLessonForm from "@/components/AddLessonForm";
 
 interface LessonsSidebarProps {
   completedLessons: string[];
   /** Currently open lesson id, if any (highlighted with a pink left border). */
   activeLessonId?: string;
+  /** Effective curriculum (static + admin-added, overrides applied). */
+  lessons?: Lesson[];
+  /** When true, show admin "add lesson"/"add section" controls. */
+  isAdmin?: boolean;
 }
 
 /**
  * The lessons sub-navigation column. Server component — every entry is a plain
  * `<a href>` so it works without client JS. Shows a progress bar, then the
  * curriculum grouped by `group`, with per-lesson completed / locked / current
- * indicators.
+ * indicators. Admins additionally see inline add-lesson / add-section controls.
  */
 export default function LessonsSidebar({
   completedLessons,
   activeLessonId,
+  lessons = LESSONS,
+  isAdmin = false,
 }: LessonsSidebarProps) {
-  const states = computeLessonStates(completedLessons);
+  const states = computeLessonStates(completedLessons, lessons);
   const stateById = new Map(states.map((s) => [s.lesson.id, s]));
 
   const total = states.length;
   const done = states.filter((s) => s.completed).length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
-  const groups = getLessonGroups();
+  const groups = getLessonGroups(lessons);
 
   return (
     <aside
@@ -192,9 +204,19 @@ export default function LessonsSidebar({
                   </a>
                 );
               })}
+
+              {/* Admin: add a lesson to this section */}
+              {isAdmin && <AddLessonForm section={group.group} />}
             </div>
           );
         })}
+
+        {/* Admin: add a brand-new section */}
+        {isAdmin && (
+          <div style={{ marginTop: "16px" }}>
+            <AddLessonForm />
+          </div>
+        )}
       </nav>
     </aside>
   );

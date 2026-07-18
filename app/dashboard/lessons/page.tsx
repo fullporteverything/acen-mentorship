@@ -2,8 +2,13 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import LessonsSidebar from "@/components/LessonsSidebar";
-import { computeLessonStates } from "@/lib/lessons-config";
-import { getAnnouncements, getUserProgress } from "@/lib/lesson-store";
+import { buildEffectiveLessons, computeLessonStates } from "@/lib/lessons-config";
+import {
+  getAddedLessons,
+  getAnnouncements,
+  getLessonOverrides,
+  getUserProgress,
+} from "@/lib/lesson-store";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +19,20 @@ export default async function LessonsPage() {
     redirect("/");
   }
 
+  const isAdmin =
+    !!process.env.ADMIN_DISCORD_ID &&
+    session.user.discordId === process.env.ADMIN_DISCORD_ID;
+
   const discordId = session.user.discordId || session.user.id || "unknown";
-  const [progress, announcements] = await Promise.all([
+  const [progress, announcements, addedLessons, overrides] = await Promise.all([
     getUserProgress(discordId),
     getAnnouncements(),
+    getAddedLessons(),
+    getLessonOverrides(),
   ]);
 
-  const states = computeLessonStates(progress.completedLessons);
+  const lessons = buildEffectiveLessons(addedLessons, overrides);
+  const states = computeLessonStates(progress.completedLessons, lessons);
   const currentState = states.find((s) => s.current);
 
   return (
@@ -36,7 +48,11 @@ export default async function LessonsPage() {
         }}
       >
         {/* Lessons sub-navigation */}
-        <LessonsSidebar completedLessons={progress.completedLessons} />
+        <LessonsSidebar
+          completedLessons={progress.completedLessons}
+          lessons={lessons}
+          isAdmin={isAdmin}
+        />
 
         {/* Content */}
         <div

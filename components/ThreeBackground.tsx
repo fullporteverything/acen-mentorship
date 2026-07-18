@@ -3,18 +3,9 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
-// 3D particle galaxy — CNY red/gold spiral, mouse parallax, WebGL
+// Falling sakura petals — cream background, mouse parallax, WebGL
 
-const PARAMS = {
-  count: 8000,
-  radius: 5,
-  branches: 3,
-  spin: 1.2,
-  randomness: 0.25,
-  randomnessPower: 3.5,
-  innerColor: "#DCB44A",  // gold center
-  outerColor: "#C41818",  // deep red edges
-};
+const PETAL_COUNT = 250;
 
 export default function ThreeBackground() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -26,12 +17,12 @@ export default function ThreeBackground() {
     // Scene
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(
-      65,
+      50,
       window.innerWidth / window.innerHeight,
       0.1,
       100
     );
-    camera.position.set(0, 3.5, 6);
+    camera.position.set(0, 0, 18);
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -40,61 +31,70 @@ export default function ThreeBackground() {
     renderer.setClearColor(0xeadac0, 1);
     mount.appendChild(renderer.domElement);
 
-    // Galaxy geometry
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(PARAMS.count * 3);
-    const colors = new Float32Array(PARAMS.count * 3);
+    // Petal texture — soft pink ellipse with radial gradient
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d")!;
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, "rgba(255, 192, 203, 1.0)");
+    gradient.addColorStop(1, "rgba(255, 210, 220, 0)");
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.ellipse(64, 64, 40, 60, 0, 0, Math.PI * 2);
+    ctx.fill();
 
-    const innerColor = new THREE.Color(PARAMS.innerColor);
-    const outerColor = new THREE.Color(PARAMS.outerColor);
+    const texture = new THREE.CanvasTexture(canvas);
 
-    for (let i = 0; i < PARAMS.count; i++) {
-      const i3 = i * 3;
-      const r = Math.random() * PARAMS.radius;
-      const branchAngle =
-        ((i % PARAMS.branches) / PARAMS.branches) * Math.PI * 2;
-      const spinAngle = r * PARAMS.spin;
-
-      const rx =
-        Math.pow(Math.random(), PARAMS.randomnessPower) *
-        (Math.random() < 0.5 ? 1 : -1) *
-        PARAMS.randomness *
-        r;
-      const ry =
-        Math.pow(Math.random(), PARAMS.randomnessPower) *
-        (Math.random() < 0.5 ? 1 : -1) *
-        PARAMS.randomness *
-        r;
-      const rz =
-        Math.pow(Math.random(), PARAMS.randomnessPower) *
-        (Math.random() < 0.5 ? 1 : -1) *
-        PARAMS.randomness *
-        r;
-
-      positions[i3] = Math.cos(branchAngle + spinAngle) * r + rx;
-      positions[i3 + 1] = ry;
-      positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * r + rz;
-
-      const mixed = innerColor.clone().lerp(outerColor, r / PARAMS.radius);
-      colors[i3] = mixed.r;
-      colors[i3 + 1] = mixed.g;
-      colors[i3 + 2] = mixed.b;
-    }
-
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-
-    const material = new THREE.PointsMaterial({
-      size: 0.028,
-      sizeAttenuation: true,
-      vertexColors: true,
+    // Petal instanced mesh
+    const geometry = new THREE.PlaneGeometry(0.4, 0.65);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
       transparent: true,
-      opacity: 0.88,
+      side: THREE.DoubleSide,
       depthWrite: false,
     });
 
-    const galaxy = new THREE.Points(geometry, material);
-    scene.add(galaxy);
+    const mesh = new THREE.InstancedMesh(geometry, material, PETAL_COUNT);
+    scene.add(mesh);
+
+    // Per-petal state
+    type Petal = {
+      x: number;
+      y: number;
+      z: number;
+      rx: number;
+      ry: number;
+      rz: number;
+      vy: number;
+      rvx: number;
+      rvy: number;
+      rvz: number;
+      swayFreq: number;
+      swayOffset: number;
+    };
+
+    const rand = (min: number, max: number) => min + Math.random() * (max - min);
+
+    const petals: Petal[] = [];
+    for (let i = 0; i < PETAL_COUNT; i++) {
+      petals.push({
+        x: rand(-18, 18),
+        y: rand(-12, 12),
+        z: rand(-3, 3),
+        rx: rand(0, Math.PI * 2),
+        ry: rand(0, Math.PI * 2),
+        rz: rand(0, Math.PI * 2),
+        vy: rand(-0.035, -0.015),
+        rvx: rand(-0.01, 0.01),
+        rvy: rand(-0.01, 0.01),
+        rvz: rand(-0.01, 0.01),
+        swayFreq: rand(0.5, 1.5),
+        swayOffset: rand(0, Math.PI * 2),
+      });
+    }
+
+    const dummy = new THREE.Object3D();
 
     // Mouse parallax
     let mouseX = 0;
@@ -116,14 +116,36 @@ export default function ThreeBackground() {
       animId = requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
 
-      // Slow rotation
-      galaxy.rotation.y = elapsed * 0.06;
+      for (let i = 0; i < PETAL_COUNT; i++) {
+        const p = petals[i];
 
-      // Mouse parallax — smooth lerp
+        // Fall + gentle horizontal sway
+        p.y += p.vy;
+        p.x += Math.sin(elapsed * p.swayFreq + p.swayOffset) * 0.006;
+
+        // Slow 3D rotation on all axes
+        p.rx += p.rvx;
+        p.ry += p.rvy;
+        p.rz += p.rvz;
+
+        // Recycle petals that fall off the bottom
+        if (p.y < -13) {
+          p.y = 13;
+          p.x = rand(-18, 18);
+        }
+
+        dummy.position.set(p.x, p.y, p.z);
+        dummy.rotation.set(p.rx, p.ry, p.rz);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+
+      // Mouse parallax — smooth lerp, subtle tilt
       targetX += (mouseX - targetX) * 0.03;
       targetY += (mouseY - targetY) * 0.03;
-      camera.position.x = targetX * 1.2;
-      camera.position.y = 3.5 + targetY * 0.6;
+      camera.position.x = targetX * 0.5;
+      camera.position.y = targetY * 0.5;
       camera.lookAt(0, 0, 0);
 
       renderer.render(scene, camera);
@@ -145,6 +167,7 @@ export default function ThreeBackground() {
       mount.removeChild(renderer.domElement);
       geometry.dispose();
       material.dispose();
+      texture.dispose();
       renderer.dispose();
     };
   }, []);

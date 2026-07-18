@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { signOut } from "@/auth";
+import Sidebar from "@/components/Sidebar";
 
 // Subtle kanji used as decorative corner/accent elements
 const KANJI_ACCENTS = ["道", "剣", "心", "武", "礼", "修", "練", "気"];
@@ -15,132 +15,7 @@ export default async function DashboardPage() {
   return (
     <div className="scrollable" style={{ background: "#EADAC0" }}>
       {/* Sidebar */}
-      <aside className="sidebar">
-        {/* Logo */}
-        <div
-          style={{
-            padding: "0 28px 40px",
-            borderBottom: "1px solid rgba(196,24,24,0.12)",
-            marginBottom: "24px",
-          }}
-        >
-          <p
-            style={{
-              fontSize: "11px",
-              letterSpacing: "5px",
-              color: "#C41818",
-              textTransform: "uppercase",
-              fontFamily: "Georgia, serif",
-            }}
-          >
-            Dojo
-          </p>
-          <p
-            style={{
-              fontSize: "9px",
-              letterSpacing: "2px",
-              color: "rgba(196,24,24,0.45)",
-              textTransform: "uppercase",
-              fontFamily: "Georgia, serif",
-              marginTop: "4px",
-            }}
-          >
-            Mentorship
-          </p>
-        </div>
-
-        {/* Kanji accent — sidebar decoration */}
-        <div
-          style={{
-            padding: "0 28px 20px",
-            fontSize: "22px",
-            color: "rgba(196,24,24,0.12)",
-            fontFamily: "serif",
-            letterSpacing: "8px",
-            userSelect: "none",
-          }}
-        >
-          道剣心
-        </div>
-
-        {/* Nav links */}
-        <nav>
-          <a className="sidebar-link active" href="/dashboard">Overview</a>
-          <a className="sidebar-link" href="/dashboard/lessons">Lessons</a>
-          <a className="sidebar-link" href="/dashboard/resources">Resources</a>
-          <a className="sidebar-link" href="/dashboard/community">Community</a>
-          <a className="sidebar-link" href="/dashboard/announcements">Announcements</a>
-        </nav>
-
-        {/* User & sign out at bottom */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: "20px 28px",
-            borderTop: "1px solid rgba(196,24,24,0.12)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              marginBottom: "14px",
-            }}
-          >
-            {session.user.image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={session.user.image}
-                alt="avatar"
-                width={28}
-                height={28}
-                style={{ borderRadius: "50%", border: "1px solid rgba(196,24,24,0.35)" }}
-              />
-            )}
-            <p
-              style={{
-                fontSize: "11px",
-                color: "rgba(240,237,230,0.6)",
-                fontFamily: "Georgia, serif",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {session.user.name}
-            </p>
-          </div>
-
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/" });
-            }}
-          >
-            <button
-              type="submit"
-              style={{
-                fontSize: "9px",
-                letterSpacing: "3px",
-                color: "rgba(196,24,24,0.55)",
-                textTransform: "uppercase",
-                fontFamily: "Georgia, serif",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                transition: "color 0.2s",
-              }}
-            >
-              Sign Out
-            </button>
-          </form>
-        </div>
-      </aside>
+      <Sidebar active="/dashboard" />
 
       {/* Main content */}
       <main

@@ -49,6 +49,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token?.sub) {
         session.user.id = token.sub;
       }
+      if (token?.discordId) {
+        session.user.discordId = token.discordId as string;
+      }
       return session;
     },
     async jwt({ token, account, profile }) {

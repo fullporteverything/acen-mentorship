@@ -33,8 +33,19 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
 
   return (
     <header className="topnav">
-      {/* Left cluster: Phi mark + wordmark */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+      {/* Left cluster: Phi mark + wordmark — click returns to /dashboard */}
+      <a
+        href="/dashboard"
+        aria-label="Return to overview"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          minWidth: 0,
+          textDecoration: "none",
+          cursor: "pointer",
+        }}
+      >
         <PhiLogo size={52} />
         <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
           <span
@@ -61,7 +72,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
             Mentorship
           </span>
         </div>
-      </div>
+      </a>
 
       {/* Center cluster: nav links */}
       <nav className="topnav-links">

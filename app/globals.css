@@ -248,6 +248,16 @@ body {
   z-index: 20;
 }
 
+/* Journal entry cards — delete stays hidden until hover, so the card reads clean. */
+.journal-delete {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.journal-entry:hover .journal-delete,
+.journal-entry:focus-within .journal-delete {
+  opacity: 1;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 4px;

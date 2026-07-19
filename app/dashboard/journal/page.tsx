@@ -2,22 +2,29 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import TopNav from "@/components/TopNav";
+import PhiBackdrop from "@/components/PhiBackdrop";
+import JournalComposer from "@/components/JournalComposer";
 import { getJournal, saveJournal, type JournalEntry } from "@/lib/journal-store";
 
 export const dynamic = "force-dynamic";
 
+const MAX_ENTRY = 5000;
+
 /**
- * Journal — per-user reflection ledger. Mirrors the dojo look (kanji corner
- * accent, burgundy rules, serif) and the composer/list pattern from the
- * lessons page. Data is Vercel-Blob backed via lib/journal-store.
+ * Journal — layout mirrors the reference (houseofapostles):
+ *   Header    ← "My Journal" serif + small-caps subtitle with rule
+ *   Streak    ← 🔥 X day streak pill, top-right of the header
+ *   Composer  ← single textarea + live n/5000 + Post Entry button
+ *   Entries   ← minimal cards: timestamp + body (delete on hover)
+ *   Backdrop  ← drifting Φ marks (dojo-flavored version of APOSTLES letters)
  */
 export default async function JournalPage() {
   const session = await auth();
   if (!session?.user) redirect("/");
 
-  const discordId =
-    session.user.discordId || session.user.id || "unknown";
+  const discordId = session.user.discordId || session.user.id || "unknown";
   const entries = await getJournal(discordId);
+  const streak = computeStreak(entries);
 
   async function createEntry(formData: FormData) {
     "use server";
@@ -25,16 +32,14 @@ export default async function JournalPage() {
     if (!s?.user) return;
     const uid = s.user.discordId || s.user.id || "unknown";
 
-    const title = String(formData.get("title") ?? "").trim().slice(0, 200);
-    const body = String(formData.get("body") ?? "").trim().slice(0, 10000);
-    const mood = String(formData.get("mood") ?? "").trim().slice(0, 40);
+    const body = String(formData.get("body") ?? "").trim().slice(0, MAX_ENTRY);
     if (!body) return;
 
     const entry: JournalEntry = {
       id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-      title: title || "Untitled",
+      title: "",
       body,
-      mood,
+      mood: "",
       createdAt: new Date().toISOString(),
     };
 
@@ -51,249 +56,184 @@ export default async function JournalPage() {
     const id = String(formData.get("id") ?? "");
     if (!id) return;
     const current = await getJournal(uid);
-    await saveJournal(
-      uid,
-      current.filter((e) => e.id !== id)
-    );
+    await saveJournal(uid, current.filter((e) => e.id !== id));
     revalidatePath("/dashboard/journal");
   }
 
   return (
-    <div className="scrollable" style={{ background: "#000000" }}>
+    <div className="scrollable" style={{ background: "#000000", position: "relative" }}>
       <TopNav active="/dashboard/journal" />
+
+      {/* Ambient drifting-Φ layer */}
+      <PhiBackdrop />
 
       <main
         style={{
-          marginTop: "76px",
-          padding: "60px 56px",
-          minHeight: "calc(100vh - 76px)",
           position: "relative",
+          zIndex: 1,
+          marginTop: 76,
+          padding: "72px 40px 96px",
+          minHeight: "calc(100vh - 76px)",
         }}
       >
-        {/* Kanji corner accent — 念 (thought / mindfulness) */}
-        <div
-          style={{
-            position: "absolute",
-            top: 24,
-            right: 40,
-            fontSize: 64,
-            color: "rgba(232,160,160,0.07)",
-            fontFamily: "serif",
-            userSelect: "none",
-            lineHeight: 1,
-          }}
-        >
-          念
-        </div>
-
-        {/* Header */}
-        <div
-          style={{
-            borderBottom: "1px solid rgba(232,160,160,0.15)",
-            paddingBottom: 32,
-            marginBottom: 40,
-          }}
-        >
-          <p
+        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+          {/* Header row: title/subtitle left, streak card right */}
+          <header
             style={{
-              fontSize: 10,
-              letterSpacing: 4,
-              color: "#E8A0A0",
-              textTransform: "uppercase",
-              fontFamily: "Georgia, serif",
-              marginBottom: 10,
-            }}
-          >
-            Journal
-          </p>
-          <h1
-            style={{
-              fontSize: 28,
-              fontWeight: 400,
-              letterSpacing: 4,
-              color: "#F5F0F0",
-              textTransform: "uppercase",
-              fontFamily: "Georgia, serif",
-            }}
-          >
-            The Ledger
-          </h1>
-          <p
-            style={{
-              marginTop: 14,
-              fontSize: 13,
-              color: "rgba(245,240,240,0.55)",
-              fontFamily: "Georgia, serif",
-              fontStyle: "italic",
-              maxWidth: 560,
-              lineHeight: 1.8,
-            }}
-          >
-            Reflections, reads, discipline. What you write here stays private to
-            your account.
-          </p>
-        </div>
-
-        {/* Composer */}
-        <section style={{ maxWidth: 760, marginBottom: 56 }}>
-          <p
-            style={{
-              fontSize: 9,
-              letterSpacing: 4,
-              color: "rgba(232,160,160,0.6)",
-              textTransform: "uppercase",
-              fontFamily: "Georgia, serif",
-              marginBottom: 16,
-            }}
-          >
-            New Entry
-          </p>
-
-          <form
-            action={createEntry}
-            style={{
-              border: "1px solid rgba(232,160,160,0.12)",
-              background: "rgba(232,160,160,0.02)",
-              padding: "24px 26px",
               display: "flex",
-              flexDirection: "column",
-              gap: 16,
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 24,
+              marginBottom: 40,
+              flexWrap: "wrap",
             }}
           >
-            <input
-              name="title"
-              placeholder="Title"
-              maxLength={200}
-              style={inputStyle}
-            />
-            <textarea
-              name="body"
-              placeholder="What did you see today?"
-              rows={7}
-              maxLength={10000}
-              required
-              style={{ ...inputStyle, resize: "vertical", minHeight: 140 }}
-            />
-            <div
-              style={{
-                display: "flex",
-                gap: 16,
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-              }}
-            >
-              <input
-                name="mood"
-                placeholder="Tag / mood (e.g. sharp, hesitant, waiting)"
-                maxLength={40}
-                style={{ ...inputStyle, maxWidth: 320 }}
-              />
-              <button type="submit" className="btn-discord" style={{ padding: "12px 28px" }}>
-                Inscribe
-              </button>
-            </div>
-          </form>
-        </section>
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <h1
+                style={{
+                  fontFamily: "'Cormorant Garamond', Georgia, serif",
+                  fontSize: 42,
+                  fontWeight: 500,
+                  letterSpacing: 1,
+                  color: "#E8A0A0",
+                  marginBottom: 14,
+                }}
+              >
+                My Journal
+              </h1>
 
-        {/* Entries */}
-        <section style={{ maxWidth: 760 }}>
-          <p
-            style={{
-              fontSize: 9,
-              letterSpacing: 4,
-              color: "rgba(232,160,160,0.6)",
-              textTransform: "uppercase",
-              fontFamily: "Georgia, serif",
-              marginBottom: 20,
-            }}
-          >
-            Entries · {entries.length}
-          </p>
-
-          {entries.length === 0 ? (
-            <div
-              style={{
-                border: "1px dashed rgba(232,160,160,0.18)",
-                padding: "40px 28px",
-                textAlign: "center",
-                color: "rgba(245,240,240,0.4)",
-                fontFamily: "Georgia, serif",
-                fontStyle: "italic",
-                fontSize: 13,
-              }}
-            >
-              The ledger is empty. First inscription writes it into being.
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    display: "inline-block",
+                    width: 48,
+                    height: 1,
+                    background: "rgba(232,160,160,0.55)",
+                  }}
+                />
+                <p
+                  style={{
+                    fontSize: 11,
+                    letterSpacing: 4,
+                    color: "rgba(245,240,240,0.7)",
+                    textTransform: "uppercase",
+                    fontFamily: "Georgia, serif",
+                  }}
+                >
+                  Private journal between you and your mentor
+                </p>
+              </div>
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {entries.map((e) => (
-                <JournalCard key={e.id} entry={e} onDelete={deleteEntry} />
-              ))}
-            </div>
-          )}
-        </section>
 
-        {/* Kanji footer accent */}
-        <div
-          style={{
-            marginTop: 72,
-            fontSize: 13,
-            color: "rgba(232,160,160,0.18)",
-            fontFamily: "serif",
-            letterSpacing: 12,
-            userSelect: "none",
-          }}
-        >
-          念記省心律
+            <StreakPill count={streak} />
+          </header>
+
+          {/* Composer */}
+          <section style={{ marginBottom: 64 }}>
+            <JournalComposer action={createEntry} />
+          </section>
+
+          {/* Entries */}
+          <section>
+            {entries.length === 0 ? (
+              <div
+                style={{
+                  border: "1px dashed rgba(232,160,160,0.18)",
+                  padding: "44px 28px",
+                  textAlign: "center",
+                  color: "rgba(245,240,240,0.4)",
+                  fontFamily: "Georgia, serif",
+                  fontStyle: "italic",
+                  fontSize: 13,
+                }}
+              >
+                No entries yet. Your first post starts the streak.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                {entries.map((e) => (
+                  <EntryCard key={e.id} entry={e} onDelete={deleteEntry} />
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </main>
     </div>
   );
 }
 
-function JournalCard({
+function StreakPill({ count }: { count: number }) {
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(232,160,160,0.25)",
+        background: "rgba(232,160,160,0.04)",
+        padding: "12px 18px",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        minWidth: 148,
+      }}
+    >
+      <span style={{ fontSize: 22, lineHeight: 1 }} aria-hidden>
+        🔥
+      </span>
+      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
+        <span
+          style={{
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            fontSize: 24,
+            fontWeight: 500,
+            color: "#F5F0F0",
+          }}
+        >
+          {count}
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            letterSpacing: 2,
+            color: "rgba(245,240,240,0.55)",
+            textTransform: "uppercase",
+            fontFamily: "Georgia, serif",
+            marginTop: 2,
+          }}
+        >
+          day streak
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function EntryCard({
   entry,
   onDelete,
 }: {
   entry: JournalEntry;
   onDelete: (formData: FormData) => Promise<void>;
 }) {
-  const date = new Date(entry.createdAt);
-  const dateStr = date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
-  const timeStr = date.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const d = new Date(entry.createdAt);
+  const stamp = `${d.toLocaleDateString()}, ${d.toLocaleTimeString()}`;
 
   return (
     <article
+      className="journal-entry"
       style={{
         position: "relative",
         border: "1px solid rgba(232,160,160,0.12)",
-        background: "rgba(232,160,160,0.03)",
-        padding: "24px 26px 22px",
-        overflow: "hidden",
+        background: "rgba(0,0,0,0.5)",
+        padding: "20px 24px 22px",
       }}
     >
-      {/* Left rule — subtle burgundy stripe like an announcement */}
-      <span
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 2,
-          background:
-            "linear-gradient(180deg, rgba(232,160,160,0.7), rgba(232,160,160,0.05))",
-        }}
-      />
-
-      {/* Date + mood row */}
       <header
         style={{
           display: "flex",
@@ -301,49 +241,20 @@ function JournalCard({
           justifyContent: "space-between",
           gap: 12,
           marginBottom: 14,
-          flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", gap: 14, alignItems: "baseline" }}>
-          <span
-            style={{
-              fontSize: 10,
-              letterSpacing: 3,
-              color: "#E8A0A0",
-              textTransform: "uppercase",
-              fontFamily: "Georgia, serif",
-            }}
-          >
-            {dateStr}
-          </span>
-          <span
-            style={{
-              fontSize: 10,
-              color: "rgba(245,240,240,0.35)",
-              fontFamily: "Georgia, serif",
-              letterSpacing: 2,
-            }}
-          >
-            {timeStr}
-          </span>
-          {entry.mood && (
-            <span
-              style={{
-                fontSize: 10,
-                letterSpacing: 2,
-                color: "rgba(232,160,160,0.8)",
-                textTransform: "uppercase",
-                fontFamily: "Georgia, serif",
-                border: "1px solid rgba(232,160,160,0.3)",
-                padding: "2px 8px",
-              }}
-            >
-              {entry.mood}
-            </span>
-          )}
-        </div>
+        <span
+          style={{
+            fontSize: 11,
+            color: "rgba(245,240,240,0.45)",
+            fontFamily: "Georgia, serif",
+            letterSpacing: 1,
+          }}
+        >
+          {stamp}
+        </span>
 
-        <form action={onDelete}>
+        <form action={onDelete} className="journal-delete">
           <input type="hidden" name="id" value={entry.id} />
           <button
             type="submit"
@@ -351,65 +262,73 @@ function JournalCard({
             style={{
               background: "transparent",
               border: "none",
-              color: "rgba(232,160,160,0.35)",
+              color: "rgba(232,160,160,0.5)",
               cursor: "pointer",
               fontFamily: "Georgia, serif",
               fontSize: 10,
-              letterSpacing: 3,
+              letterSpacing: 2,
               textTransform: "uppercase",
               padding: 0,
             }}
           >
-            Burn
+            Delete
           </button>
         </form>
       </header>
 
-      <h3
-        style={{
-          fontSize: 18,
-          fontWeight: 400,
-          color: "#F5F0F0",
-          fontFamily: "Georgia, serif",
-          letterSpacing: 1.5,
-          marginBottom: 10,
-        }}
-      >
-        {entry.title}
-      </h3>
-
       <p
         style={{
-          fontSize: 14,
-          color: "rgba(245,240,240,0.78)",
+          fontSize: 15,
+          color: "rgba(245,240,240,0.9)",
           fontFamily: "Georgia, serif",
           lineHeight: 1.9,
           whiteSpace: "pre-wrap",
+          wordWrap: "break-word",
         }}
       >
         {entry.body}
       </p>
-
-      <div
-        style={{
-          marginTop: 20,
-          width: 32,
-          height: 1,
-          background: "linear-gradient(90deg, #E8A0A0, transparent)",
-        }}
-      />
     </article>
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  background: "rgba(0,0,0,0.5)",
-  border: "1px solid rgba(232,160,160,0.18)",
-  color: "#F5F0F0",
-  fontFamily: "Georgia, serif",
-  fontSize: 14,
-  padding: "12px 14px",
-  outline: "none",
-  letterSpacing: 0.5,
-};
+/**
+ * Consecutive-day streak ending at the most recent entry.
+ * Uses local calendar days.
+ */
+function computeStreak(entries: JournalEntry[]): number {
+  if (entries.length === 0) return 0;
+
+  const days = new Set<string>();
+  for (const e of entries) {
+    const d = new Date(e.createdAt);
+    if (isNaN(d.getTime())) continue;
+    days.add(dayKey(d));
+  }
+  if (days.size === 0) return 0;
+
+  // Start from today if there's an entry today, otherwise start from the most
+  // recent entry's day (so a streak is still visible if you haven't posted yet
+  // today but had one yesterday).
+  const today = dayKey(new Date());
+  let cursor = new Date();
+  if (!days.has(today)) {
+    const latest = entries
+      .map((e) => new Date(e.createdAt))
+      .filter((d) => !isNaN(d.getTime()))
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+    if (!latest) return 0;
+    cursor = latest;
+  }
+
+  let streak = 0;
+  while (days.has(dayKey(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}

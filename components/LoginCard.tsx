@@ -5,10 +5,12 @@ import { signIn } from "next-auth/react";
 import { useEffect, useState } from "react";
 import PhiLogo from "@/components/PhiLogo";
 import ThresholdOverlay from "@/components/ThresholdOverlay";
+import CrackedGate from "@/components/CrackedGate";
 
-export default function LoginCard() {
+export default function LoginCard({ errorCode }: { errorCode?: string } = {}) {
   const [loading, setLoading] = useState(false);
   const [entering, setEntering] = useState(false);
+  const errored = !!errorCode;
 
   // Safety fallback — if OAuth handoff hasn't navigated us away after 6s,
   // release the overlay so the user can retry instead of staring at black.
@@ -61,6 +63,7 @@ export default function LoginCard() {
   return (
     <>
       <AnimatePresence>{entering && <ThresholdOverlay />}</AnimatePresence>
+      <AnimatePresence>{errored && <CrackedGate code={errorCode} />}</AnimatePresence>
 
     <motion.div
       className="login-card"

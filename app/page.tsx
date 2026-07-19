@@ -6,7 +6,15 @@ const KanjiBackground = dynamic(() => import("@/components/ThreeBackground"), {
   ssr: false,
 });
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const rawError = params.error;
+  const errorCode = Array.isArray(rawError) ? rawError[0] : rawError;
+
   return (
     <main
       style={{
@@ -20,7 +28,7 @@ export default function LoginPage() {
         justifyContent: "center",
       }}
     >
-      {/* Drifting kanji background */}
+      {/* Drifting sakura background */}
       <KanjiBackground />
 
       {/* Fixed vertical brand text — left side */}
@@ -28,8 +36,8 @@ export default function LoginPage() {
         Dojo&nbsp;&nbsp;Mentorship
       </div>
 
-      {/* Center login card */}
-      <LoginCard />
+      {/* Center login card (also renders CrackedGate overlay when errorCode is present) */}
+      <LoginCard errorCode={errorCode} />
     </main>
   );
 }

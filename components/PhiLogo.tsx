@@ -107,11 +107,12 @@ export default function PhiLogo({ size = 56 }: { size?: number }) {
             transition={{ duration: 1.2, ease: "easeOut" }}
           />
 
-          {/* Rotating outer tick ring — 12 marks. */}
+          {/* Rotating outer tick ring — full 360° CCW, timed to the halo pulse
+             so the emphasized marks come around in sync with each glow beat. */}
           <motion.g
             style={{ transformOrigin: "50px 50px" }}
-            animate={{ rotate: 360 }}
-            transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
+            animate={{ rotate: -360 }}
+            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
           >
             {Array.from({ length: 12 }).map((_, i) => {
               const angle = (i * 360) / 12;

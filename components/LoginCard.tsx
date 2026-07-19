@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
+import PhiLogo from "@/components/PhiLogo";
 
 export default function LoginCard() {
   const [loading, setLoading] = useState(false);
@@ -50,6 +51,11 @@ export default function LoginCard() {
         animate="visible"
         className="flex flex-col items-center gap-0"
       >
+        {/* Phi mark — identity anchor. Reversible: remove this <motion.div>. */}
+        <motion.div variants={itemVariants} style={{ marginBottom: 18 }}>
+          <PhiLogo size={124} />
+        </motion.div>
+
         {/* Welcome */}
         <motion.p
           variants={itemVariants}

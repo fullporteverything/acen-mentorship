@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
+import TopNav from "@/components/TopNav";
 
 // Subtle kanji used as decorative corner/accent elements
 const KANJI_ACCENTS = ["道", "剣", "心", "武", "礼", "修", "練", "気"];
@@ -14,15 +14,15 @@ export default async function DashboardPage() {
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
-      {/* Sidebar */}
-      <Sidebar active="/dashboard" />
+      {/* Top nav */}
+      <TopNav active="/dashboard" />
 
       {/* Main content */}
       <main
         style={{
-          marginLeft: "220px",
+          marginTop: "76px",
           padding: "60px 56px",
-          minHeight: "100vh",
+          minHeight: "calc(100vh - 76px)",
           position: "relative",
         }}
       >

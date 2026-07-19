@@ -133,37 +133,91 @@ body {
   width: 100%;
 }
 
-/* Dashboard sidebar */
-.sidebar {
-  width: 220px;
-  min-height: 100vh;
-  background: #000000;
-  border-right: 1px solid rgba(232, 160, 160, 0.12);
-  padding: 40px 0;
+/* Dashboard top navigation — height + gutter reserved by .topnav-page */
+.topnav {
+  height: 76px;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(232, 160, 160, 0.12);
   position: fixed;
-  left: 0;
   top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 0 32px;
 }
 
-.sidebar-link {
-  display: block;
-  padding: 12px 28px;
+.topnav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.topnav-links::-webkit-scrollbar {
+  display: none;
+}
+
+.topnav-link {
+  position: relative;
+  display: inline-block;
+  padding: 10px 18px;
   font-size: 11px;
   letter-spacing: 3px;
   text-transform: uppercase;
   color: rgba(245, 240, 240, 0.4);
-  transition: color 0.2s ease, background 0.2s ease;
+  font-family: Georgia, serif;
+  transition: color 0.25s ease;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.sidebar-link:hover,
-.sidebar-link.active {
+.topnav-link::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 6px;
+  height: 1px;
+  background: var(--burgundy);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.3s ease;
+}
+
+.topnav-link:hover {
   color: var(--burgundy-bright);
-  background: rgba(232, 160, 160, 0.06);
 }
 
-.sidebar-link.active {
-  border-left: 1px solid var(--burgundy);
+.topnav-link:hover::after,
+.topnav-link.active::after {
+  transform: scaleX(1);
+}
+
+.topnav-link.active {
+  color: var(--burgundy-bright);
+}
+
+/* Narrow-window tuck: hide the username past ~900px so the nav still fits. */
+@media (max-width: 900px) {
+  .topnav-username {
+    display: none;
+  }
+  .topnav {
+    padding: 0 20px;
+  }
+  .topnav-link {
+    padding: 10px 12px;
+    letter-spacing: 2px;
+  }
 }
 
 /* Inline editable text (admin) — CSS-only "double-click to edit" hint */

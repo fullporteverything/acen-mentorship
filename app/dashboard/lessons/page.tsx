@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
+import TopNav from "@/components/TopNav";
 import LessonsSidebar from "@/components/LessonsSidebar";
 import { buildEffectiveLessons, computeLessonStates } from "@/lib/lessons-config";
 import {
@@ -37,12 +37,12 @@ export default async function LessonsPage() {
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
-      <Sidebar active="/dashboard/lessons" />
+      <TopNav active="/dashboard/lessons" />
 
       <main
         style={{
-          marginLeft: "220px",
-          minHeight: "100vh",
+          marginTop: "76px",
+          minHeight: "calc(100vh - 76px)",
           display: "flex",
           alignItems: "stretch",
         }}

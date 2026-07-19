@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
+import TopNav from "@/components/TopNav";
 import AdminPanel from "@/components/AdminPanel";
 
 export default async function AdminPage() {
@@ -16,13 +16,13 @@ export default async function AdminPage() {
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
-      <Sidebar active="/dashboard/admin" />
+      <TopNav active="/dashboard/admin" />
 
       <main
         style={{
-          marginLeft: "220px",
+          marginTop: "76px",
           padding: "60px 56px",
-          minHeight: "100vh",
+          minHeight: "calc(100vh - 76px)",
           position: "relative",
         }}
       >

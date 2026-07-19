@@ -1,16 +1,36 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PhiLogo from "@/components/PhiLogo";
+import ThresholdOverlay from "@/components/ThresholdOverlay";
 
 export default function LoginCard() {
   const [loading, setLoading] = useState(false);
+  const [entering, setEntering] = useState(false);
+
+  // Safety fallback — if OAuth handoff hasn't navigated us away after 6s,
+  // release the overlay so the user can retry instead of staring at black.
+  useEffect(() => {
+    if (!entering) return;
+    const t = setTimeout(() => {
+      setEntering(false);
+      setLoading(false);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [entering]);
 
   const handleDiscordLogin = async () => {
     setLoading(true);
-    await signIn("discord", { callbackUrl: "/dashboard" });
+    setEntering(true);
+    // Fire the redirect in parallel with the overlay animation. The browser
+    // typically navigates before the wipe finishes, so the transition covers
+    // the whole handoff instead of tacking on extra wait time.
+    signIn("discord", { callbackUrl: "/dashboard" }).catch(() => {
+      setEntering(false);
+      setLoading(false);
+    });
   };
 
   const containerVariants = {
@@ -39,6 +59,9 @@ export default function LoginCard() {
   };
 
   return (
+    <>
+      <AnimatePresence>{entering && <ThresholdOverlay />}</AnimatePresence>
+
     <motion.div
       className="login-card"
       initial={{ opacity: 0, y: 24 }}
@@ -196,5 +219,6 @@ export default function LoginCard() {
         />
       </motion.div>
     </motion.div>
+    </>
   );
 }

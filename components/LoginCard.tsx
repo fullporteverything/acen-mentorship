@@ -7,9 +7,13 @@ import PhiLogo from "@/components/PhiLogo";
 import ThresholdOverlay from "@/components/ThresholdOverlay";
 import CrackedGate from "@/components/CrackedGate";
 
+// Idle time before the login card slips into meditation mode.
+const MEDITATION_IDLE_MS = 30_000;
+
 export default function LoginCard({ errorCode }: { errorCode?: string } = {}) {
   const [loading, setLoading] = useState(false);
   const [entering, setEntering] = useState(false);
+  const [meditating, setMeditating] = useState(false);
   const errored = !!errorCode;
 
   // Safety fallback — if OAuth handoff hasn't navigated us away after 6s,
@@ -23,9 +27,40 @@ export default function LoginCard({ errorCode }: { errorCode?: string } = {}) {
     return () => clearTimeout(t);
   }, [entering]);
 
+  // Meditation mode — 30s of no interaction dims the card and enlarges the
+  // Phi. Any pointer/key activity wakes it. Paused while the cracked-gate
+  // overlay is showing or an OAuth cross is in flight.
+  useEffect(() => {
+    if (errored || entering) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setMeditating(true), MEDITATION_IDLE_MS);
+    };
+    const wake = () => {
+      setMeditating(false);
+      arm();
+    };
+    arm();
+    const events: (keyof WindowEventMap)[] = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "touchstart",
+      "wheel",
+      "scroll",
+    ];
+    for (const ev of events) window.addEventListener(ev, wake, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      for (const ev of events) window.removeEventListener(ev, wake);
+    };
+  }, [errored, entering]);
+
   const handleDiscordLogin = async () => {
     setLoading(true);
     setEntering(true);
+    setMeditating(false);
     // Fire the redirect in parallel with the overlay animation. The browser
     // typically navigates before the wipe finishes, so the transition covers
     // the whole handoff instead of tacking on extra wait time.
@@ -65,6 +100,26 @@ export default function LoginCard({ errorCode }: { errorCode?: string } = {}) {
       <AnimatePresence>{entering && <ThresholdOverlay />}</AnimatePresence>
       <AnimatePresence>{errored && <CrackedGate code={errorCode} />}</AnimatePresence>
 
+      {/* Meditation dimmer — fades in over the sakura when the user goes idle. */}
+      <AnimatePresence>
+        {meditating && (
+          <motion.div
+            aria-hidden
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 5,
+              background: "rgba(0,0,0,0.55)",
+              pointerEvents: "none",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.4, ease: "easeOut" }}
+          />
+        )}
+      </AnimatePresence>
+
     <motion.div
       className="login-card"
       initial={{ opacity: 0, y: 24 }}
@@ -77,10 +132,28 @@ export default function LoginCard({ errorCode }: { errorCode?: string } = {}) {
         animate="visible"
         className="flex flex-col items-center gap-0"
       >
-        {/* Phi mark — identity anchor. Reversible: remove this <motion.div>. */}
-        <motion.div variants={itemVariants} style={{ marginBottom: 18 }}>
+        {/* Phi mark — identity anchor. Scales up + rises in meditation mode.
+           Reversible: remove this <motion.div>. */}
+        <motion.div
+          variants={itemVariants}
+          style={{ marginBottom: 18, transformOrigin: "center" }}
+          animate={{ scale: meditating ? 1.55 : 1, y: meditating ? -14 : 0 }}
+          transition={{ duration: 1.6, ease: [0.22, 1, 0.36, 1] }}
+        >
           <PhiLogo size={124} />
         </motion.div>
+
+        {/* Wraps everything below the Phi so meditation can dim it in one motion. */}
+        <motion.div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            width: "100%",
+          }}
+          animate={{ opacity: meditating ? 0.18 : 1 }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
+        >
 
         {/* Welcome */}
         <motion.p
@@ -220,6 +293,30 @@ export default function LoginCard({ errorCode }: { errorCode?: string } = {}) {
             transformOrigin: "center",
           }}
         />
+        </motion.div>{/* end dim-on-meditation wrapper */}
+
+        {/* Meditation tag — 静 (stillness), fades in only when idle. */}
+        <AnimatePresence>
+          {meditating && (
+            <motion.p
+              key="meditation-tag"
+              style={{
+                marginTop: 20,
+                fontSize: 10,
+                letterSpacing: 6,
+                color: "rgba(232,160,160,0.7)",
+                textTransform: "uppercase",
+                fontFamily: "Georgia, serif",
+              }}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
+            >
+              静&nbsp;&nbsp;stillness
+            </motion.p>
+          )}
+        </AnimatePresence>
       </motion.div>
     </motion.div>
     </>

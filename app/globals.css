@@ -248,6 +248,39 @@ body {
   z-index: 20;
 }
 
+/* Announcement cards — faint burgundy pulse while unread.
+   Reads as "hey, look at this" without shouting. */
+.announcement-card {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
+}
+.announcement-unread {
+  animation: announce-pulse 2.4s ease-in-out infinite;
+}
+.announcement-unread:hover {
+  transform: translateY(-1px);
+}
+@keyframes announce-pulse {
+  0%, 100% {
+    border-color: rgba(232, 160, 160, 0.28);
+    box-shadow:
+      0 0 0 1px rgba(232, 160, 160, 0.05),
+      0 0 0 0 rgba(232, 160, 160, 0);
+  }
+  50% {
+    border-color: rgba(232, 160, 160, 0.7);
+    box-shadow:
+      0 0 0 1px rgba(232, 160, 160, 0.3),
+      0 0 22px 2px rgba(232, 160, 160, 0.28);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .announcement-unread {
+    animation: none;
+    border-color: rgba(232, 160, 160, 0.55);
+    box-shadow: 0 0 0 1px rgba(232, 160, 160, 0.2);
+  }
+}
+
 /* Journal entry cards — delete stays hidden until hover, so the card reads clean. */
 .journal-delete {
   opacity: 0;

@@ -1,6 +1,10 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import TopNav from "@/components/TopNav";
+import AnnouncementsFeed from "@/components/AnnouncementsFeed";
+import { getAnnouncements, getSeenAnnouncements } from "@/lib/lesson-store";
+
+export const dynamic = "force-dynamic";
 
 // Subtle kanji used as decorative corner/accent elements
 const KANJI_ACCENTS = ["道", "剣", "心", "武", "礼", "修", "練", "気"];
@@ -11,6 +15,13 @@ export default async function DashboardPage() {
   if (!session?.user) {
     redirect("/");
   }
+
+  const discordId =
+    session.user.discordId || session.user.id || "unknown";
+  const [announcements, seen] = await Promise.all([
+    getAnnouncements(),
+    getSeenAnnouncements(discordId),
+  ]);
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
@@ -152,65 +163,8 @@ export default async function DashboardPage() {
           ))}
         </div>
 
-        {/* Welcome message */}
-        <div
-          style={{
-            padding: "36px 32px",
-            border: "1px solid rgba(232,160,160,0.10)",
-            background: "rgba(232,160,160,0.02)",
-            maxWidth: "640px",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          {/* Kanji accent — announcement block */}
-          <span
-            style={{
-              position: "absolute",
-              top: "8px",
-              right: "20px",
-              fontSize: "48px",
-              color: "rgba(232,160,160,0.06)",
-              fontFamily: "serif",
-              userSelect: "none",
-              lineHeight: 1,
-            }}
-          >
-            気
-          </span>
-          <p
-            style={{
-              fontSize: "9px",
-              letterSpacing: "4px",
-              color: "rgba(232,160,160,0.6)",
-              textTransform: "uppercase",
-              fontFamily: "Georgia, serif",
-              marginBottom: "16px",
-            }}
-          >
-            Announcement
-          </p>
-          <p
-            style={{
-              fontSize: "15px",
-              color: "rgba(245,240,240,0.82)",
-              fontFamily: "Georgia, serif",
-              lineHeight: "1.9",
-              fontStyle: "italic",
-            }}
-          >
-            The platform is being built. Content, lessons, and resources will be added soon.
-            Your access has been granted — stay ready.
-          </p>
-          <div
-            style={{
-              width: "32px",
-              height: "1px",
-              background: "linear-gradient(90deg, #E8A0A0, transparent)",
-              marginTop: "24px",
-            }}
-          />
-        </div>
+        {/* Announcements — live feed, unread pulses burgundy. */}
+        <AnnouncementsFeed items={announcements} initialSeen={seen} />
 
         {/* Kanji footer accent */}
         <div

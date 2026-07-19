@@ -10,7 +10,6 @@ const NAV_LINKS: { label: string; href: string }[] = [
   { label: "Overview", href: "/dashboard" },
   { label: "Lessons", href: "/dashboard/lessons" },
   { label: "Journal", href: "/dashboard/journal" },
-  { label: "Announcements", href: "/dashboard/announcements" },
 ];
 
 /**

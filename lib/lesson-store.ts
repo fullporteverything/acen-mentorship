@@ -246,6 +246,34 @@ export async function saveAddedLessons(lessons: Lesson[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Announcements — per-user "seen" tracking
+//
+// A user's list of announcement IDs they've already viewed. Anything in the
+// current announcements feed not in this list is "unread" on their Overview.
+// ---------------------------------------------------------------------------
+
+function seenPath(discordId: string): string {
+  return `dojo/announcements-seen/${discordId}.json`;
+}
+
+export async function getSeenAnnouncements(
+  discordId: string
+): Promise<string[]> {
+  const raw = await readJson<string[]>(seenPath(discordId), []);
+  return Array.isArray(raw) ? raw.filter((id) => typeof id === "string") : [];
+}
+
+export async function markAnnouncementSeen(
+  discordId: string,
+  id: string
+): Promise<void> {
+  if (!id) return;
+  const current = await getSeenAnnouncements(discordId);
+  if (current.includes(id)) return;
+  await writeJson(seenPath(discordId), [...current, id]);
+}
+
+// ---------------------------------------------------------------------------
 // Homework upload
 // ---------------------------------------------------------------------------
 

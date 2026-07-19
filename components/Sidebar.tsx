@@ -1,4 +1,5 @@
 import { auth, signOut } from "@/auth";
+import OniMask from "@/components/OniMask";
 
 interface SidebarProps {
   /** href of the nav link that should render as active. */
@@ -8,7 +9,7 @@ interface SidebarProps {
 const NAV_LINKS: { label: string; href: string }[] = [
   { label: "Overview", href: "/dashboard" },
   { label: "Lessons", href: "/dashboard/lessons" },
-  { label: "Resources", href: "/dashboard/resources" },
+  { label: "Journal", href: "/dashboard/journal" },
   { label: "Community", href: "/dashboard/community" },
   { label: "Announcements", href: "/dashboard/announcements" },
 ];
@@ -31,38 +32,8 @@ export default async function Sidebar({ active = "/dashboard" }: SidebarProps) {
 
   return (
     <aside className="sidebar">
-      {/* Logo */}
-      <div
-        style={{
-          padding: "0 28px 40px",
-          borderBottom: "1px solid rgba(232,160,160,0.12)",
-          marginBottom: "24px",
-        }}
-      >
-        <p
-          style={{
-            fontSize: "11px",
-            letterSpacing: "5px",
-            color: "#E8A0A0",
-            textTransform: "uppercase",
-            fontFamily: "Georgia, serif",
-          }}
-        >
-          Dojo
-        </p>
-        <p
-          style={{
-            fontSize: "9px",
-            letterSpacing: "2px",
-            color: "rgba(232,160,160,0.45)",
-            textTransform: "uppercase",
-            fontFamily: "Georgia, serif",
-            marginTop: "4px",
-          }}
-        >
-          Mentorship
-        </p>
-      </div>
+      {/* Logo — animated oni mask */}
+      <OniMask />
 
       {/* Kanji accent — sidebar decoration */}
       <div

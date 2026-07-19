@@ -87,7 +87,7 @@ export default async function DashboardPage() {
         >
           {[
             { label: "Lessons", value: "—", sub: "Coming soon", kanji: "修" },
-            { label: "Resources", value: "—", sub: "Coming soon", kanji: "練" },
+            { label: "Journal", value: "—", sub: "Your ledger", kanji: "念" },
             { label: "Members", value: "—", sub: "Private", kanji: "礼" },
           ].map((card) => (
             <div

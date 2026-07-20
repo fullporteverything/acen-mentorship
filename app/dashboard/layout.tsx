@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import VpnGuard from "@/components/VpnGuard";
 import ScreenGuard from "@/components/ScreenGuard";
+import SiteMeditation from "@/components/SiteMeditation";
 
 /**
  * Wraps every /dashboard route with the security guards:
@@ -21,6 +22,7 @@ export default async function DashboardLayout({
         discordUsername={session?.user?.name ?? undefined}
       >
         {children}
+        <SiteMeditation />
       </ScreenGuard>
     </VpnGuard>
   );

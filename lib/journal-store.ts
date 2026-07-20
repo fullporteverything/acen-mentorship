@@ -1,16 +1,18 @@
 /**
  * Blob-backed persistence for the per-user Journal.
  *
- * Entries live under `dojo/journal/{discordId}.json` as an array, newest first.
- * Same conventions as lesson-store: stable pathnames + cache-busted reads.
+ * Backed by a **private, OIDC-authenticated** Vercel Blob store: we pass
+ * `storeId` (from BLOB_READ_WRITE_TOKEN_STORE_ID) and the runtime's
+ * VERCEL_OIDC_TOKEN handles auth — there is no static read-write token. Writes
+ * use `access: "private"`; reads go through the authenticated `get()` (private
+ * blobs are NOT publicly fetchable by URL).
  *
- * Each entry can carry a single mentor `feedback` note (set from the admin
- * panel) which the member sees attached to that specific entry.
+ * Entries live under `dojo/journal/{discordId}.json` as an array, newest first.
  */
 
-import { list, put } from "@vercel/blob";
+import { get, list, put } from "@vercel/blob";
 
-const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+const STORE_ID = process.env.BLOB_READ_WRITE_TOKEN_STORE_ID;
 
 export interface JournalEntry {
   id: string;
@@ -36,10 +38,33 @@ function journalPath(discordId: string): string {
   return `dojo/journal/${discordId}.json`;
 }
 
-async function resolveBlobUrl(pathname: string): Promise<string | null> {
-  const { blobs } = await list({ prefix: pathname, token: TOKEN });
-  const match = blobs.find((b) => b.pathname === pathname);
-  return match?.url ?? null;
+// ---------------------------------------------------------------------------
+// Low-level private-blob JSON helpers (OIDC via storeId)
+// ---------------------------------------------------------------------------
+
+async function readJson<T>(pathname: string, fallback: T): Promise<T> {
+  try {
+    const result = await get(pathname, {
+      access: "private",
+      storeId: STORE_ID,
+      useCache: false, // stable pathnames are overwritten in place — read origin
+    });
+    if (!result || result.statusCode !== 200 || !result.stream) return fallback;
+    const text = await new Response(result.stream).text();
+    return text ? (JSON.parse(text) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function writeJson(pathname: string, data: unknown): Promise<void> {
+  await put(pathname, JSON.stringify(data, null, 2), {
+    access: "private",
+    storeId: STORE_ID,
+    contentType: "application/json",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  });
 }
 
 /** Defensive parse of a raw journal blob into well-shaped entries. */
@@ -68,37 +93,24 @@ function normalizeEntries(raw: unknown): JournalEntry[] {
 }
 
 export async function getJournal(discordId: string): Promise<JournalEntry[]> {
-  try {
-    const url = await resolveBlobUrl(journalPath(discordId));
-    if (!url) return [];
-    const res = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return [];
-    return normalizeEntries(await res.json());
-  } catch {
-    return [];
-  }
+  const raw = await readJson<unknown>(journalPath(discordId), []);
+  return normalizeEntries(raw);
 }
 
 export async function saveJournal(
   discordId: string,
   entries: JournalEntry[]
 ): Promise<void> {
-  await put(journalPath(discordId), JSON.stringify(entries, null, 2), {
-    access: "public",
-    token: TOKEN,
-    contentType: "application/json",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    cacheControlMaxAge: 0,
-  });
+  await writeJson(journalPath(discordId), entries);
 }
 
 /**
  * Every journal entry across every member, flattened newest-first for the
- * mentor view. Scans the `dojo/journal/` prefix and reads each member's blob.
+ * mentor view. Scans the `dojo/journal/` prefix and reads each member's blob
+ * through the authenticated get() (private blobs).
  */
 export async function getAllJournals(): Promise<AdminJournalEntry[]> {
-  const { blobs } = await list({ prefix: "dojo/journal/", token: TOKEN });
+  const { blobs } = await list({ prefix: "dojo/journal/", storeId: STORE_ID });
   const results: AdminJournalEntry[] = [];
 
   for (const blob of blobs) {
@@ -108,9 +120,9 @@ export async function getAllJournals(): Promise<AdminJournalEntry[]> {
       .replace(/\.json$/, "");
 
     try {
-      const res = await fetch(`${blob.url}?t=${Date.now()}`, { cache: "no-store" });
-      if (!res.ok) continue;
-      const entries = normalizeEntries(await res.json());
+      const entries = normalizeEntries(
+        await readJson<unknown>(blob.pathname, [])
+      );
       const username =
         entries.find((e) => e.discordUsername)?.discordUsername || discordId;
       for (const e of entries) {

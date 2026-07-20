@@ -1,6 +1,7 @@
 import { auth, signOut } from "@/auth";
 import PhiLogo from "@/components/PhiLogo";
 import JournalNavBadge from "@/components/JournalNavBadge";
+import AvatarImg from "@/components/AvatarImg";
 
 interface TopNavProps {
   /** href of the nav link that should render as active. */
@@ -90,19 +91,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
 
       {/* Right cluster: user + sign out */}
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        {session?.user?.image && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={session.user.image}
-            alt="avatar"
-            width={30}
-            height={30}
-            style={{
-              borderRadius: "50%",
-              border: "1px solid rgba(232,160,160,0.35)",
-            }}
-          />
-        )}
+        <AvatarImg src={session?.user?.image} name={session?.user?.name} />
         <span
           className="topnav-username"
           style={{

@@ -6,6 +6,7 @@ import JournalComposer from "@/components/JournalComposer";
 import MentorMode from "@/components/MentorMode";
 import MarkFeedbackSeen from "@/components/MarkFeedbackSeen";
 import JournalHeatmap from "@/components/JournalHeatmap";
+import StreakPill from "@/components/StreakPill";
 import {
   getJournal,
   saveJournal,
@@ -36,12 +37,11 @@ export default async function JournalPage() {
     !!process.env.ADMIN_DISCORD_ID &&
     session.user.discordId === process.env.ADMIN_DISCORD_ID;
   const entries = await getJournal(discordId);
-  const streak = computeStreak(entries);
 
-  async function createEntry(formData: FormData) {
+  async function createEntry(formData: FormData): Promise<{ failedImages: number }> {
     "use server";
     const s = await auth();
-    if (!s?.user) return;
+    if (!s?.user) return { failedImages: 0 };
     const uid = s.user.discordId || s.user.id || "unknown";
 
     const body = String(formData.get("body") ?? "").trim().slice(0, MAX_ENTRY);
@@ -52,6 +52,7 @@ export default async function JournalPage() {
       .getAll("images")
       .filter((f): f is File => f instanceof File && f.size > 0);
     const images: string[] = [];
+    let failedImages = 0;
     for (const file of files.slice(0, 4)) {
       if (!file.type.startsWith("image/")) continue;
       if (file.size > 8 * 1024 * 1024) continue;
@@ -61,10 +62,11 @@ export default async function JournalPage() {
         );
       } catch {
         // Skip a failed image rather than losing the whole entry.
+        failedImages += 1;
       }
     }
 
-    if (!body && images.length === 0) return;
+    if (!body && images.length === 0) return { failedImages: 0 };
 
     const entry: JournalEntry = {
       id,
@@ -79,6 +81,7 @@ export default async function JournalPage() {
     const current = await getJournal(uid);
     await saveJournal(uid, [entry, ...current]);
     revalidatePath("/dashboard/journal");
+    return { failedImages };
   }
 
   async function deleteEntry(formData: FormData) {
@@ -166,7 +169,7 @@ export default async function JournalPage() {
               </div>
             </div>
 
-            <StreakPill count={streak} />
+            <StreakPill dates={entries.map((e) => e.createdAt)} />
           </header>
 
           {entries.length > 0 ? (
@@ -222,50 +225,6 @@ export default async function JournalPage() {
   );
 }
 
-function StreakPill({ count }: { count: number }) {
-  return (
-    <div
-      style={{
-        border: "1px solid rgba(232,160,160,0.25)",
-        background: "rgba(232,160,160,0.04)",
-        padding: "10px 14px",
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        minWidth: 118,
-      }}
-    >
-      <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden>
-        🔥
-      </span>
-      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-        <span
-          style={{
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: 19,
-            fontWeight: 500,
-            color: "#F5F0F0",
-          }}
-        >
-          {count}
-        </span>
-        <span
-          style={{
-            fontSize: 8,
-            letterSpacing: 2,
-            color: "rgba(245,240,240,0.55)",
-            textTransform: "uppercase",
-            fontFamily: "Georgia, serif",
-            marginTop: 2,
-          }}
-        >
-          day streak
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function EntryCard({
   entry,
   onDelete,
@@ -314,11 +273,9 @@ function EntryCard({
             style={{
               background: "transparent",
               border: "none",
-              color: "rgba(232,160,160,0.5)",
               cursor: "pointer",
               fontFamily: "Georgia, serif",
               fontSize: 8,
-              letterSpacing: 2,
               textTransform: "uppercase",
               padding: 0,
             }}
@@ -413,45 +370,4 @@ function EntryCard({
       ) : null}
     </article>
   );
-}
-
-/**
- * Consecutive-day streak ending at the most recent entry.
- * Uses local calendar days.
- */
-function computeStreak(entries: JournalEntry[]): number {
-  if (entries.length === 0) return 0;
-
-  const days = new Set<string>();
-  for (const e of entries) {
-    const d = new Date(e.createdAt);
-    if (isNaN(d.getTime())) continue;
-    days.add(dayKey(d));
-  }
-  if (days.size === 0) return 0;
-
-  // Start from today if there's an entry today, otherwise start from the most
-  // recent entry's day (so a streak is still visible if you haven't posted yet
-  // today but had one yesterday).
-  const today = dayKey(new Date());
-  let cursor = new Date();
-  if (!days.has(today)) {
-    const latest = entries
-      .map((e) => new Date(e.createdAt))
-      .filter((d) => !isNaN(d.getTime()))
-      .sort((a, b) => b.getTime() - a.getTime())[0];
-    if (!latest) return 0;
-    cursor = latest;
-  }
-
-  let streak = 0;
-  while (days.has(dayKey(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
-
-function dayKey(d: Date): string {
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }

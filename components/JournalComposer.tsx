@@ -16,11 +16,12 @@ type Preview = { file: File; url: string };
 export default function JournalComposer({
   action,
 }: {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<{ failedImages: number }>;
 }) {
   const [value, setValue] = useState("");
   const [previews, setPreviews] = useState<Preview[]>([]);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -67,12 +68,19 @@ export default function JournalComposer({
     const fd = new FormData();
     fd.set("body", value);
     for (const p of previews) fd.append("images", p.file);
+    setWarning("");
     startTransition(async () => {
-      await action(fd);
+      const result = await action(fd);
       previews.forEach((p) => URL.revokeObjectURL(p.url));
       setPreviews([]);
       setValue("");
       setError("");
+      const failed = result?.failedImages ?? 0;
+      setWarning(
+        failed > 0
+          ? `${failed} screenshot${failed === 1 ? "" : "s"} failed to upload — the entry was posted without them.`
+          : ""
+      );
     });
   }
 
@@ -225,6 +233,20 @@ export default function JournalComposer({
           {pending ? "Posting…" : "Post Entry"}
         </button>
       </div>
+
+      {warning && (
+        <p
+          style={{
+            fontSize: 10,
+            color: "#E8807A",
+            fontFamily: "Georgia, serif",
+            fontStyle: "italic",
+            marginTop: 10,
+          }}
+        >
+          {warning}
+        </p>
+      )}
     </form>
   );
 }

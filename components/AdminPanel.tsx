@@ -54,6 +54,12 @@ const mutedItalic: React.CSSProperties = {
   fontStyle: "italic",
 };
 
+/** Same muted-italic voice, but tinted with the error rose to signal a load failure. */
+const errorItalic: React.CSSProperties = {
+  ...mutedItalic,
+  color: "#E8807A",
+};
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
@@ -106,6 +112,7 @@ function SkeletonBar({ width = "140px" }: { width?: string }) {
 export default function AdminPanel() {
   const [logs, setLogs] = useState<CaptureLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [unlockState, setUnlockState] = useState<"idle" | "working" | "done">(
     "idle"
   );
@@ -113,11 +120,16 @@ export default function AdminPanel() {
   useEffect(() => {
     let cancelled = false;
     fetch("/api/admin/capture-logs")
-      .then((res) => (res.ok ? res.json() : { logs: [] }))
+      .then((res) => {
+        if (!res.ok) throw new Error("bad status");
+        return res.json();
+      })
       .then((data) => {
         if (!cancelled) setLogs(Array.isArray(data?.logs) ? data.logs : []);
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setError(true);
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -160,6 +172,10 @@ export default function AdminPanel() {
         <p style={sectionLabel}>Screen Capture Attempts</p>
         {loading ? (
           <SkeletonBar width="180px" />
+        ) : error ? (
+          <p style={errorItalic}>
+            Couldn&apos;t load capture logs — refresh to retry.
+          </p>
         ) : logs.length === 0 ? (
           <p style={mutedItalic}>No capture attempts recorded.</p>
         ) : (
@@ -331,18 +347,22 @@ function AutoApproveSection() {
 function HomeworkQueueSection() {
   const [submissions, setSubmissions] = useState<AdminSubmission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(false);
     try {
       const res = await fetch("/api/admin/homework");
-      const data = res.ok ? await res.json() : { submissions: [] };
+      if (!res.ok) throw new Error("bad status");
+      const data = await res.json();
       setSubmissions(
         Array.isArray(data?.submissions) ? data.submissions : []
       );
     } catch {
+      setError(true);
       setSubmissions([]);
     } finally {
       setLoading(false);
@@ -385,6 +405,10 @@ function HomeworkQueueSection() {
       <p style={sectionLabel}>Homework Submissions Queue</p>
       {loading ? (
         <SkeletonBar width="200px" />
+      ) : error ? (
+        <p style={errorItalic}>
+          Couldn&apos;t load submissions — refresh to retry.
+        </p>
       ) : pending.length === 0 ? (
         <p style={mutedItalic}>No pending submissions.</p>
       ) : (
@@ -494,18 +518,22 @@ function HomeworkQueueSection() {
 function AnnouncementsSection() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    setError(false);
     try {
       const res = await fetch("/api/admin/announcements");
-      const data = res.ok ? await res.json() : { announcements: [] };
+      if (!res.ok) throw new Error("bad status");
+      const data = await res.json();
       setAnnouncements(
         Array.isArray(data?.announcements) ? data.announcements : []
       );
     } catch {
+      setError(true);
       setAnnouncements([]);
     } finally {
       setLoading(false);
@@ -557,6 +585,10 @@ function AnnouncementsSection() {
 
       {loading ? (
         <SkeletonBar width="160px" />
+      ) : error ? (
+        <p style={{ ...errorItalic, marginBottom: "20px" }}>
+          Couldn&apos;t load announcements — refresh to retry.
+        </p>
       ) : announcements.length === 0 ? (
         <p style={{ ...mutedItalic, marginBottom: "20px" }}>
           No announcements yet.

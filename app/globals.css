@@ -317,6 +317,15 @@ body {
 .journal-entry:focus-within .journal-delete {
   opacity: 1;
 }
+.journal-delete button {
+  color: rgba(232, 160, 160, 0.5);
+  letter-spacing: 2px;
+  transition: color 0.2s ease, letter-spacing 0.2s ease;
+}
+.journal-delete button:hover {
+  color: #E8807A;
+  letter-spacing: 3px;
+}
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {

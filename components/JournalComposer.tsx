@@ -32,7 +32,7 @@ export default function JournalComposer({
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ maxWidth: 900, margin: "0 auto" }}>
+    <form onSubmit={onSubmit} style={{ maxWidth: 720, margin: "0 auto" }}>
       <div
         style={{
           position: "relative",
@@ -43,7 +43,7 @@ export default function JournalComposer({
         <textarea
           name="body"
           placeholder="Write your thoughts, progress, questions..."
-          rows={8}
+          rows={6}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           disabled={pending}
@@ -53,11 +53,11 @@ export default function JournalComposer({
             border: "none",
             outline: "none",
             resize: "vertical",
-            minHeight: 180,
-            padding: "20px 22px",
+            minHeight: 144,
+            padding: "16px 18px",
             color: "#F5F0F0",
             fontFamily: "Georgia, serif",
-            fontSize: 15,
+            fontSize: 12,
             lineHeight: 1.8,
           }}
         />
@@ -67,8 +67,8 @@ export default function JournalComposer({
         style={{
           display: "flex",
           justifyContent: "flex-end",
-          marginTop: 8,
-          fontSize: 11,
+          marginTop: 6,
+          fontSize: 9,
           letterSpacing: 1,
           fontFamily: "Georgia, serif",
           color: over ? "#E8807A" : "rgba(245,240,240,0.4)",
@@ -77,13 +77,14 @@ export default function JournalComposer({
         {count} / {MAX}
       </div>
 
-      <div style={{ marginTop: 18 }}>
+      <div style={{ marginTop: 14 }}>
         <button
           type="submit"
           disabled={pending || !value.trim() || over}
           className="btn-discord"
           style={{
-            padding: "12px 32px",
+            padding: "10px 26px",
+            fontSize: 11,
             opacity: pending || !value.trim() || over ? 0.45 : 1,
           }}
         >

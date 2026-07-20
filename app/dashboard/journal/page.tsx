@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import TopNav from "@/components/TopNav";
 import JournalComposer from "@/components/JournalComposer";
+import MentorMode from "@/components/MentorMode";
 import { getJournal, saveJournal, type JournalEntry } from "@/lib/journal-store";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,9 @@ export default async function JournalPage() {
   if (!session?.user) redirect("/");
 
   const discordId = session.user.discordId || session.user.id || "unknown";
+  const isAdmin =
+    !!process.env.ADMIN_DISCORD_ID &&
+    session.user.discordId === process.env.ADMIN_DISCORD_ID;
   const entries = await getJournal(discordId);
   const streak = computeStreak(entries);
 
@@ -65,6 +69,8 @@ export default async function JournalPage() {
   return (
     <div className="scrollable" style={{ background: "#000000", position: "relative" }}>
       <TopNav active="/dashboard/journal" />
+
+      <MentorMode isAdmin={isAdmin} />
 
       <main
         style={{

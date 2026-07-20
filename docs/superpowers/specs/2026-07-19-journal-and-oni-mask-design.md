@@ -18,6 +18,9 @@ oni mask.
   serif) for consistency with Lessons/Overview — not the APOSTLES dark+gold aesthetic.
 - **Sizing:** more compact than the reference. Centered column ~560px; heading ~18px;
   body ~13px; timestamps ~10px; card padding ~20px; gaps ~16px.
+- **Background:** plain/solid dojo background — **no** floating-glyph / particle background
+  behind the content (the reference's scattered letters and the site's `ThreeBackground`
+  are deliberately excluded; `ThreeBackground` stays on the login page only).
 - **Oni mask:** stylized **SVG with CSS-only animation** (subtle 3D tilt + float + glow),
   no WebGL, no model file. Replaces the sidebar logo text block; a small "DOJO" caption
   stays beneath it for identity.

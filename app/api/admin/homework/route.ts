@@ -48,6 +48,13 @@ export async function POST(req: NextRequest) {
   const { discordId, lessonId, action } = body;
   const feedback = typeof body.feedback === "string" ? body.feedback : "";
 
+  if (typeof discordId !== "string" || !discordId) {
+    return NextResponse.json(
+      { error: "discordId must be a non-empty string" },
+      { status: 400 }
+    );
+  }
+
   if (
     !discordId ||
     !lessonId ||

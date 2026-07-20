@@ -39,9 +39,35 @@ export async function POST(req: NextRequest) {
 
   const title = (body.title || "").trim();
   const section = (body.section || "").trim();
+  const description = (body.description || "").trim();
+  const homeworkPrompt = (body.homeworkPrompt || "").trim();
   if (!title || !section) {
     return NextResponse.json(
       { error: "Title and section are required" },
+      { status: 400 }
+    );
+  }
+  if (title.length > 255) {
+    return NextResponse.json(
+      { error: "Title must be 255 characters or fewer" },
+      { status: 400 }
+    );
+  }
+  if (description.length > 2000) {
+    return NextResponse.json(
+      { error: "Description must be 2000 characters or fewer" },
+      { status: 400 }
+    );
+  }
+  if (homeworkPrompt.length > 5000) {
+    return NextResponse.json(
+      { error: "Homework prompt must be 5000 characters or fewer" },
+      { status: 400 }
+    );
+  }
+  if (section.length > 255) {
+    return NextResponse.json(
+      { error: "Section must be 255 characters or fewer" },
       { status: 400 }
     );
   }
@@ -49,10 +75,9 @@ export async function POST(req: NextRequest) {
   const lesson: Lesson = {
     id: `lesson_${Date.now()}`,
     title,
-    description: (body.description || "").trim(),
+    description,
     videoId: "YOUR_VIDEO_ID_HERE",
-    homeworkPrompt:
-      (body.homeworkPrompt || "").trim() || "Submit your homework for this lesson.",
+    homeworkPrompt: homeworkPrompt || "Submit your homework for this lesson.",
     group: section,
   };
 

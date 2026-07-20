@@ -22,13 +22,25 @@ export async function POST(req: NextRequest) {
     // Malformed body — still log the attempt with what we have.
   }
 
+  const discordId = typeof body.discordId === "string" ? body.discordId : "";
+  const discordUsername =
+    typeof body.discordUsername === "string" ? body.discordUsername : "";
+  const timestamp = typeof body.timestamp === "string" ? body.timestamp : "";
+  if (
+    discordId.length > 100 ||
+    discordUsername.length > 100 ||
+    timestamp.length > 64
+  ) {
+    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+
   const ip =
     (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || undefined;
 
   addCaptureLog({
-    discordId: body.discordId,
-    discordUsername: body.discordUsername,
-    timestamp: body.timestamp || new Date().toISOString(),
+    discordId: discordId || undefined,
+    discordUsername: discordUsername || undefined,
+    timestamp: timestamp || new Date().toISOString(),
     ip,
     userAgent: req.headers.get("user-agent") || undefined,
   });

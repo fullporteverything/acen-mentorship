@@ -16,6 +16,11 @@ async function requireAdmin() {
 
 /** GET: current content overrides. Anyone signed in can read them. */
 export async function GET() {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   return NextResponse.json(await getLessonOverrides());
 }
 

@@ -43,6 +43,7 @@ export async function POST() {
           maxDurationSeconds: 7200,
           requireSignedURLs: false,
         }),
+        signal: AbortSignal.timeout(10000),
       }
     );
 

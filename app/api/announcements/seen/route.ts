@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { markAnnouncementSeen } from "@/lib/lesson-store";
 
+export const dynamic = "force-dynamic";
+
 /**
  * POST /api/announcements/seen
  * Body: { id: string }

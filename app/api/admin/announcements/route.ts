@@ -17,8 +17,13 @@ async function requireAdmin() {
   );
 }
 
-/** GET: public — anyone signed in can read announcements. */
+/** GET: anyone signed in can read announcements. */
 export async function GET() {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const announcements = await getAnnouncements();
   return NextResponse.json({ announcements });
 }
@@ -41,6 +46,18 @@ export async function POST(req: NextRequest) {
   if (!title || !text) {
     return NextResponse.json(
       { error: "Title and body are required" },
+      { status: 400 }
+    );
+  }
+  if (title.length > 200) {
+    return NextResponse.json(
+      { error: "Title must be 200 characters or fewer" },
+      { status: 400 }
+    );
+  }
+  if (text.length > 10000) {
+    return NextResponse.json(
+      { error: "Body must be 10000 characters or fewer" },
       { status: 400 }
     );
   }

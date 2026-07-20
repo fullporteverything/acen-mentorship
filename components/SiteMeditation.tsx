@@ -72,7 +72,7 @@ export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number }
       window.removeEventListener("pointerdown", dismiss, true);
       window.removeEventListener("keydown", dismiss, true);
     };
-  }, []);
+  }, [idleMs]);
 
   return (
     <AnimatePresence>

@@ -1,4 +1,4 @@
-# Acen Mentorship — Setup Guide
+# DOJO — Setup Guide
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ Edit `.env.local` with your values:
 
 ### Discord App Setup
 1. Go to https://discord.com/developers/applications
-2. Create New Application → name it "Acen Mentorship"
+2. Create New Application → name it "DOJO"
 3. Go to OAuth2 → Add Redirect URI: `http://localhost:3000/api/auth/callback/discord`
 4. Copy Client ID and Client Secret into `.env.local`
 5. For production, add your Vercel URL as another redirect: `https://your-app.vercel.app/api/auth/callback/discord`
@@ -71,7 +71,7 @@ vercel --prod
 - **Next.js 14** (App Router)
 - **TypeScript**
 - **Tailwind CSS**
-- **Three.js + @react-three/fiber** — 3D floating geometric background
+- **Three.js** (plain, no react-three wrapper) — 3D floating geometric background
 - **Framer Motion** — login card animations
 - **NextAuth v5** — Discord OAuth
 - **Vercel** — deployment

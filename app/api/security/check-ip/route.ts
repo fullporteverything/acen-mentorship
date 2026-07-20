@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(
       `http://ip-api.com/json/${ip}?fields=status,proxy,hosting`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: AbortSignal.timeout(3000) }
     );
     const data = await res.json();
     const blocked =

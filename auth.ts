@@ -31,6 +31,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             headers: {
               Authorization: `Bearer ${account.access_token}`,
             },
+            // Bound the sign-in handoff — never hang on a slow Discord API.
+            signal: AbortSignal.timeout(5000),
           }
         );
 

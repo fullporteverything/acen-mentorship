@@ -15,11 +15,35 @@ export default function VpnGuard({ children }: VpnGuardProps) {
   const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
+    const KEY = "dojo:vpnCheck";
+    const TTL = 30 * 60 * 1000; // re-check at most once every 30 min per browser
+
+    // Reuse a recent result so we don't hit the endpoint on every navigation.
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const c = JSON.parse(raw) as { blocked: boolean; at: number };
+        if (c && typeof c.at === "number" && Date.now() - c.at < TTL) {
+          setBlocked(c.blocked === true);
+          return;
+        }
+      }
+    } catch {
+      // ignore malformed cache
+    }
+
     let cancelled = false;
     fetch("/api/security/check-ip")
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) setBlocked(data?.blocked === true);
+        if (cancelled) return;
+        const b = data?.blocked === true;
+        setBlocked(b);
+        try {
+          localStorage.setItem(KEY, JSON.stringify({ blocked: b, at: Date.now() }));
+        } catch {
+          // ignore
+        }
       })
       .catch(() => {
         // Fail open — never lock out a legitimate member on a network error.

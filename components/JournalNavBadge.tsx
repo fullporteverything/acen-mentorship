@@ -14,13 +14,41 @@ export default function JournalNavBadge() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
+    const CACHE = "dojo:fbStatus";
+    const TTL = 120000; // don't re-poll more than once every 2 min
+
+    const evaluate = (latest: string | null) => {
+      if (!latest) return;
+      const seen = localStorage.getItem(SEEN_KEY);
+      if (!seen || new Date(latest) > new Date(seen)) setShow(true);
+    };
+
+    // Reuse a recent poll so TopNav doesn't read the journal blob on every page.
+    try {
+      const raw = sessionStorage.getItem(CACHE);
+      if (raw) {
+        const c = JSON.parse(raw) as { latest: string | null; at: number };
+        if (c && typeof c.at === "number" && Date.now() - c.at < TTL) {
+          evaluate(c.latest);
+          return;
+        }
+      }
+    } catch {
+      // ignore malformed cache
+    }
+
     let active = true;
     fetch("/api/journal/feedback-status")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!active || !d?.latestFeedbackAt) return;
-        const seen = localStorage.getItem(SEEN_KEY);
-        if (!seen || new Date(d.latestFeedbackAt) > new Date(seen)) setShow(true);
+        if (!active) return;
+        const latest: string | null = d?.latestFeedbackAt ?? null;
+        try {
+          sessionStorage.setItem(CACHE, JSON.stringify({ latest, at: Date.now() }));
+        } catch {
+          // ignore
+        }
+        evaluate(latest);
       })
       .catch(() => {});
     return () => {

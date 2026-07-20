@@ -220,6 +220,33 @@ body {
   }
 }
 
+/* Shared skeleton-loader pulse. */
+@keyframes dojoPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* Phone tier: tuck the brand subtitle, tighten the nav, and pull dashboard
+   content padding in. `.dash-main` overrides the pages' inline side padding. */
+@media (max-width: 560px) {
+  .dash-main {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .topnav {
+    padding: 0 14px;
+    gap: 12px;
+  }
+  .topnav-brand-sub {
+    display: none;
+  }
+  .topnav-link {
+    padding: 10px 10px;
+    letter-spacing: 1px;
+    font-size: 10px;
+  }
+}
+
 /* Inline editable text (admin) — CSS-only "double-click to edit" hint */
 .editable-admin {
   position: relative;

@@ -20,6 +20,8 @@ export interface JournalEntry {
   body: string;
   mood: string;
   createdAt: string;
+  /** Blob PATHNAMES of attached trade screenshots. Displayed via /api/blob/{pathname}. */
+  images?: string[];
   /** Cached Discord display name, so the mentor view can show who wrote it. */
   discordUsername?: string;
   /** Mentor's feedback on this entry (empty/undefined until they leave one). */
@@ -85,6 +87,9 @@ function normalizeEntries(raw: unknown): JournalEntry[] {
       mood: typeof e.mood === "string" ? e.mood : "",
       createdAt:
         typeof e.createdAt === "string" ? e.createdAt : new Date(0).toISOString(),
+      images: Array.isArray(e.images)
+        ? e.images.filter((x): x is string => typeof x === "string")
+        : undefined,
       discordUsername:
         typeof e.discordUsername === "string" ? e.discordUsername : undefined,
       feedback: typeof e.feedback === "string" ? e.feedback : undefined,
@@ -102,6 +107,28 @@ export async function saveJournal(
   entries: JournalEntry[]
 ): Promise<void> {
   await writeJson(journalPath(discordId), entries);
+}
+
+/**
+ * Upload a trade screenshot for an entry. Stored PRIVATE under the member's
+ * own prefix; returns the pathname to persist on the entry (shown via the
+ * /api/blob proxy, which enforces owner/admin access).
+ */
+export async function uploadJournalImage(
+  discordId: string,
+  entryId: string,
+  fileName: string,
+  file: File | Blob
+): Promise<string> {
+  const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const pathname = `dojo/journal/${discordId}/${entryId}/${Date.now()}_${safe}`;
+  await put(pathname, file, {
+    access: "private",
+    storeId: STORE_ID,
+    addRandomSuffix: false,
+    contentType: file instanceof File ? file.type || undefined : undefined,
+  });
+  return pathname;
 }
 
 /**

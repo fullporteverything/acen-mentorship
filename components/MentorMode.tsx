@@ -22,6 +22,7 @@ interface MentorEntry {
   discordUsername: string;
   body: string;
   createdAt: string;
+  images?: string[];
   feedback?: string;
   feedbackAt?: string;
 }
@@ -194,7 +195,7 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
               overflowY: "auto",
             }}
           >
-            <div style={{ maxWidth: 1040, margin: "0 auto", padding: "56px 40px 96px" }}>
+            <div className="dash-main" style={{ maxWidth: 1040, margin: "0 auto", padding: "56px 40px 96px" }}>
               {/* Header */}
               <p
                 style={{
@@ -253,7 +254,27 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                   }}
                 >
                   {loading ? (
-                    <p style={rosterMuted}>Loading…</p>
+                    <div
+                      style={{
+                        padding: 14,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                      }}
+                    >
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          aria-hidden
+                          style={{
+                            height: 14,
+                            borderRadius: 3,
+                            background: "rgba(232,160,160,0.08)",
+                            animation: "dojoPulse 1.4s ease-in-out infinite",
+                          }}
+                        />
+                      ))}
+                    </div>
                   ) : students.length === 0 ? (
                     <p style={rosterMuted}>No student journals yet.</p>
                   ) : (
@@ -395,6 +416,44 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                                 >
                                   {entry.body}
                                 </p>
+
+                                {entry.images && entry.images.length > 0 ? (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexWrap: "wrap",
+                                      gap: 8,
+                                      marginBottom: 14,
+                                    }}
+                                  >
+                                    {entry.images.map((p) => (
+                                      <a
+                                        key={p}
+                                        href={`/api/blob/${p}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                          display: "block",
+                                          width: 120,
+                                          height: 88,
+                                          border: "1px solid rgba(232,160,160,0.15)",
+                                        }}
+                                      >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={`/api/blob/${p}`}
+                                          alt="trade screenshot"
+                                          style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: "cover",
+                                            display: "block",
+                                          }}
+                                        />
+                                      </a>
+                                    ))}
+                                  </div>
+                                ) : null}
 
                                 <textarea
                                   placeholder="Feedback on this entry…"

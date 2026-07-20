@@ -4,7 +4,14 @@ import { revalidatePath } from "next/cache";
 import TopNav from "@/components/TopNav";
 import JournalComposer from "@/components/JournalComposer";
 import MentorMode from "@/components/MentorMode";
-import { getJournal, saveJournal, type JournalEntry } from "@/lib/journal-store";
+import MarkFeedbackSeen from "@/components/MarkFeedbackSeen";
+import JournalHeatmap from "@/components/JournalHeatmap";
+import {
+  getJournal,
+  saveJournal,
+  uploadJournalImage,
+  type JournalEntry,
+} from "@/lib/journal-store";
 
 export const dynamic = "force-dynamic";
 
@@ -38,15 +45,35 @@ export default async function JournalPage() {
     const uid = s.user.discordId || s.user.id || "unknown";
 
     const body = String(formData.get("body") ?? "").trim().slice(0, MAX_ENTRY);
-    if (!body) return;
+    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Upload up to 4 trade screenshots (stored private; shown via /api/blob).
+    const files = formData
+      .getAll("images")
+      .filter((f): f is File => f instanceof File && f.size > 0);
+    const images: string[] = [];
+    for (const file of files.slice(0, 4)) {
+      if (!file.type.startsWith("image/")) continue;
+      if (file.size > 8 * 1024 * 1024) continue;
+      try {
+        images.push(
+          await uploadJournalImage(uid, id, file.name || "screenshot.png", file)
+        );
+      } catch {
+        // Skip a failed image rather than losing the whole entry.
+      }
+    }
+
+    if (!body && images.length === 0) return;
 
     const entry: JournalEntry = {
-      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      id,
       title: "",
       body,
       mood: "",
       createdAt: new Date().toISOString(),
       discordUsername: s.user.name || undefined,
+      images: images.length ? images : undefined,
     };
 
     const current = await getJournal(uid);
@@ -71,8 +98,10 @@ export default async function JournalPage() {
       <TopNav active="/dashboard/journal" />
 
       <MentorMode isAdmin={isAdmin} />
+      <MarkFeedbackSeen />
 
       <main
+        className="dash-main"
         style={{
           position: "relative",
           zIndex: 1,
@@ -139,6 +168,24 @@ export default async function JournalPage() {
 
             <StreakPill count={streak} />
           </header>
+
+          {entries.length > 0 ? (
+            <section style={{ marginBottom: 40 }}>
+              <p
+                style={{
+                  fontSize: 9,
+                  letterSpacing: 3,
+                  color: "rgba(232,160,160,0.6)",
+                  textTransform: "uppercase",
+                  fontFamily: "Georgia, serif",
+                  marginBottom: 12,
+                }}
+              >
+                Consistency · last 13 weeks
+              </p>
+              <JournalHeatmap dates={entries.map((e) => e.createdAt)} />
+            </section>
+          ) : null}
 
           {/* Composer */}
           <section style={{ marginBottom: 51 }}>
@@ -281,18 +328,53 @@ function EntryCard({
         </form>
       </header>
 
-      <p
-        style={{
-          fontSize: 12,
-          color: "rgba(245,240,240,0.9)",
-          fontFamily: "Georgia, serif",
-          lineHeight: 1.9,
-          whiteSpace: "pre-wrap",
-          wordWrap: "break-word",
-        }}
-      >
-        {entry.body}
-      </p>
+      {entry.body ? (
+        <p
+          style={{
+            fontSize: 12,
+            color: "rgba(245,240,240,0.9)",
+            fontFamily: "Georgia, serif",
+            lineHeight: 1.9,
+            whiteSpace: "pre-wrap",
+            wordWrap: "break-word",
+          }}
+        >
+          {entry.body}
+        </p>
+      ) : null}
+
+      {entry.images && entry.images.length > 0 ? (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            marginTop: entry.body ? 12 : 0,
+          }}
+        >
+          {entry.images.map((p) => (
+            <a
+              key={p}
+              href={`/api/blob/${p}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "block",
+                width: 132,
+                height: 96,
+                border: "1px solid rgba(232,160,160,0.15)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/blob/${p}`}
+                alt="trade screenshot"
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            </a>
+          ))}
+        </div>
+      ) : null}
 
       {entry.feedback ? (
         <div

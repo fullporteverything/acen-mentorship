@@ -1,5 +1,6 @@
 import { auth, signOut } from "@/auth";
 import PhiLogo from "@/components/PhiLogo";
+import JournalNavBadge from "@/components/JournalNavBadge";
 
 interface TopNavProps {
   /** href of the nav link that should render as active. */
@@ -58,6 +59,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
             Dojo
           </span>
           <span
+            className="topnav-brand-sub"
             style={{
               fontSize: 9,
               letterSpacing: 3,
@@ -81,6 +83,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
             href={link.href}
           >
             {link.label}
+            {link.href === "/dashboard/journal" ? <JournalNavBadge /> : null}
           </a>
         ))}
       </nav>

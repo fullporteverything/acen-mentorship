@@ -30,6 +30,16 @@ interface Announcement {
   createdAt: string;
 }
 
+interface AdminJournalEntry {
+  id: string;
+  discordId: string;
+  discordUsername: string;
+  body: string;
+  createdAt: string;
+  feedback?: string;
+  feedbackAt?: string;
+}
+
 const sectionLabel: React.CSSProperties = {
   fontSize: "10px",
   letterSpacing: "4px",
@@ -126,6 +136,9 @@ export default function AdminPanel() {
 
       {/* Homework Submissions Queue */}
       <HomeworkQueueSection />
+
+      {/* Member Journals — per-entry mentor feedback */}
+      <JournalFeedbackSection />
 
       {/* Announcements */}
       <AnnouncementsSection />
@@ -618,6 +631,160 @@ function AnnouncementsSection() {
           {saving ? "Posting…" : "Post Announcement"}
         </button>
       </form>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Member journals — per-entry mentor feedback
+// ---------------------------------------------------------------------------
+
+function JournalFeedbackSection() {
+  const [entries, setEntries] = useState<AdminJournalEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/journal-feedback");
+      const data = res.ok ? await res.json() : { entries: [] };
+      const list: AdminJournalEntry[] = Array.isArray(data?.entries)
+        ? data.entries
+        : [];
+      setEntries(list);
+      const map: Record<string, string> = {};
+      for (const e of list) map[`${e.discordId}:${e.id}`] = e.feedback || "";
+      setDrafts(map);
+    } catch {
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function save(entry: AdminJournalEntry) {
+    const key = `${entry.discordId}:${entry.id}`;
+    setBusyKey(key);
+    try {
+      await fetch("/api/admin/journal-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          discordId: entry.discordId,
+          entryId: entry.id,
+          feedback: drafts[key] || "",
+        }),
+      });
+      await load();
+    } catch {
+      // ignore
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  return (
+    <section style={cardStyle}>
+      <p style={sectionLabel}>Member Journals</p>
+      {loading ? (
+        <p style={mutedItalic}>Loading…</p>
+      ) : entries.length === 0 ? (
+        <p style={mutedItalic}>No journal entries yet.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {entries.map((entry) => {
+            const key = `${entry.discordId}:${entry.id}`;
+            const busy = busyKey === key;
+            const draft = drafts[key] ?? "";
+            const dirty = draft.trim() !== (entry.feedback || "").trim();
+            return (
+              <div
+                key={key}
+                style={{
+                  padding: "16px 18px",
+                  border: "1px solid rgba(232,160,160,0.12)",
+                  background: "rgba(0,0,0,0.25)",
+                  fontFamily: "Georgia, serif",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: "12px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <p style={{ fontSize: "14px", color: "#F5F0F0" }}>
+                    {entry.discordUsername}
+                  </p>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      color: "rgba(245,240,240,0.4)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {new Date(entry.createdAt).toLocaleString()}
+                  </span>
+                </div>
+
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "rgba(245,240,240,0.8)",
+                    lineHeight: 1.7,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    marginBottom: "14px",
+                  }}
+                >
+                  {entry.body}
+                </p>
+
+                <textarea
+                  placeholder="Feedback on this entry…"
+                  value={draft}
+                  onChange={(e) =>
+                    setDrafts((d) => ({ ...d, [key]: e.target.value }))
+                  }
+                  rows={2}
+                  style={{ ...inputStyle, resize: "vertical", marginBottom: "10px" }}
+                />
+
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => save(entry)}
+                    disabled={busy || !dirty}
+                    style={{ ...smallBtn, opacity: busy || !dirty ? 0.5 : 1 }}
+                  >
+                    {busy
+                      ? "Saving…"
+                      : entry.feedback
+                      ? "Update Feedback"
+                      : "Send Feedback"}
+                  </button>
+                  {entry.feedbackAt && !dirty ? (
+                    <span
+                      style={{ fontSize: "10px", color: "rgba(245,240,240,0.4)" }}
+                    >
+                      Sent {new Date(entry.feedbackAt).toLocaleString()}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

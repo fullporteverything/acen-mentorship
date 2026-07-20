@@ -42,6 +42,7 @@ export default async function JournalPage() {
       body,
       mood: "",
       createdAt: new Date().toISOString(),
+      discordUsername: s.user.name || undefined,
     };
 
     const current = await getJournal(uid);
@@ -286,6 +287,42 @@ function EntryCard({
       >
         {entry.body}
       </p>
+
+      {entry.feedback ? (
+        <div
+          style={{
+            marginTop: 16,
+            paddingLeft: 14,
+            borderLeft: "2px solid #E8A0A0",
+          }}
+        >
+          <p
+            style={{
+              fontSize: 9,
+              letterSpacing: 3,
+              color: "#E8A0A0",
+              textTransform: "uppercase",
+              fontFamily: "Georgia, serif",
+              marginBottom: 6,
+            }}
+          >
+            Mentor feedback
+          </p>
+          <p
+            style={{
+              fontSize: 12,
+              color: "rgba(245,240,240,0.85)",
+              fontFamily: "Georgia, serif",
+              lineHeight: 1.8,
+              fontStyle: "italic",
+              whiteSpace: "pre-wrap",
+              wordWrap: "break-word",
+            }}
+          >
+            {entry.feedback}
+          </p>
+        </div>
+      ) : null}
     </article>
   );
 }

@@ -93,6 +93,25 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
     if (active) load();
   }, [active, load]);
 
+  // Restore the last Mentor Mode state on mount — it persists across reloads
+  // and closing the site until the mentor toggles it again. (Runs before the
+  // persist effect below so it reads the stored value before it's overwritten.)
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("dojo:mentorMode") === "1") setActive(true);
+    } catch {
+      // localStorage unavailable — ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("dojo:mentorMode", active ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [active]);
+
   if (!isAdmin) return null;
 
   const selected = students.find((s) => s.discordId === selectedId) || null;

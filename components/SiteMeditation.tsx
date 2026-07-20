@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
  * does NOT dismiss it, so the stillness holds "until mouse click".
  */
 
-const IDLE_MS = 30_000;
+const IDLE_MS = 60_000;
 const SIZE = 240;
 
 export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number } = {}) {

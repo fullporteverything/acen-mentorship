@@ -7,15 +7,18 @@
  *   - dojo/announcements.json         — announcement feed
  *   - dojo/homework/{discordId}/...   — the uploaded homework PDFs
  *
- * Reads resolve a blob's public URL via `list()` (so we never have to hardcode
- * the store's base host) and then fetch it with cache-busting, since we write
- * to stable, non-suffixed pathnames and would otherwise risk stale CDN copies.
+ * Backed by a **private, OIDC-authenticated** Vercel Blob store: we pass
+ * `storeId` (from BLOB_READ_WRITE_TOKEN_STORE_ID) and the runtime's
+ * VERCEL_OIDC_TOKEN handles auth — there is no static read-write token. Writes
+ * use `access: "private"`; reads go through the authenticated `get()` (private
+ * blobs are NOT publicly fetchable by URL). Homework PDFs are shown via the
+ * /api/blob proxy, which enforces owner/admin access.
  */
 
-import { list, put } from "@vercel/blob";
+import { get, list, put } from "@vercel/blob";
 import type { Lesson, LessonOverrides } from "./lessons-config";
 
-const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+const STORE_ID = process.env.BLOB_READ_WRITE_TOKEN_STORE_ID;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,6 +27,10 @@ const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 export type SubmissionStatus = "pending" | "approved" | "rejected";
 
 export interface Submission {
+  /**
+   * Blob PATHNAME of the homework PDF, shown via the /api/blob proxy.
+   * (Legacy rows may hold a full public URL — display code handles both.)
+   */
   blobUrl: string;
   fileName: string;
   submittedAt: string;
@@ -67,25 +74,16 @@ function emptyProgress(): UserProgress {
   return { completedLessons: [], submissions: {} };
 }
 
-/**
- * Resolve a stable pathname to its current public URL. Because we write with
- * `addRandomSuffix: false`, at most one blob matches the exact pathname.
- */
-async function resolveBlobUrl(pathname: string): Promise<string | null> {
-  const { blobs } = await list({ prefix: pathname, token: TOKEN });
-  const match = blobs.find((b) => b.pathname === pathname);
-  return match?.url ?? null;
-}
-
 async function readJson<T>(pathname: string, fallback: T): Promise<T> {
   try {
-    const url = await resolveBlobUrl(pathname);
-    if (!url) return fallback;
-    // Cache-bust: stable pathnames keep the same URL across overwrites, and the
-    // blob CDN would otherwise serve a stale copy right after a write.
-    const res = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return fallback;
-    return (await res.json()) as T;
+    const result = await get(pathname, {
+      access: "private",
+      storeId: STORE_ID,
+      useCache: false, // stable pathnames are overwritten in place — read origin
+    });
+    if (!result || result.statusCode !== 200 || !result.stream) return fallback;
+    const text = await new Response(result.stream).text();
+    return text ? (JSON.parse(text) as T) : fallback;
   } catch {
     return fallback;
   }
@@ -93,12 +91,11 @@ async function readJson<T>(pathname: string, fallback: T): Promise<T> {
 
 async function writeJson(pathname: string, data: unknown): Promise<void> {
   await put(pathname, JSON.stringify(data, null, 2), {
-    access: "public",
-    token: TOKEN,
+    access: "private",
+    storeId: STORE_ID,
     contentType: "application/json",
     addRandomSuffix: false,
     allowOverwrite: true,
-    cacheControlMaxAge: 0,
   });
 }
 
@@ -142,7 +139,7 @@ export async function saveUserProgress(
  * `dojo/progress/` prefix and reads each user's progress blob.
  */
 export async function getAllSubmissions(): Promise<AdminSubmission[]> {
-  const { blobs } = await list({ prefix: "dojo/progress/", token: TOKEN });
+  const { blobs } = await list({ prefix: "dojo/progress/", storeId: STORE_ID });
   const results: AdminSubmission[] = [];
 
   for (const blob of blobs) {
@@ -152,11 +149,15 @@ export async function getAllSubmissions(): Promise<AdminSubmission[]> {
       .replace(/\.json$/, "");
 
     try {
-      const res = await fetch(`${blob.url}?t=${Date.now()}`, {
-        cache: "no-store",
+      const result = await get(blob.pathname, {
+        access: "private",
+        storeId: STORE_ID,
+        useCache: false,
       });
-      if (!res.ok) continue;
-      const progress = (await res.json()) as UserProgress;
+      if (!result || result.statusCode !== 200 || !result.stream) continue;
+      const text = await new Response(result.stream).text();
+      if (!text) continue;
+      const progress = JSON.parse(text) as UserProgress;
       const submissions = progress.submissions ?? {};
 
       for (const [lessonId, submission] of Object.entries(submissions)) {
@@ -277,7 +278,11 @@ export async function markAnnouncementSeen(
 // Homework upload
 // ---------------------------------------------------------------------------
 
-/** Upload a homework PDF and return its public blob URL. */
+/**
+ * Upload a homework PDF (stored PRIVATE under the member's own prefix) and
+ * return the pathname to persist on the submission. The PDF is shown via the
+ * /api/blob proxy, which enforces owner/admin access.
+ */
 export async function uploadHomework(
   discordId: string,
   lessonId: string,
@@ -288,12 +293,12 @@ export async function uploadHomework(
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   const pathname = `dojo/homework/${discordId}/${lessonId}/${timestamp}_${safeName}`;
 
-  const { url } = await put(pathname, file, {
-    access: "public",
-    token: TOKEN,
+  await put(pathname, file, {
+    access: "private",
+    storeId: STORE_ID,
     contentType: "application/pdf",
     addRandomSuffix: false,
   });
 
-  return url;
+  return pathname;
 }

@@ -80,6 +80,29 @@ const smallBtn: React.CSSProperties = {
 const lessonTitle = (lessonId: string) =>
   LESSONS.find((l) => l.id === lessonId)?.title || lessonId;
 
+/**
+ * Href for a stored homework PDF. New submissions store a blob PATHNAME served
+ * through the private /api/blob proxy; legacy rows may hold a full public URL.
+ */
+const blobHref = (value: string) =>
+  value.startsWith("http") ? value : `/api/blob/${value}`;
+
+/** Minimal on-theme pulsing skeleton bar used in place of "Loading…" text. */
+function SkeletonBar({ width = "140px" }: { width?: string }) {
+  return (
+    <div
+      aria-hidden
+      style={{
+        width,
+        height: "12px",
+        borderRadius: "3px",
+        background: "rgba(232,160,160,0.08)",
+        animation: "dojoPulse 1.4s ease-in-out infinite",
+      }}
+    />
+  );
+}
+
 export default function AdminPanel() {
   const [logs, setLogs] = useState<CaptureLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +141,8 @@ export default function AdminPanel() {
 
   return (
     <>
+      <style>{`@keyframes dojoPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
+
       {/* Upload Video */}
       <VideoUpload />
 
@@ -134,7 +159,7 @@ export default function AdminPanel() {
       <section style={cardStyle}>
         <p style={sectionLabel}>Screen Capture Attempts</p>
         {loading ? (
-          <p style={mutedItalic}>Loading…</p>
+          <SkeletonBar width="180px" />
         ) : logs.length === 0 ? (
           <p style={mutedItalic}>No capture attempts recorded.</p>
         ) : (
@@ -359,7 +384,7 @@ function HomeworkQueueSection() {
     <section style={cardStyle}>
       <p style={sectionLabel}>Homework Submissions Queue</p>
       {loading ? (
-        <p style={mutedItalic}>Loading…</p>
+        <SkeletonBar width="200px" />
       ) : pending.length === 0 ? (
         <p style={mutedItalic}>No pending submissions.</p>
       ) : (
@@ -405,7 +430,7 @@ function HomeworkQueueSection() {
                 </div>
 
                 <a
-                  href={sub.blobUrl}
+                  href={blobHref(sub.blobUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -531,7 +556,7 @@ function AnnouncementsSection() {
       <p style={sectionLabel}>Announcements</p>
 
       {loading ? (
-        <p style={mutedItalic}>Loading…</p>
+        <SkeletonBar width="160px" />
       ) : announcements.length === 0 ? (
         <p style={{ ...mutedItalic, marginBottom: "20px" }}>
           No announcements yet.

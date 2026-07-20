@@ -54,8 +54,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Upload the PDF to blob storage.
-  const blobUrl = await uploadHomework(
+  // Upload the PDF to (private) blob storage. Returns the pathname, which is
+  // stored on the submission and rendered through the /api/blob proxy.
+  const blobPathname = await uploadHomework(
     discordId,
     lessonId,
     file.name || "homework.pdf",
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
   const status = settings.autoApprove ? "approved" : "pending";
 
   progress.submissions[lessonId] = {
-    blobUrl,
+    blobUrl: blobPathname,
     fileName: file.name || "homework.pdf",
     submittedAt: new Date().toISOString(),
     status,

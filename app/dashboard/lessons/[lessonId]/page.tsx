@@ -25,6 +25,13 @@ const STATUS_COLORS: Record<SubmissionStatus, string> = {
   rejected: "#E8807A", // red
 };
 
+/**
+ * Href for a stored homework PDF. New submissions store a blob PATHNAME served
+ * through the private /api/blob proxy; legacy rows may hold a full public URL.
+ */
+const blobHref = (value: string) =>
+  value.startsWith("http") ? value : `/api/blob/${value}`;
+
 export default async function LessonPage({
   params,
 }: {
@@ -300,7 +307,7 @@ export default async function LessonPage({
                       Your Submissions
                     </p>
                     <a
-                      href={submission.blobUrl}
+                      href={blobHref(submission.blobUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{

@@ -262,51 +262,12 @@ function MeditationPhi() {
             <circle cx={50} cy={88} r={1.2} fill="#F0B0B0" filter="url(#med-glow)" />
           </motion.g>
 
-          {/* --- Φ glyph builds itself --- */}
-
-          {/* Construction ellipse (the loop of Φ) draws, then dims to a faint aura. */}
-          <motion.ellipse
-            cx={50}
-            cy={49}
-            rx={15}
-            ry={23}
-            fill="none"
-            stroke="#E8A0A0"
-            strokeWidth={1.4}
-            strokeLinecap="round"
-            strokeDasharray={160}
-            initial={{ strokeDashoffset: 160, opacity: 0.9 }}
-            animate={{ strokeDashoffset: 0, opacity: 0.28 }}
-            transition={{
-              strokeDashoffset: { duration: 1.1, delay: 1.0, ease: "easeInOut" },
-              opacity: { duration: 0.9, delay: 2.3 },
-            }}
-          />
-
-          {/* Construction bar (the stem of Φ) draws, then dims. */}
-          <motion.line
-            x1={50}
-            y1={18}
-            x2={50}
-            y2={80}
-            stroke="#E8A0A0"
-            strokeWidth={1.4}
-            strokeLinecap="round"
-            strokeDasharray={80}
-            initial={{ strokeDashoffset: 80, opacity: 0.9 }}
-            animate={{ strokeDashoffset: 0, opacity: 0.28 }}
-            transition={{
-              strokeDashoffset: { duration: 0.7, delay: 1.75, ease: "easeInOut" },
-              opacity: { duration: 0.9, delay: 2.3 },
-            }}
-          />
-
-          {/* Solid serif Φ fades in over the sketch, then shimmers forever. */}
+          {/* Solid serif Φ — fades in amid the ring build, then shimmers forever. */}
           <motion.g
             filter="url(#med-glow)"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.9, delay: 2.3 }}
+            transition={{ duration: 1, delay: 1.1 }}
           >
             <motion.text
               x={50}
@@ -317,7 +278,7 @@ function MeditationPhi() {
               fontWeight={500}
               fill="url(#med-fill)"
               animate={{ opacity: [0.9, 1, 0.9] }}
-              transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", delay: 2.6 }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", delay: 1.9 }}
             >
               Φ
             </motion.text>
@@ -335,7 +296,7 @@ function MeditationCaption() {
       style={{ marginTop: 28, textAlign: "center" }}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 1.2, delay: 2.6 }}
+      transition={{ duration: 1.2, delay: 2.0 }}
     >
       <p
         style={{

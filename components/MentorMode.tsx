@@ -32,6 +32,9 @@ interface Student {
   entries: MentorEntry[];
 }
 
+/** Unreviewed entries at/above this count make a student's row glow-pulse. */
+const UNREVIEWED_ALERT = 3;
+
 export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
   const [active, setActive] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
@@ -39,6 +42,8 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // Students the mentor has opened this session — their glow-pulse is calmed.
+  const [seen, setSeen] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,8 +67,15 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
         }
         s.entries.push(e);
       }
-      const list = Array.from(map.values()).sort((a, b) =>
-        a.discordUsername.localeCompare(b.discordUsername)
+      // Newest entry first within each student, then order students by whoever
+      // posted most recently — the freshest journals rise to the top.
+      const list = Array.from(map.values());
+      for (const s of list) {
+        s.entries.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      }
+      const recent = (s: Student) => s.entries[0]?.createdAt ?? "";
+      list.sort((a, b) =>
+        recent(a) < recent(b) ? 1 : recent(a) > recent(b) ? -1 : 0
       );
       setStudents(list);
 
@@ -116,7 +128,13 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
       {/* Floating toggle — admin only. */}
       <button
         type="button"
-        onClick={() => (active ? close() : setActive(true))}
+        onClick={() => {
+          if (active) close();
+          else {
+            setSeen(new Set());
+            setActive(true);
+          }
+        }}
         style={{
           position: "fixed",
           top: 88,
@@ -222,11 +240,35 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                   ) : (
                     students.map((s) => {
                       const isSel = s.discordId === selectedId;
+                      const unreviewed = s.entries.filter(
+                        (e) => !(e.feedback && e.feedback.trim())
+                      ).length;
+                      const pulsing =
+                        !isSel &&
+                        !seen.has(s.discordId) &&
+                        unreviewed >= UNREVIEWED_ALERT;
                       return (
-                        <button
+                        <motion.button
                           key={s.discordId}
                           type="button"
-                          onClick={() => setSelectedId(s.discordId)}
+                          onClick={() => {
+                            setSelectedId(s.discordId);
+                            setSeen((prev) => new Set(prev).add(s.discordId));
+                          }}
+                          animate={{
+                            boxShadow: pulsing
+                              ? [
+                                  "0px 0px 0px rgba(232,160,160,0)",
+                                  "0px 0px 18px rgba(232,160,160,0.55)",
+                                  "0px 0px 0px rgba(232,160,160,0)",
+                                ]
+                              : "0px 0px 0px rgba(232,160,160,0)",
+                          }}
+                          transition={
+                            pulsing
+                              ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
+                              : { duration: 0.4 }
+                          }
                           style={{
                             display: "flex",
                             width: "100%",
@@ -236,6 +278,8 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                             padding: "14px 18px",
                             background: isSel
                               ? "rgba(232,160,160,0.08)"
+                              : pulsing
+                              ? "rgba(232,160,160,0.05)"
                               : "transparent",
                             border: "none",
                             borderLeft: isSel
@@ -263,12 +307,12 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                             style={{
                               flex: "0 0 auto",
                               fontSize: 10,
-                              color: "rgba(232,160,160,0.6)",
+                              color: pulsing ? "#F0B0B0" : "rgba(232,160,160,0.6)",
                             }}
                           >
                             {s.entries.length}
                           </span>
-                        </button>
+                        </motion.button>
                       );
                     })
                   )}

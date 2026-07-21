@@ -159,9 +159,16 @@ export function isLessonUnlocked(
   return completedLessons.includes(lessons[idx - 1].id);
 }
 
-/** Lessons grouped by their `group` label, preserving curriculum order. */
+/**
+ * Lessons grouped by their `group` label, preserving curriculum order.
+ *
+ * `extraSections` are admin-added empty section names: any that don't already
+ * have lessons are appended as empty groups (ordered after the populated ones)
+ * so a freshly-created section still renders before it holds any lesson.
+ */
 export function getLessonGroups(
-  lessons: Lesson[] = LESSONS
+  lessons: Lesson[] = LESSONS,
+  extraSections: string[] = []
 ): { group: string; lessons: Lesson[] }[] {
   const groups: { group: string; lessons: Lesson[] }[] = [];
   for (const lesson of lessons) {
@@ -171,6 +178,11 @@ export function getLessonGroups(
       groups.push(bucket);
     }
     bucket.lessons.push(lesson);
+  }
+  for (const section of extraSections) {
+    if (!groups.some((g) => g.group === section)) {
+      groups.push({ group: section, lessons: [] });
+    }
   }
   return groups;
 }

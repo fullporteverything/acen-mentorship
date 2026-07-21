@@ -5,6 +5,7 @@ import LessonsSidebar from "@/components/LessonsSidebar";
 import { buildEffectiveLessons, computeLessonStates } from "@/lib/lessons-config";
 import {
   getAddedLessons,
+  getAddedSections,
   getAnnouncements,
   getLessonOverrides,
   getUserProgress,
@@ -24,12 +25,14 @@ export default async function LessonsPage() {
     session.user.discordId === process.env.ADMIN_DISCORD_ID;
 
   const discordId = session.user.discordId || session.user.id || "unknown";
-  const [progress, announcements, addedLessons, overrides] = await Promise.all([
-    getUserProgress(discordId),
-    getAnnouncements(),
-    getAddedLessons(),
-    getLessonOverrides(),
-  ]);
+  const [progress, announcements, addedLessons, overrides, addedSections] =
+    await Promise.all([
+      getUserProgress(discordId),
+      getAnnouncements(),
+      getAddedLessons(),
+      getLessonOverrides(),
+      getAddedSections(),
+    ]);
 
   const lessons = buildEffectiveLessons(addedLessons, overrides);
   const states = computeLessonStates(progress.completedLessons, lessons);
@@ -51,6 +54,7 @@ export default async function LessonsPage() {
         <LessonsSidebar
           completedLessons={progress.completedLessons}
           lessons={lessons}
+          addedSections={addedSections}
           isAdmin={isAdmin}
         />
 

@@ -12,6 +12,8 @@ interface LessonsSidebarProps {
   activeLessonId?: string;
   /** Effective curriculum (static + admin-added, overrides applied). */
   lessons?: Lesson[];
+  /** Admin-added empty section names — rendered even with zero lessons. */
+  addedSections?: string[];
   /** When true, show admin "add lesson"/"add section" controls. */
   isAdmin?: boolean;
 }
@@ -26,6 +28,7 @@ export default function LessonsSidebar({
   completedLessons,
   activeLessonId,
   lessons = LESSONS,
+  addedSections = [],
   isAdmin = false,
 }: LessonsSidebarProps) {
   const states = computeLessonStates(completedLessons, lessons);
@@ -35,7 +38,7 @@ export default function LessonsSidebar({
   const done = states.filter((s) => s.completed).length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
-  const groups = getLessonGroups(lessons);
+  const groups = getLessonGroups(lessons, addedSections);
 
   return (
     <aside
@@ -204,6 +207,23 @@ export default function LessonsSidebar({
                   </a>
                 );
               })}
+
+              {/* Empty section — no lessons added yet */}
+              {groupStates.length === 0 && (
+                <p
+                  style={{
+                    padding: "12px 28px",
+                    fontSize: "11px",
+                    letterSpacing: "1px",
+                    lineHeight: 1.5,
+                    color: "rgba(245,240,240,0.3)",
+                    fontFamily: "Georgia, serif",
+                    fontStyle: "italic",
+                  }}
+                >
+                  No lessons yet
+                </p>
+              )}
 
               {/* Admin: add a lesson to this section */}
               {isAdmin && <AddLessonForm section={group.group} />}

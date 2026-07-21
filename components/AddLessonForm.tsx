@@ -45,12 +45,14 @@ export default function AddLessonForm({ section, label }: AddLessonFormProps) {
     setError("");
 
     const targetSection = addSectionMode ? sectionName.trim() : section;
-    if (!title.trim()) {
+    if (addSectionMode) {
+      // Section name is required; the first lesson is optional (add it later).
+      if (!targetSection) {
+        setError("A section name is required.");
+        return;
+      }
+    } else if (!title.trim()) {
       setError("A lesson title is required.");
-      return;
-    }
-    if (addSectionMode && !targetSection) {
-      setError("A section name is required.");
       return;
     }
 
@@ -107,7 +109,9 @@ export default function AddLessonForm({ section, label }: AddLessonFormProps) {
       )}
       <input
         type="text"
-        placeholder="Lesson title"
+        placeholder={
+          addSectionMode ? "Lesson title (optional — add later)" : "Lesson title"
+        }
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         style={inputStyle}

@@ -223,6 +223,7 @@ export async function saveAnnouncements(
 
 const LESSON_OVERRIDES_PATH = "dojo/lesson-overrides.json";
 const ADDED_LESSONS_PATH = "dojo/added-lessons.json";
+const ADDED_SECTIONS_PATH = "dojo/added-sections.json";
 
 /** Admin content overrides keyed by lessonId. Empty object if none/unreadable. */
 export async function getLessonOverrides(): Promise<LessonOverrides> {
@@ -244,6 +245,22 @@ export async function getAddedLessons(): Promise<Lesson[]> {
 
 export async function saveAddedLessons(lessons: Lesson[]): Promise<void> {
   await writeJson(ADDED_LESSONS_PATH, lessons);
+}
+
+/**
+ * Admin-added empty sections — section names created without a first lesson.
+ * These render as section headers (with an admin "add lesson" control) even
+ * before any lesson lives in them.
+ */
+export async function getAddedSections(): Promise<string[]> {
+  const sections = await readJson<string[]>(ADDED_SECTIONS_PATH, []);
+  return Array.isArray(sections)
+    ? sections.filter((s) => typeof s === "string")
+    : [];
+}
+
+export async function saveAddedSections(sections: string[]): Promise<void> {
+  await writeJson(ADDED_SECTIONS_PATH, sections);
 }
 
 // ---------------------------------------------------------------------------

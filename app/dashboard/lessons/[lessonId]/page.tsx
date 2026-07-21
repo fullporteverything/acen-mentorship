@@ -12,6 +12,7 @@ import {
 } from "@/lib/lessons-config";
 import {
   getAddedLessons,
+  getAddedSections,
   getLessonOverrides,
   getUserProgress,
   type SubmissionStatus,
@@ -47,10 +48,11 @@ export default async function LessonPage({
     session.user.discordId === process.env.ADMIN_DISCORD_ID;
 
   const discordId = session.user.discordId || session.user.id || "unknown";
-  const [progress, addedLessons, overrides] = await Promise.all([
+  const [progress, addedLessons, overrides, addedSections] = await Promise.all([
     getUserProgress(discordId),
     getAddedLessons(),
     getLessonOverrides(),
+    getAddedSections(),
   ]);
 
   const lessons = buildEffectiveLessons(addedLessons, overrides);
@@ -83,6 +85,7 @@ export default async function LessonPage({
           completedLessons={progress.completedLessons}
           activeLessonId={lesson.id}
           lessons={lessons}
+          addedSections={addedSections}
           isAdmin={isAdmin}
         />
 

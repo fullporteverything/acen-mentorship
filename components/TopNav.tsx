@@ -1,7 +1,7 @@
 import { auth, signOut } from "@/auth";
 import PhiLogo from "@/components/PhiLogo";
 import JournalNavBadge from "@/components/JournalNavBadge";
-import AvatarImg from "@/components/AvatarImg";
+import ProfileTrigger from "@/components/ProfileTrigger";
 
 interface TopNavProps {
   /** href of the nav link that should render as active. */
@@ -91,21 +91,15 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
 
       {/* Right cluster: user + sign out */}
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <AvatarImg src={session?.user?.image} name={session?.user?.name} />
-        <span
-          className="topnav-username"
-          style={{
-            fontSize: 11,
-            color: "rgba(245,240,240,0.65)",
-            fontFamily: "Georgia, serif",
-            maxWidth: 160,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {session?.user?.name}
-        </span>
+        <ProfileTrigger
+          discordId={session?.user?.discordId}
+          name={session?.user?.name ?? undefined}
+          image={session?.user?.image ?? undefined}
+          avatarHash={session?.user?.avatarHash}
+          bannerHash={session?.user?.bannerHash}
+          accentColor={session?.user?.accentColor}
+          decorationAsset={session?.user?.decorationAsset}
+        />
         <form
           action={async () => {
             "use server";

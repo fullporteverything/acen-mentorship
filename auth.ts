@@ -54,12 +54,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token?.discordId) {
         session.user.discordId = token.discordId as string;
       }
+      // Discord profile cosmetics captured at sign-in (refresh on next login).
+      session.user.avatarHash = (token.avatarHash as string) || undefined;
+      session.user.bannerHash = (token.bannerHash as string) || undefined;
+      session.user.accentColor =
+        typeof token.accentColor === "number" ? token.accentColor : undefined;
+      session.user.decorationAsset =
+        (token.decorationAsset as string) || undefined;
       return session;
     },
     async jwt({ token, account, profile }) {
       if (account) {
         token.accessToken = account.access_token;
         token.discordId = profile?.id as string;
+        // Cosmetics from the raw Discord user object (identify scope):
+        // animated avatars/banners have an "a_"-prefixed hash; the avatar
+        // decoration is an APNG asset on Discord's CDN.
+        const p = profile as {
+          avatar?: string | null;
+          banner?: string | null;
+          accent_color?: number | null;
+          avatar_decoration_data?: { asset?: string } | null;
+        };
+        token.avatarHash = p?.avatar ?? undefined;
+        token.bannerHash = p?.banner ?? undefined;
+        token.accentColor = p?.accent_color ?? undefined;
+        token.decorationAsset = p?.avatar_decoration_data?.asset ?? undefined;
       }
       return token;
     },

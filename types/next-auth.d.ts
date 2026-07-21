@@ -10,6 +10,14 @@ declare module "next-auth" {
     user: {
       id?: string;
       discordId?: string;
+      /** Discord avatar hash ("a_"-prefixed = animated GIF available). */
+      avatarHash?: string;
+      /** Discord profile banner hash ("a_"-prefixed = animated). */
+      bannerHash?: string;
+      /** Discord profile accent color as an integer RGB. */
+      accentColor?: number;
+      /** Avatar decoration asset id (APNG on Discord's CDN). */
+      decorationAsset?: string;
     } & DefaultSession["user"];
   }
 }
@@ -19,5 +27,9 @@ declare module "next-auth/jwt" {
   interface JWT {
     discordId?: string;
     accessToken?: string;
+    avatarHash?: string;
+    bannerHash?: string;
+    accentColor?: number;
+    decorationAsset?: string;
   }
 }

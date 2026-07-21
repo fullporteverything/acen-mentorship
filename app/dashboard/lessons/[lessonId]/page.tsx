@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import TopNav from "@/components/TopNav";
 import LessonsSidebar from "@/components/LessonsSidebar";
 import CloudflarePlayer from "@/components/CloudflarePlayer";
+import CaptionControls from "@/components/CaptionControls";
 import HomeworkUpload from "@/components/HomeworkUpload";
 import EditableText from "@/components/EditableText";
 import {
@@ -32,6 +33,21 @@ const STATUS_COLORS: Record<SubmissionStatus, string> = {
  */
 const blobHref = (value: string) =>
   value.startsWith("http") ? value : `/api/blob/${value}`;
+
+/**
+ * Same "is this a real Cloudflare Stream UID?" heuristic as
+ * components/CloudflarePlayer.tsx — used to decide whether the admin caption
+ * controls make sense for this lesson yet.
+ */
+const isPlausibleVideoId = (videoId: string | undefined | null): boolean => {
+  if (!videoId) return false;
+  const id = videoId.trim();
+  if (id.length < 16) return false;
+  if (/\s/.test(id)) return false;
+  if (id.includes("_")) return false;
+  if (/YOUR_VIDEO/i.test(id)) return false;
+  return true;
+};
 
 export default async function LessonPage({
   params,
@@ -172,6 +188,11 @@ export default async function LessonPage({
               {/* Video */}
               <div style={{ maxWidth: "860px", marginBottom: "16px" }}>
                 <CloudflarePlayer videoId={lesson.videoId} title={lesson.title} />
+                {isAdmin && isPlausibleVideoId(lesson.videoId) && (
+                  <div style={{ marginTop: "10px" }}>
+                    <CaptionControls videoId={lesson.videoId} />
+                  </div>
+                )}
               </div>
               <EditableText
                 as="p"

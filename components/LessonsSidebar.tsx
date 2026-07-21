@@ -5,6 +5,7 @@ import {
   type Lesson,
 } from "@/lib/lessons-config";
 import AddLessonForm from "@/components/AddLessonForm";
+import SectionAdminControls from "@/components/SectionAdminControls";
 
 interface LessonsSidebarProps {
   completedLessons: string[];
@@ -224,6 +225,9 @@ export default function LessonsSidebar({
                   No lessons yet
                 </p>
               )}
+
+              {/* Admin: rename / delete this section */}
+              {isAdmin && <SectionAdminControls section={group.group} />}
 
               {/* Admin: add a lesson to this section */}
               {isAdmin && <AddLessonForm section={group.group} />}

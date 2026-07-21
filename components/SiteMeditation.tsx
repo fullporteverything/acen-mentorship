@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -21,6 +22,12 @@ const SIZE = 240;
 
 export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number } = {}) {
   const [meditating, setMeditating] = useState(false);
+  const pathname = usePathname();
+
+  // Watching a lesson video means long, legitimate stretches with no mouse or
+  // keyboard input — the overlay would pop every idle period mid-video. So on
+  // lesson-detail pages (where the video player lives) meditation never arms.
+  const suppressed = /^\/dashboard\/lessons\/[^/]+/.test(pathname ?? "");
 
   // Ref mirror so the always-on listeners can read the latest state without
   // being torn down / re-added on every toggle.
@@ -30,6 +37,12 @@ export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number }
   }, [meditating]);
 
   useEffect(() => {
+    if (suppressed) {
+      // Entering a video page while meditating also clears the overlay.
+      setMeditating(false);
+      return;
+    }
+
     let timer: ReturnType<typeof setTimeout>;
 
     const arm = () => {
@@ -72,7 +85,7 @@ export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number }
       window.removeEventListener("pointerdown", dismiss, true);
       window.removeEventListener("keydown", dismiss, true);
     };
-  }, [idleMs]);
+  }, [idleMs, suppressed]);
 
   return (
     <AnimatePresence>

@@ -2,6 +2,7 @@
 
 import { AnimatePresence } from "framer-motion";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import AvatarImg from "@/components/AvatarImg";
 import ProfileCard from "@/components/ProfileCard";
 
@@ -71,7 +72,13 @@ export default function ProfileTrigger({
         </span>
       </button>
 
-      <AnimatePresence>
+      {/* Portal to <body>: the topnav's backdrop-filter makes it the containing
+         block for fixed-position descendants, which would trap and clip the
+         modal inside the 76px nav strip. The portal escapes it. `open` only
+         turns true from a click, so document is always available here. */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
         {open && (
           <ProfileCard
             discordId={discordId}
@@ -84,7 +91,9 @@ export default function ProfileTrigger({
             onClose={() => setOpen(false)}
           />
         )}
-      </AnimatePresence>
+          </AnimatePresence>,
+          document.body
+        )}
     </>
   );
 }

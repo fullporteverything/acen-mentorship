@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Cloudflare Stream direct-creator uploader (admin only).
@@ -19,6 +19,45 @@ export default function VideoUpload() {
   const [error, setError] = useState("");
   const [uid, setUid] = useState("");
   const [copied, setCopied] = useState(false);
+  const [captions, setCaptions] = useState<
+    "idle" | "requesting" | "done" | "failed"
+  >("idle");
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  /**
+   * Auto-request AI English captions for a freshly uploaded video. Cloudflare
+   * may reject while the video is still processing, so retry a few times with
+   * a delay. The lesson page's "Generate Captions" control remains the manual
+   * fallback if all attempts fail.
+   */
+  async function autoGenerateCaptions(videoUid: string) {
+    setCaptions("requesting");
+    const delays = [0, 60_000, 120_000];
+    for (const delay of delays) {
+      if (delay) await new Promise((r) => setTimeout(r, delay));
+      if (!aliveRef.current) return;
+      try {
+        const res = await fetch("/api/admin/captions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ videoId: videoUid }),
+        });
+        if (res.ok) {
+          if (aliveRef.current) setCaptions("done");
+          return;
+        }
+      } catch {
+        // network hiccup — fall through to the next retry
+      }
+    }
+    if (aliveRef.current) setCaptions("failed");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,6 +125,8 @@ export default function VideoUpload() {
       setProgress(100);
       setFileName("");
       if (inputRef.current) inputRef.current.value = "";
+      // Fire-and-monitor: captions kick off automatically for every upload.
+      if (newUid) void autoGenerateCaptions(newUid);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Upload failed. Please try again."
@@ -268,6 +309,27 @@ export default function VideoUpload() {
               Paste this into a lesson&rsquo;s <code>videoId</code> in
               lib/lessons-config.ts.
             </p>
+            {captions !== "idle" && (
+              <p
+                style={{
+                  fontSize: "10px",
+                  letterSpacing: "1px",
+                  color:
+                    captions === "failed"
+                      ? "#E8807A"
+                      : "rgba(232,160,160,0.7)",
+                  fontFamily: "Georgia, serif",
+                  fontStyle: "italic",
+                  marginTop: "8px",
+                }}
+              >
+                {captions === "requesting"
+                  ? "Captions: auto-generating… (retries while the video processes)"
+                  : captions === "done"
+                  ? "Captions: requested ✓ — English subtitles will appear when processing finishes."
+                  : "Captions: auto-request failed — use Generate Captions on the lesson page."}
+              </p>
+            )}
           </div>
         )}
 

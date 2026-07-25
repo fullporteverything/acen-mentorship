@@ -185,8 +185,8 @@ export default async function LessonPage({
             </div>
           ) : (
             <>
-              {/* Video */}
-              <div style={{ maxWidth: "860px", marginBottom: "16px" }}>
+              {/* Video — full width of the content column */}
+              <div style={{ width: "100%", marginBottom: "16px" }}>
                 <CloudflarePlayer videoId={lesson.videoId} title={lesson.title} />
                 {isAdmin && isPlausibleVideoId(lesson.videoId) && (
                   <div style={{ marginTop: "10px" }}>

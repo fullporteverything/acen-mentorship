@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LESSONS } from "@/lib/lessons-config";
 import VideoUpload from "@/components/VideoUpload";
+import VideoLibrary from "@/components/VideoLibrary";
 
 interface CaptureLog {
   discordId?: string;
@@ -157,6 +158,9 @@ export default function AdminPanel() {
 
       {/* Upload Video */}
       <VideoUpload />
+
+      {/* Video Library — every uploaded UID, retrievable long after upload */}
+      <VideoLibrary />
 
       {/* Homework Auto-Approval */}
       <AutoApproveSection />

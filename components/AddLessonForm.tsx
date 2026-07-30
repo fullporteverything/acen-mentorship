@@ -15,6 +15,20 @@ interface AddLessonFormProps {
 }
 
 /**
+ * Same "is this a real Cloudflare Stream UID?" heuristic as
+ * components/CloudflarePlayer.tsx, so a typo is caught before it reaches the
+ * API. An empty value is fine — the video can be attached later from the
+ * lesson page.
+ */
+function isPlausibleVideoId(value: string): boolean {
+  if (value.length < 16) return false;
+  if (/\s/.test(value)) return false;
+  if (value.includes("_")) return false;
+  if (/YOUR_VIDEO/i.test(value)) return false;
+  return true;
+}
+
+/**
  * Admin-only collapsible form to append a lesson (and, in add-section mode, a
  * new section) to the curriculum. Posts to /api/admin/add-lesson and refreshes.
  */
@@ -27,6 +41,7 @@ export default function AddLessonForm({ section, label }: AddLessonFormProps) {
   const [sectionName, setSectionName] = useState("");
   const [description, setDescription] = useState("");
   const [homeworkPrompt, setHomeworkPrompt] = useState("");
+  const [videoId, setVideoId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,6 +52,7 @@ export default function AddLessonForm({ section, label }: AddLessonFormProps) {
     setSectionName("");
     setDescription("");
     setHomeworkPrompt("");
+    setVideoId("");
     setError("");
   }
 
@@ -56,6 +72,14 @@ export default function AddLessonForm({ section, label }: AddLessonFormProps) {
       return;
     }
 
+    const trimmedVideoId = videoId.trim();
+    if (trimmedVideoId && !isPlausibleVideoId(trimmedVideoId)) {
+      setError(
+        "That doesn't look like a Stream UID — expect 32 hex characters, no spaces or underscores."
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await fetch("/api/admin/add-lesson", {
@@ -66,6 +90,7 @@ export default function AddLessonForm({ section, label }: AddLessonFormProps) {
           description: description.trim(),
           section: targetSection,
           homeworkPrompt: homeworkPrompt.trim(),
+          videoId: trimmedVideoId,
         }),
       });
       if (!res.ok) {
@@ -129,6 +154,14 @@ export default function AddLessonForm({ section, label }: AddLessonFormProps) {
         onChange={(e) => setHomeworkPrompt(e.target.value)}
         rows={2}
         style={{ ...inputStyle, resize: "vertical" }}
+      />
+      <input
+        type="text"
+        placeholder="Video UID (optional — paste from Upload Video)"
+        value={videoId}
+        onChange={(e) => setVideoId(e.target.value)}
+        spellCheck={false}
+        style={inputStyle}
       />
 
       {error && (

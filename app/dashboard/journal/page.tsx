@@ -45,6 +45,8 @@ export default async function JournalPage() {
     const uid = s.user.discordId || s.user.id || "unknown";
 
     const body = String(formData.get("body") ?? "").trim().slice(0, MAX_ENTRY);
+    const rawTag = String(formData.get("tag") ?? "").trim();
+    const tags = rawTag === "Funded" || rawTag === "Eval" ? [rawTag] : undefined;
     const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
     // Upload up to 4 trade screenshots (stored private; shown via /api/blob).
@@ -76,6 +78,7 @@ export default async function JournalPage() {
       createdAt: new Date().toISOString(),
       discordUsername: s.user.name || undefined,
       images: images.length ? images : undefined,
+      tags,
     };
 
     const current = await getJournal(uid);
@@ -254,16 +257,36 @@ function EntryCard({
           marginBottom: 11,
         }}
       >
-        <span
-          style={{
-            fontSize: 9,
-            color: "rgba(245,240,240,0.45)",
-            fontFamily: "Georgia, serif",
-            letterSpacing: 1,
-          }}
-        >
-          {stamp}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              fontSize: 9,
+              color: "rgba(245,240,240,0.45)",
+              fontFamily: "Georgia, serif",
+              letterSpacing: 1,
+            }}
+          >
+            {stamp}
+          </span>
+          {entry.tags && entry.tags.length > 0 &&
+            entry.tags.map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  fontSize: 8,
+                  letterSpacing: 2,
+                  textTransform: "uppercase",
+                  fontFamily: "Georgia, serif",
+                  color: "#E8A0A0",
+                  border: "1px solid rgba(232,160,160,0.35)",
+                  padding: "1px 7px",
+                  lineHeight: 1.6,
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+        </div>
 
         <form action={onDelete} className="journal-delete">
           <input type="hidden" name="id" value={entry.id} />

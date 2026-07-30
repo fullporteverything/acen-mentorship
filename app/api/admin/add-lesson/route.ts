@@ -20,8 +20,21 @@ async function requireAdmin() {
 }
 
 /**
+ * Same "is this a real Cloudflare Stream UID?" heuristic as
+ * components/CloudflarePlayer.tsx — a lesson is created with the placeholder
+ * (so the player shows "video coming soon") unless a plausible UID is given.
+ */
+function isPlausibleVideoId(value: string): boolean {
+  if (value.length < 16) return false;
+  if (/\s/.test(value)) return false;
+  if (value.includes("_")) return false;
+  if (/YOUR_VIDEO/i.test(value)) return false;
+  return true;
+}
+
+/**
  * POST: append a new lesson to the admin-added list. Admin-only.
- * Body: { title, description, section, homeworkPrompt }
+ * Body: { title, description, section, homeworkPrompt, videoId? }
  * The `section` becomes the lesson's group — a new section name simply
  * creates a new group when the curriculum is grouped for display.
  *
@@ -39,6 +52,7 @@ export async function POST(req: NextRequest) {
     description?: string;
     section?: string;
     homeworkPrompt?: string;
+    videoId?: string;
   };
   try {
     body = await req.json();
@@ -50,6 +64,7 @@ export async function POST(req: NextRequest) {
   const section = (body.section || "").trim();
   const description = (body.description || "").trim();
   const homeworkPrompt = (body.homeworkPrompt || "").trim();
+  const videoId = (body.videoId || "").trim();
   if (!section) {
     return NextResponse.json(
       { error: "Section is required" },
@@ -91,12 +106,22 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  if (videoId && !isPlausibleVideoId(videoId)) {
+    return NextResponse.json(
+      {
+        error:
+          "That doesn't look like a Cloudflare Stream video UID. Paste the UID shown after upload (at least 16 characters, no spaces or underscores), or leave it empty to add the video later.",
+      },
+      { status: 400 }
+    );
+  }
 
   const lesson: Lesson = {
     id: `lesson_${Date.now()}`,
     title,
     description,
-    videoId: "YOUR_VIDEO_ID_HERE",
+    // No UID yet → keep the placeholder so the player shows "coming soon".
+    videoId: videoId || "YOUR_VIDEO_ID_HERE",
     homeworkPrompt: homeworkPrompt || "Submit your homework for this lesson.",
     group: section,
   };

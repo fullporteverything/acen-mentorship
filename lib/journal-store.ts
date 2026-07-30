@@ -28,6 +28,8 @@ export interface JournalEntry {
   feedback?: string;
   /** ISO timestamp of when the feedback was last saved. */
   feedbackAt?: string;
+  /** User-selected tags, e.g. ["Funded"] or ["Eval"]. */
+  tags?: string[];
 }
 
 /** A journal entry flattened with the member it belongs to — for the mentor view. */
@@ -94,6 +96,9 @@ function normalizeEntries(raw: unknown): JournalEntry[] {
         typeof e.discordUsername === "string" ? e.discordUsername : undefined,
       feedback: typeof e.feedback === "string" ? e.feedback : undefined,
       feedbackAt: typeof e.feedbackAt === "string" ? e.feedbackAt : undefined,
+      tags: Array.isArray(e.tags)
+        ? e.tags.filter((x): x is string => typeof x === "string")
+        : undefined,
     }));
 }
 

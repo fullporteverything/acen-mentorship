@@ -6,6 +6,9 @@ const MAX = 5000;
 const MAX_IMAGES = 4;
 const MAX_IMG_BYTES = 8 * 1024 * 1024; // 8MB
 
+const TRADE_TAGS = ["Funded", "Eval"] as const;
+type TradeTag = (typeof TRADE_TAGS)[number];
+
 type Preview = { file: File; url: string };
 
 /**
@@ -20,6 +23,7 @@ export default function JournalComposer({
 }) {
   const [value, setValue] = useState("");
   const [previews, setPreviews] = useState<Preview[]>([]);
+  const [selectedTag, setSelectedTag] = useState<TradeTag | null>(null);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
   const [pending, startTransition] = useTransition();
@@ -67,6 +71,7 @@ export default function JournalComposer({
     if (!canPost) return;
     const fd = new FormData();
     fd.set("body", value);
+    if (selectedTag) fd.set("tag", selectedTag);
     for (const p of previews) fd.append("images", p.file);
     setWarning("");
     startTransition(async () => {
@@ -74,6 +79,7 @@ export default function JournalComposer({
       previews.forEach((p) => URL.revokeObjectURL(p.url));
       setPreviews([]);
       setValue("");
+      setSelectedTag(null);
       setError("");
       const failed = result?.failedImages ?? 0;
       setWarning(
@@ -114,6 +120,46 @@ export default function JournalComposer({
             lineHeight: 1.8,
           }}
         />
+      </div>
+
+      {/* Tag selector */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+        <span
+          style={{
+            fontSize: 9,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            fontFamily: "Georgia, serif",
+            color: "rgba(245,240,240,0.4)",
+          }}
+        >
+          Account:
+        </span>
+        {TRADE_TAGS.map((tag) => {
+          const active = selectedTag === tag;
+          return (
+            <button
+              key={tag}
+              type="button"
+              disabled={pending}
+              onClick={() => setSelectedTag(active ? null : tag)}
+              style={{
+                padding: "3px 12px",
+                fontSize: 9,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                fontFamily: "Georgia, serif",
+                background: active ? "rgba(232,160,160,0.15)" : "transparent",
+                border: `1px solid ${active ? "rgba(232,160,160,0.6)" : "rgba(232,160,160,0.2)"}`,
+                color: active ? "#E8A0A0" : "rgba(245,240,240,0.4)",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {tag}
+            </button>
+          );
+        })}
       </div>
 
       {/* Image previews */}

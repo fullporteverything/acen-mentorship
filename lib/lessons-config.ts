@@ -60,6 +60,11 @@ export interface LessonOverride {
   title?: string;
   description?: string;
   homeworkPrompt?: string;
+  /**
+   * Cloudflare Stream UID attached from the admin UI. An empty string means
+   * "no override" — the lesson falls back to its static `videoId`.
+   */
+  videoId?: string;
 }
 
 /** Map of lessonId -> override. */
@@ -70,6 +75,7 @@ export const OVERRIDABLE_FIELDS = [
   "title",
   "description",
   "homeworkPrompt",
+  "videoId",
 ] as const;
 export type OverridableField = (typeof OVERRIDABLE_FIELDS)[number];
 
@@ -88,6 +94,11 @@ export function applyOverrides(
       : {}),
     ...(typeof o.homeworkPrompt === "string"
       ? { homeworkPrompt: o.homeworkPrompt }
+      : {}),
+    // Unlike the copy fields, a blank videoId override is meaningless — it
+    // clears the attachment and reverts to whatever the curriculum declares.
+    ...(typeof o.videoId === "string" && o.videoId.trim()
+      ? { videoId: o.videoId.trim() }
       : {}),
   };
 }

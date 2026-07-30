@@ -4,6 +4,7 @@ import TopNav from "@/components/TopNav";
 import LessonsSidebar from "@/components/LessonsSidebar";
 import CloudflarePlayer from "@/components/CloudflarePlayer";
 import CaptionControls from "@/components/CaptionControls";
+import VideoAssign from "@/components/VideoAssign";
 import HomeworkUpload from "@/components/HomeworkUpload";
 import EditableText from "@/components/EditableText";
 import {
@@ -188,6 +189,14 @@ export default async function LessonPage({
               {/* Video — full width of the content column */}
               <div style={{ width: "100%", marginBottom: "16px" }}>
                 <CloudflarePlayer videoId={lesson.videoId} title={lesson.title} />
+                {isAdmin && (
+                  <div style={{ marginTop: "10px" }}>
+                    <VideoAssign
+                      lessonId={lesson.id}
+                      currentVideoId={lesson.videoId}
+                    />
+                  </div>
+                )}
                 {isAdmin && isPlausibleVideoId(lesson.videoId) && (
                   <div style={{ marginTop: "10px" }}>
                     <CaptionControls videoId={lesson.videoId} />

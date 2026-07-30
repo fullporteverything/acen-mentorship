@@ -138,16 +138,23 @@ export interface LessonState {
   current: boolean;
 }
 
+/**
+ * `unlockAll` bypasses sequential gating entirely — every lesson reports as
+ * unlocked. Used for the admin, who is never locked out of their own
+ * curriculum; student behaviour is unchanged when it is false (the default).
+ */
 export function computeLessonStates(
   completedLessons: string[],
-  lessons: Lesson[] = LESSONS
+  lessons: Lesson[] = LESSONS,
+  unlockAll = false
 ): LessonState[] {
   const completed = new Set(completedLessons);
   let currentAssigned = false;
 
   return lessons.map((lesson, index) => {
     const isCompleted = completed.has(lesson.id);
-    const unlocked = index === 0 || completed.has(lessons[index - 1].id);
+    const unlocked =
+      unlockAll || index === 0 || completed.has(lessons[index - 1].id);
 
     let current = false;
     if (unlocked && !isCompleted && !currentAssigned) {
@@ -159,13 +166,18 @@ export function computeLessonStates(
   });
 }
 
-/** Whether a specific lesson is unlocked for a given completed-lessons list. */
+/**
+ * Whether a specific lesson is unlocked for a given completed-lessons list.
+ * `unlockAll` (the admin) unlocks any lesson that exists in `lessons`.
+ */
 export function isLessonUnlocked(
   lessonId: string,
   completedLessons: string[],
-  lessons: Lesson[] = LESSONS
+  lessons: Lesson[] = LESSONS,
+  unlockAll = false
 ): boolean {
   const idx = lessons.findIndex((l) => l.id === lessonId);
+  if (unlockAll) return idx >= 0;
   if (idx <= 0) return idx === 0; // first lesson always unlocked; unknown => false
   return completedLessons.includes(lessons[idx - 1].id);
 }

@@ -66,6 +66,13 @@ export interface AdminSubmission extends Submission {
   lessonId: string;
 }
 
+/** One student's progress record, for the admin Student Progress section. */
+export interface AdminProgress {
+  discordId: string;
+  discordUsername: string;
+  completedLessons: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Low-level JSON blob helpers
 // ---------------------------------------------------------------------------
@@ -175,6 +182,53 @@ export async function getAllSubmissions(): Promise<AdminSubmission[]> {
 
   // Newest submissions first.
   results.sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1));
+  return results;
+}
+
+/**
+ * Every student who has a progress record, for the admin Student Progress
+ * section. Same `dojo/progress/` scan as {@link getAllSubmissions}, but keeps
+ * one row per user (completions only) instead of flattening submissions.
+ */
+export async function getAllProgress(): Promise<AdminProgress[]> {
+  const { blobs } = await list({ prefix: "dojo/progress/", storeId: STORE_ID });
+  const results: AdminProgress[] = [];
+
+  for (const blob of blobs) {
+    if (!blob.pathname.endsWith(".json")) continue;
+    const discordId = blob.pathname
+      .replace("dojo/progress/", "")
+      .replace(/\.json$/, "");
+    if (!discordId) continue;
+
+    try {
+      const result = await get(blob.pathname, {
+        access: "private",
+        storeId: STORE_ID,
+        useCache: false,
+      });
+      if (!result || result.statusCode !== 200 || !result.stream) continue;
+      const text = await new Response(result.stream).text();
+      if (!text) continue;
+      const progress = JSON.parse(text) as UserProgress;
+
+      results.push({
+        discordId,
+        discordUsername: progress.discordUsername || discordId,
+        completedLessons: Array.isArray(progress.completedLessons)
+          ? progress.completedLessons
+          : [],
+      });
+    } catch {
+      // Skip unreadable/corrupt progress blobs rather than failing the whole list.
+    }
+  }
+
+  results.sort((a, b) =>
+    a.discordUsername.localeCompare(b.discordUsername, undefined, {
+      sensitivity: "base",
+    })
+  );
   return results;
 }
 

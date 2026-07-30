@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LESSONS } from "@/lib/lessons-config";
 import VideoUpload from "@/components/VideoUpload";
 import VideoLibrary from "@/components/VideoLibrary";
+import StudentProgress from "@/components/StudentProgress";
 
 interface CaptureLog {
   discordId?: string;
@@ -167,6 +168,9 @@ export default function AdminPanel() {
 
       {/* Homework Submissions Queue */}
       <HomeworkQueueSection />
+
+      {/* Student Progress — manually advance / reset a student's completions */}
+      <StudentProgress />
 
       {/* Announcements */}
       <AnnouncementsSection />

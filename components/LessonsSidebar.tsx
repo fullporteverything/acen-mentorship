@@ -32,7 +32,7 @@ export default function LessonsSidebar({
   addedSections = [],
   isAdmin = false,
 }: LessonsSidebarProps) {
-  const states = computeLessonStates(completedLessons, lessons);
+  const states = computeLessonStates(completedLessons, lessons, isAdmin);
   const stateById = new Map(states.map((s) => [s.lesson.id, s]));
 
   const total = states.length;

@@ -78,10 +78,12 @@ export default async function LessonPage({
     notFound();
   }
 
+  // The admin bypasses sequential gating — they never see the lock screen.
   const unlocked = isLessonUnlocked(
     lesson.id,
     progress.completedLessons,
-    lessons
+    lessons,
+    isAdmin
   );
   const submission = progress.submissions[lesson.id];
   const lessonNumber = lessons.findIndex((l) => l.id === lesson.id) + 1;

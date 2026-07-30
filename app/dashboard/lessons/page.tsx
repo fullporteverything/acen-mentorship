@@ -35,7 +35,12 @@ export default async function LessonsPage() {
     ]);
 
   const lessons = buildEffectiveLessons(addedLessons, overrides);
-  const states = computeLessonStates(progress.completedLessons, lessons);
+  // The admin is never gated: every lesson reads as unlocked for them.
+  const states = computeLessonStates(
+    progress.completedLessons,
+    lessons,
+    isAdmin
+  );
   const currentState = states.find((s) => s.current);
 
   return (

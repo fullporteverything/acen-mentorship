@@ -19,6 +19,7 @@ import {
   getUserProgress,
   type SubmissionStatus,
 } from "@/lib/lesson-store";
+import { isVideoReady } from "@/lib/stream-status";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +88,14 @@ export default async function LessonPage({
   );
   const submission = progress.submissions[lesson.id];
   const lessonNumber = lessons.findIndex((l) => l.id === lesson.id) + 1;
+
+  // A just-assigned video exists but plays as "an unknown error occurred" while
+  // Cloudflare encodes it. Only ask Cloudflare when we're actually going to
+  // render the player — a plausible id on an unlocked lesson. Implausible ids
+  // stay on CloudflarePlayer's own "video coming soon" blackout.
+  const videoIdPlausible = isPlausibleVideoId(lesson.videoId);
+  const videoProcessing =
+    unlocked && videoIdPlausible && !(await isVideoReady(lesson.videoId));
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
@@ -190,7 +199,59 @@ export default async function LessonPage({
             <>
               {/* Video — full width of the content column */}
               <div style={{ width: "100%", marginBottom: "16px" }}>
-                <CloudflarePlayer videoId={lesson.videoId} title={lesson.title} />
+                {videoProcessing ? (
+                  /* Same 16:9 blackout frame CloudflarePlayer uses for its
+                     "video coming soon" state, with an encoding-specific label. */
+                  <div
+                    style={{
+                      position: "relative",
+                      width: "100%",
+                      aspectRatio: "16 / 9",
+                      background: "#000",
+                      border: "1px solid rgba(232,160,160,0.15)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontFamily: "Georgia, serif",
+                        fontSize: "0.7rem",
+                        letterSpacing: "0.2em",
+                        textTransform: "uppercase",
+                        color: "rgba(245,240,240,0.25)",
+                        textAlign: "center",
+                        padding: "0 20px",
+                      }}
+                    >
+                      video is processing — check back in a few minutes
+                    </div>
+                  </div>
+                ) : (
+                  <CloudflarePlayer
+                    videoId={lesson.videoId}
+                    title={lesson.title}
+                  />
+                )}
+                {isAdmin && videoProcessing && (
+                  <p
+                    style={{
+                      marginTop: "10px",
+                      fontSize: "12px",
+                      fontFamily: "Georgia, serif",
+                      fontStyle: "italic",
+                      color: "rgba(245,240,240,0.4)",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    Cloudflare is still encoding this upload. It plays
+                    automatically when done.
+                  </p>
+                )}
                 {isAdmin && (
                   <div style={{ marginTop: "10px" }}>
                     <VideoAssign
@@ -199,7 +260,7 @@ export default async function LessonPage({
                     />
                   </div>
                 )}
-                {isAdmin && isPlausibleVideoId(lesson.videoId) && (
+                {isAdmin && videoIdPlausible && (
                   <div style={{ marginTop: "10px" }}>
                     <CaptionControls videoId={lesson.videoId} />
                   </div>

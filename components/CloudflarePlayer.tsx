@@ -73,6 +73,11 @@ export default function CloudflarePlayer({
     const params = new URLSearchParams();
     if (autoplay) params.set("autoplay", "true");
 
+    // Bias the adaptive player toward the highest rendition from the first
+    // frame (value is Mbps). Without it playback starts soft — painful for
+    // chart/text content — and only ramps up after several seconds.
+    params.set("clientBandwidthHint", "10");
+
     const time = posterTimeSeconds(videoId);
     const posterUrl = `https://videodelivery.net/${videoId}/thumbnails/thumbnail.jpg?time=${time}s&height=720`;
     params.set("poster", posterUrl);

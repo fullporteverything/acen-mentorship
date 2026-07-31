@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import * as tus from "tus-js-client";
 
 /**
  * Cloudflare Stream direct-creator uploader (admin only).
  *
- * Flow: ask our server for a one-time `uploadURL` + `uid`, then POST the file
- * straight to Cloudflare via XMLHttpRequest so we get real upload progress
- * (fetch can't report upload progress). On success the returned video UID is
- * shown with a copy button — the admin pastes it into `lib/lessons-config.ts`
- * (the `videoId` of a lesson).
+ * Flow: ask our server for a one-time tus `uploadUrl` + `uid`, then push the
+ * file straight to Cloudflare with the tus resumable protocol. tus replaces the
+ * old single-POST direct upload, which capped out at 200MB (HTTP 413) — there's
+ * no practical size limit here, chunks resume after a hiccup, and we still get
+ * real progress. On success the returned video UID is shown with a copy button
+ * — the admin pastes it into `lib/lessons-config.ts` (the `videoId` of a
+ * lesson).
  */
 export default function VideoUpload() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +62,20 @@ export default function VideoUpload() {
     if (aliveRef.current) setCaptions("failed");
   }
 
+  /**
+   * tus errors stringify into a wall of request/response detail. Keep the first
+   * line (and any HTTP status we can spot) so the admin sees something usable.
+   */
+  function readableError(err: unknown) {
+    const raw =
+      err instanceof Error ? err.message : typeof err === "string" ? err : "";
+    const firstLine = raw.split("\n")[0]?.trim() ?? "";
+    const status = raw.match(/response code:? (\d{3})/i)?.[1];
+    if (status) return `Upload failed (HTTP ${status}).`;
+    if (!firstLine) return "Upload failed. Please try again.";
+    return firstLine.length > 160 ? `${firstLine.slice(0, 160)}…` : firstLine;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -78,20 +95,22 @@ export default function VideoUpload() {
     setStatus("uploading");
     setProgress(0);
 
-    // 1) Mint the one-time direct-upload URL.
-    let uploadURL = "";
+    // 1) Mint the one-time tus upload URL (Cloudflare needs the exact size).
+    let uploadUrl = "";
     let newUid = "";
     try {
-      const res = await fetch("/api/admin/stream-upload-url", {
+      const res = await fetch("/api/admin/stream-tus-url", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileSize: file.size, fileName: file.name }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.uploadURL) {
+      if (!res.ok || !data?.uploadUrl) {
         setError(data?.error || "Could not get an upload URL.");
         setStatus("idle");
         return;
       }
-      uploadURL = data.uploadURL;
+      uploadUrl = data.uploadUrl;
       newUid = data.uid || "";
     } catch {
       setError("Could not get an upload URL.");
@@ -99,25 +118,25 @@ export default function VideoUpload() {
       return;
     }
 
-    // 2) Upload the bytes directly to Cloudflare with progress.
+    // 2) Push the bytes straight to Cloudflare over tus, in resumable chunks.
     try {
       await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", uploadURL);
-        xhr.upload.onprogress = (evt) => {
-          if (evt.lengthComputable) {
-            setProgress(Math.round((evt.loaded / evt.total) * 100));
-          }
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`Upload failed (${xhr.status})`));
-        };
-        xhr.onerror = () => reject(new Error("Network error during upload"));
-
-        const formData = new FormData();
-        formData.append("file", file);
-        xhr.send(formData);
+        const upload = new tus.Upload(file, {
+          // The URL is pre-created server-side, so point tus at it directly
+          // instead of letting it create one via `endpoint`.
+          uploadUrl,
+          // Cloudflare requires a whole multiple of 256 KiB. 50 MiB chunks.
+          chunkSize: 52428800,
+          metadata: { name: file.name, filetype: file.type },
+          onProgress: (bytesSent, bytesTotal) => {
+            if (bytesTotal > 0) {
+              setProgress(Math.round((bytesSent / bytesTotal) * 100));
+            }
+          },
+          onSuccess: () => resolve(),
+          onError: (err) => reject(err),
+        });
+        upload.start();
       });
 
       setUid(newUid);
@@ -128,9 +147,7 @@ export default function VideoUpload() {
       // Fire-and-monitor: captions kick off automatically for every upload.
       if (newUid) void autoGenerateCaptions(newUid);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Upload failed. Please try again."
-      );
+      setError(readableError(err));
       setStatus("idle");
     }
   }
@@ -190,7 +207,8 @@ export default function VideoUpload() {
             marginBottom: "18px",
           }}
         >
-          Uploads directly to Cloudflare Stream. Max duration 2 hours.
+          Uploads directly to Cloudflare Stream. Max duration 2 hours. Large
+          files supported — uploads are resumable.
         </p>
 
         {uploading && (

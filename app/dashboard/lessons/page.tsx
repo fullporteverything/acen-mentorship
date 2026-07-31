@@ -2,7 +2,11 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import TopNav from "@/components/TopNav";
 import LessonsSidebar from "@/components/LessonsSidebar";
-import { buildEffectiveLessons, computeLessonStates } from "@/lib/lessons-config";
+import {
+  buildEffectiveLessons,
+  computeLessonStates,
+  sectionLessonNumber,
+} from "@/lib/lessons-config";
 import {
   getAddedLessons,
   getAddedSections,
@@ -246,7 +250,7 @@ export default async function LessonsPage() {
                           fontFamily: "Georgia, serif",
                         }}
                       >
-                        Lesson {String(s.index + 1).padStart(2, "0")}
+                        Lesson {String(sectionLessonNumber(s.lesson.id, lessons)).padStart(2, "0")}
                       </span>
                       <span style={{ fontSize: "12px", color: "#E8A0A0" }}>
                         {s.completed ? "✓" : locked ? "🔒" : s.current ? "→" : ""}

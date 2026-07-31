@@ -2,6 +2,7 @@ import {
   computeLessonStates,
   getLessonGroups,
   LESSONS,
+  sectionLessonNumber,
   type Lesson,
 } from "@/lib/lessons-config";
 import AddLessonForm from "@/components/AddLessonForm";
@@ -189,7 +190,7 @@ export default function LessonsSidebar({
                           marginRight: "8px",
                         }}
                       >
-                        {String(s.index + 1).padStart(2, "0")}
+                        {String(sectionLessonNumber(s.lesson.id, lessons)).padStart(2, "0")}
                       </span>
                       {s.lesson.title}
                     </span>

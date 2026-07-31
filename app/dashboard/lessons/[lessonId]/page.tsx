@@ -11,6 +11,7 @@ import {
   buildEffectiveLessons,
   getLesson,
   isLessonUnlocked,
+  sectionLessonNumber,
 } from "@/lib/lessons-config";
 import {
   getAddedLessons,
@@ -87,7 +88,7 @@ export default async function LessonPage({
     isAdmin
   );
   const submission = progress.submissions[lesson.id];
-  const lessonNumber = lessons.findIndex((l) => l.id === lesson.id) + 1;
+  const lessonNumber = sectionLessonNumber(lesson.id, lessons);
 
   // A just-assigned video exists but plays as "an unknown error occurred" while
   // Cloudflare encodes it. Only ask Cloudflare when we're actually going to

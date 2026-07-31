@@ -170,6 +170,19 @@ export function computeLessonStates(
  * Whether a specific lesson is unlocked for a given completed-lessons list.
  * `unlockAll` (the admin) unlocks any lesson that exists in `lessons`.
  */
+/**
+ * 1-based position of a lesson WITHIN ITS OWN SECTION. Numbering restarts at
+ * 01 for each section — a lesson's number is its order among siblings sharing
+ * its `group`, not its position in the whole curriculum.
+ */
+export function sectionLessonNumber(lessonId: string, lessons: Lesson[]): number {
+  const lesson = lessons.find((l) => l.id === lessonId);
+  if (!lesson) return 1;
+  const siblings = lessons.filter((l) => l.group === lesson.group);
+  const idx = siblings.findIndex((l) => l.id === lessonId);
+  return idx >= 0 ? idx + 1 : 1;
+}
+
 export function isLessonUnlocked(
   lessonId: string,
   completedLessons: string[],

@@ -65,7 +65,14 @@ export async function isVideoReady(videoId: string): Promise<boolean> {
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) return true;
 
-    const ready = data?.result?.readyToStream === true;
+    // `readyToStream` flips true as soon as the FIRST (lowest) rendition is
+    // playable — students would get a 360p-only player while 1080p is still
+    // encoding, which is unusable for chart content. Hold until the encode
+    // state is fully "ready" (when the API reports a state at all).
+    const readyToStream = data?.result?.readyToStream === true;
+    const state = data?.result?.status?.state;
+    const ready =
+      readyToStream && (typeof state !== "string" || state === "ready");
     cache.set(id, { ready, at: now });
     return ready;
   } catch {

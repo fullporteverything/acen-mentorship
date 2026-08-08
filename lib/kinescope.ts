@@ -62,7 +62,6 @@ export function normalizeKinescopeVideo(raw: unknown): LibraryVideo {
     throw new KinescopeIntegrationError("Kinescope returned an invalid video.");
   }
 
-  const error = normalizeError(video.error);
   return {
     id,
     title: stringValue(video.title) || id,
@@ -71,7 +70,9 @@ export function normalizeKinescopeVideo(raw: unknown): LibraryVideo {
     status,
     progress: numberValue(video.progress),
     ready: status === "done",
-    ...(error ? { error } : {}),
+    ...(status === "aborted" || status === "error"
+      ? { error: "Video processing failed." }
+      : {}),
   };
 }
 
@@ -114,14 +115,6 @@ function numberValue(value: unknown): number | null {
   if (typeof value !== "number" && typeof value !== "string") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
-}
-
-function normalizeError(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (value && typeof value === "object") {
-    return stringValue((value as Record<string, unknown>).message);
-  }
-  return "";
 }
 
 function normalizePath(path: string): string {

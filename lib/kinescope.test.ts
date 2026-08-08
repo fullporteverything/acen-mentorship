@@ -73,6 +73,22 @@ describe("normalizeKinescopeVideo", () => {
       KinescopeIntegrationError
     );
   });
+
+  it.each(["aborted", "error"])(
+    "replaces unsafe %s diagnostics with a fixed message",
+    (status) => {
+      const video = normalizeKinescopeVideo({
+        id: VALID_ID,
+        title: "Lesson",
+        status,
+        error: "<html>Bearer provider-secret-token</html>",
+      });
+
+      expect(video.error).toBe("Video processing failed.");
+      expect(video.error).not.toContain("provider-secret-token");
+      expect(video.error).not.toContain("<html>");
+    }
+  );
 });
 
 describe("kinescopeFetch", () => {
@@ -96,5 +112,38 @@ describe("kinescopeFetch", () => {
     expect(headers.get("Accept")).toBe("application/json");
     expect(headers.get("Content-Type")).toBe("application/json");
     expect(headers.get("X-Request-ID")).toBe("request");
+  });
+
+  it("hides provider details when the request is rejected", async () => {
+    process.env.KINESCOPE_API_TOKEN = "secret-token";
+    process.env.KINESCOPE_PROJECT_ID = "project";
+    process.env.KINESCOPE_PLAYER_ID = "player";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("<html>Bearer provider-secret-token</html>"))
+    );
+
+    await expect(kinescopeFetch("/videos")).rejects.toThrow(
+      "Kinescope integration failed."
+    );
+  });
+
+  it("hides non-OK response headers and body", async () => {
+    process.env.KINESCOPE_API_TOKEN = "secret-token";
+    process.env.KINESCOPE_PROJECT_ID = "project";
+    process.env.KINESCOPE_PLAYER_ID = "player";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("<html>Bearer provider-secret-token</html>", {
+          status: 502,
+          headers: { Authorization: "Bearer response-secret-token" },
+        })
+      )
+    );
+
+    await expect(kinescopeFetch("/videos")).rejects.toThrow(
+      "Kinescope integration failed."
+    );
   });
 });

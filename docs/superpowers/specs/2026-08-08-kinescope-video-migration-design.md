@@ -15,6 +15,7 @@ The migration includes:
 - Kinescope video listing and processing-state normalization.
 - Lesson video assignment and validation using Kinescope UUIDs.
 - Student playback through the Kinescope embedded player.
+- Kinescope DRM/capture protection and an authenticated, per-student Discord identity watermark.
 - Removal of Cloudflare-specific routes, components, labels, comments, URLs, and environment variables.
 - Caption behavior based only on capabilities verified in the Kinescope API.
 - Documentation and environment setup updates.
@@ -33,6 +34,7 @@ The server reads:
 
 - `KINESCOPE_API_TOKEN`: a Kinescope workspace access token with the minimum API and upload permissions needed by this integration.
 - `KINESCOPE_PROJECT_ID`: the Kinescope project or parent identifier used for uploads and library filtering.
+- `KINESCOPE_PLAYER_ID`: the protected Kinescope player configuration used for lesson playback.
 
 Both values remain server-only. The API token must never be serialized into a client response or sent to the browser. The browser receives only the temporary Kinescope TUS upload endpoint returned by the server-side initialization call.
 
@@ -69,7 +71,19 @@ All seeded and persisted Cloudflare assignments are cleared as part of the migra
 
 The Cloudflare player component is replaced by a provider-neutral video player that renders Kinescope's supported responsive embed URL for a validated video ID. The lesson page keeps its current dimensions, loading/processing treatment, and surrounding controls. Kinescope remains responsible for adaptive streaming and playback UI.
 
-The existing screen deterrence component remains in place, but the UI and documentation must not claim it provides DRM or guarantees capture prevention. Any Kinescope privacy, domain restriction, encryption, signed-link, or DRM configuration is managed as a Kinescope account/project setting unless a documented API requirement is needed for basic playback.
+The configured Kinescope project/player must have DRM encryption, recording protection, download prevention, and production-domain embedding restrictions enabled. The iframe must include Kinescope's required `encrypted-media` permission. Protected playback is a release gate: deployment is not accepted until a real protected upload has been verified to hide the video during screen recording/sharing on Kinescope-supported browser and operating-system combinations.
+
+Kinescope documents that protected video may be hidden while audio continues when active recording or screen-viewing software is detected. This is the primary blackout layer. The existing application `ScreenGuard` remains as a secondary, best-effort deterrent that blocks same-page calls to `getDisplayMedia`, logs the authenticated capture attempt, and covers the page with black. It cannot detect capture initiated by a different application, browser extension, modified client, operating system, or external camera; the product must not claim otherwise. Unsupported DRM browsers fail closed with an actionable protected-playback message instead of falling back to an unencrypted stream.
+
+### Per-student Watermark
+
+Every student lesson video displays a persistent moving watermark containing both the authenticated Discord username and Discord user ID. These values come from the server-validated login session already used by the lesson page; watermark text is never accepted from request parameters, local storage, or other client-controlled identity fields.
+
+The watermark is rendered by the application above the player with low but readable opacity, periodically changing among safe positions to make cropping difficult without obscuring lesson content. Multiple faint instances may be used at larger viewport sizes. The watermark layer ignores pointer events and is excluded for administrators only when the existing server-derived admin authorization says the viewer is an administrator.
+
+Because a Kinescope iframe entering native fullscreen would escape an application overlay, the integration must not expose an unwatermarked fullscreen path. The implementation must either use a documented Kinescope per-viewer watermark mechanism that accepts server-authorized identity or disable native iframe fullscreen and provide fullscreen on the application-owned player wrapper so the Discord watermark remains visible. Picture-in-picture, casting, download, and other playback paths that omit the application watermark are disabled for protected lessons.
+
+The shared Kinescope player may additionally carry a fixed ACEN watermark, but that does not replace the required per-student Discord watermark.
 
 ### Captions
 
@@ -107,6 +121,9 @@ Automated coverage should focus on stable application behavior:
 - Kinescope API failures are sanitized and mapped to appropriate response codes.
 - Lessons without a Kinescope video ID render the unavailable/coming-soon state.
 - A ready lesson produces the expected Kinescope embed URL.
+- Watermark identity is derived from the authenticated session and includes both Discord username and ID.
+- The watermark remains present in the supported fullscreen path, and unwatermarked picture-in-picture, casting, and download paths are unavailable.
+- Unsupported DRM playback fails closed instead of serving an unprotected stream.
 
 Verification includes linting, type checking or a production build, relevant automated tests, and a repository-wide search confirming that no runtime Cloudflare references, environment variables, URLs, or labels remain. Any references retained in the migration spec or version history are documentation only.
 
@@ -117,7 +134,10 @@ Manual acceptance checks:
 3. Confirm the library shows processing and later transitions to ready.
 4. Assign the video to a lesson.
 5. Sign in as a student and verify playback at desktop and mobile sizes.
-6. Verify an unassigned lesson shows the unavailable state without console or server errors.
+6. Verify the visible watermark contains that student's Discord username and ID, moves over time, and remains visible in fullscreen.
+7. Attempt browser/tab/window and supported operating-system screen sharing or recording and confirm protected video is hidden while the application logs same-page capture attempts.
+8. Confirm picture-in-picture, casting, downloads, direct unprotected playback, and embedding from an unapproved domain are unavailable.
+9. Verify an unassigned lesson shows the unavailable state without console or server errors.
 
 ## Deployment and Cutover
 
@@ -129,6 +149,9 @@ Rollback means redeploying the previous Cloudflare-backed release with its Cloud
 
 - Administrators can upload, monitor, list, copy IDs for, and assign Kinescope videos from the application.
 - Students can play assigned, fully processed Kinescope videos without changes to the surrounding lesson workflow.
+- Kinescope DRM/capture protection is enabled and verified, with no unencrypted fallback.
+- Every non-admin playback surface visibly carries the authenticated student's Discord username and user ID, including supported fullscreen playback.
+- Unwatermarked picture-in-picture, casting, download, and direct playback paths are disabled.
 - Unassigned or non-ready lessons fail closed with the current unavailable/processing experience.
 - No Cloudflare runtime integration, fallback, configuration, or user-facing terminology remains.
 - Existing non-video features continue to pass their verification checks.

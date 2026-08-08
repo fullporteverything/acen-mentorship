@@ -19,13 +19,26 @@ Client-supplied Discord identity is never authoritative. Capture APIs derive ide
 
 ## Strike Experience
 
-When the browser detector observes a display-capture request, it immediately covers the site locally while sending the authenticated attempt to the server. The server atomically increments the member's persistent strike count and returns the authoritative state.
+When the browser detector observes a display-capture request, it immediately replaces the protected site content locally while sending the authenticated attempt to the server. The server atomically increments the member's persistent strike count and returns the authoritative state. These are real application states rendered on the site, not browser alerts, generic dialogs, or an external page.
 
-- Strike 1 displays: “I can see you… Don’t make that mistake again.”
-- Strike 2 displays: “Last chance.”
-- Strike 3 and every later attempt displays a permanent lockout: “Access revoked.” with supporting text directing the member to contact an administrator to appeal.
+- Strike 1 vertically stacks:
+  - Title: “I can see you…”
+  - Supporting line 1: “Screen sharing or recording was detected.”
+  - Supporting line 2: “Don’t make that mistake again.”
+- Strike 2 vertically stacks:
+  - Title: “Last chance.”
+  - Supporting line 1: “Another screen sharing or recording attempt was detected.”
+  - Supporting line 2: “Your next attempt will revoke access to the site.”
+- Strike 3 and every later attempt vertically stacks:
+  - Title: “Access revoked.”
+  - Supporting line 1: “This account was locked after repeated screen sharing or recording attempts.”
+  - Supporting line 2: “Contact an administrator to appeal this lockout.”
 
-The first and second warning screens place a lower-center checkbox labeled “I acknowledge this warning.” The Continue button remains disabled until the member checks it. Acknowledgment dismisses only the current warning; it does not remove or reduce the strike. The third-strike screen has no acknowledgment control or client-side bypass.
+Each title and supporting line is its own block element with deliberate vertical spacing and a readable maximum width. Copy must wrap only within its own line block; CSS must not concatenate the supporting sentences into a paragraph that can appear cut off mid-thought.
+
+The pages reuse the established ACEN dashboard and current `ScreenGuard` visual language: the same dark/black protected surface, muted rose warning color, Georgia-style serif typography, uppercase/letter-spaced security heading treatment, thin gradient divider, border treatment, spacing rhythm, and responsive behavior already present on the site. The warning content is centered in the existing application shell and feels native to the lesson/dashboard experience. It must remain legible without clipping at desktop and mobile widths.
+
+The first and second warning screens place a lower-center checkbox labeled “I acknowledge this warning.” The checkbox and Continue button use the site's existing form and button styling. The Continue button remains disabled until the member checks it. Acknowledgment dismisses only the current warning; it does not remove or reduce the strike. The third-strike screen has no acknowledgment control or client-side bypass.
 
 The dashboard layout checks persistent lock state on the server for every protected request. A locked member cannot regain access by signing out, changing devices, clearing browser storage, or reusing an older session.
 
@@ -84,6 +97,7 @@ Completed subtitles are rendered by the protected Kinescope player. No Cloudflar
 - A single attempt produces strike 1 and requires the acknowledgment checkbox before continuing.
 - A second attempt produces strike 2 and requires acknowledgment.
 - A third attempt locks every current and future session for that Discord ID.
+- All three states use the existing ACEN site theme and show title, supporting line 1, and supporting line 2 as separate vertically stacked blocks without clipping at desktop or mobile widths.
 - A different device and cleared browser state do not bypass the lock.
 - Resetting one member restores only that member and returns their strike count to zero.
 - A future attempt after reset becomes strike 1.

@@ -8,6 +8,7 @@ import {
   saveAddedSections,
 } from "@/lib/lesson-store";
 import type { Lesson } from "@/lib/lessons-config";
+import { isKinescopeVideoId } from "@/lib/video-id";
 
 export const dynamic = "force-dynamic";
 
@@ -17,19 +18,6 @@ async function requireAdmin() {
     !!process.env.ADMIN_DISCORD_ID &&
     session?.user?.discordId === process.env.ADMIN_DISCORD_ID
   );
-}
-
-/**
- * Same "is this a real Cloudflare Stream UID?" heuristic as
- * components/CloudflarePlayer.tsx — a lesson is created with the placeholder
- * (so the player shows "video coming soon") unless a plausible UID is given.
- */
-function isPlausibleVideoId(value: string): boolean {
-  if (value.length < 16) return false;
-  if (/\s/.test(value)) return false;
-  if (value.includes("_")) return false;
-  if (/YOUR_VIDEO/i.test(value)) return false;
-  return true;
 }
 
 /**
@@ -106,11 +94,11 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  if (videoId && !isPlausibleVideoId(videoId)) {
+  if (videoId && !isKinescopeVideoId(videoId)) {
     return NextResponse.json(
       {
         error:
-          "That doesn't look like a Cloudflare Stream video UID. Paste the UID shown after upload (at least 16 characters, no spaces or underscores), or leave it empty to add the video later.",
+          "That doesn't look like a Kinescope video UUID. Paste the video ID shown after upload, or leave it empty to add the video later.",
       },
       { status: 400 }
     );
@@ -120,8 +108,8 @@ export async function POST(req: NextRequest) {
     id: `lesson_${Date.now()}`,
     title,
     description,
-    // No UID yet → keep the placeholder so the player shows "coming soon".
-    videoId: videoId || "YOUR_VIDEO_ID_HERE",
+    // A blank ID keeps the lesson unavailable until a video is assigned.
+    videoId,
     homeworkPrompt: homeworkPrompt || "Submit your homework for this lesson.",
     group: section,
   };

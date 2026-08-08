@@ -2,8 +2,7 @@ import { auth } from "@/auth";
 import { notFound, redirect } from "next/navigation";
 import TopNav from "@/components/TopNav";
 import LessonsSidebar from "@/components/LessonsSidebar";
-import CloudflarePlayer from "@/components/CloudflarePlayer";
-import CaptionControls from "@/components/CaptionControls";
+import VideoPlayer from "@/components/VideoPlayer";
 import VideoAssign from "@/components/VideoAssign";
 import HomeworkUpload from "@/components/HomeworkUpload";
 import EditableText from "@/components/EditableText";
@@ -20,7 +19,9 @@ import {
   getUserProgress,
   type SubmissionStatus,
 } from "@/lib/lesson-store";
-import { isVideoReady } from "@/lib/stream-status";
+import { getKinescopeConfig } from "@/lib/kinescope";
+import { isKinescopeVideoId } from "@/lib/video-id";
+import { getVideoPlayback } from "@/lib/video-status";
 
 export const dynamic = "force-dynamic";
 
@@ -37,21 +38,6 @@ const STATUS_COLORS: Record<SubmissionStatus, string> = {
 const blobHref = (value: string) =>
   value.startsWith("http") ? value : `/api/blob/${value}`;
 
-/**
- * Same "is this a real Cloudflare Stream UID?" heuristic as
- * components/CloudflarePlayer.tsx — used to decide whether the admin caption
- * controls make sense for this lesson yet.
- */
-const isPlausibleVideoId = (videoId: string | undefined | null): boolean => {
-  if (!videoId) return false;
-  const id = videoId.trim();
-  if (id.length < 16) return false;
-  if (/\s/.test(id)) return false;
-  if (id.includes("_")) return false;
-  if (/YOUR_VIDEO/i.test(id)) return false;
-  return true;
-};
-
 export default async function LessonPage({
   params,
 }: {
@@ -66,7 +52,8 @@ export default async function LessonPage({
     !!process.env.ADMIN_DISCORD_ID &&
     session.user.discordId === process.env.ADMIN_DISCORD_ID;
 
-  const discordId = session.user.discordId || session.user.id || "unknown";
+  const discordId = session.user.discordId || "unknown";
+  const discordUsername = session.user.name?.trim() || "Discord user";
   const [progress, addedLessons, overrides, addedSections] = await Promise.all([
     getUserProgress(discordId),
     getAddedLessons(),
@@ -90,13 +77,24 @@ export default async function LessonPage({
   const submission = progress.submissions[lesson.id];
   const lessonNumber = sectionLessonNumber(lesson.id, lessons);
 
-  // A just-assigned video exists but plays as "an unknown error occurred" while
-  // Cloudflare encodes it. Only ask Cloudflare when we're actually going to
-  // render the player — a plausible id on an unlocked lesson. Implausible ids
-  // stay on CloudflarePlayer's own "video coming soon" blackout.
-  const videoIdPlausible = isPlausibleVideoId(lesson.videoId);
+  let protectedPlaybackConfigured = false;
+  try {
+    getKinescopeConfig();
+    protectedPlaybackConfigured = true;
+  } catch {
+    // The player fails closed below when protected Kinescope config is absent.
+  }
+
+  const videoIdPlausible = isKinescopeVideoId(lesson.videoId);
+  const playback =
+    unlocked && videoIdPlausible && protectedPlaybackConfigured
+      ? await getVideoPlayback(lesson.videoId)
+      : { ready: false, embedUrl: null };
   const videoProcessing =
-    unlocked && videoIdPlausible && !(await isVideoReady(lesson.videoId));
+    unlocked &&
+    videoIdPlausible &&
+    protectedPlaybackConfigured &&
+    !playback.ready;
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
@@ -201,7 +199,7 @@ export default async function LessonPage({
               {/* Video — full width of the content column */}
               <div style={{ width: "100%", marginBottom: "16px" }}>
                 {videoProcessing ? (
-                  /* Same 16:9 blackout frame CloudflarePlayer uses for its
+                  /* Same 16:9 blackout frame VideoPlayer uses for its
                      "video coming soon" state, with an encoding-specific label. */
                   <div
                     style={{
@@ -233,9 +231,14 @@ export default async function LessonPage({
                     </div>
                   </div>
                 ) : (
-                  <CloudflarePlayer
+                  <VideoPlayer
                     videoId={lesson.videoId}
+                    embedUrl={playback.embedUrl}
                     title={lesson.title}
+                    discordId={discordId}
+                    discordUsername={discordUsername}
+                    isAdmin={isAdmin}
+                    protectedPlaybackConfigured={protectedPlaybackConfigured}
                   />
                 )}
                 {isAdmin && videoProcessing && (
@@ -249,7 +252,7 @@ export default async function LessonPage({
                       lineHeight: 1.7,
                     }}
                   >
-                    Cloudflare is still encoding this upload. It plays
+                    Kinescope is still processing this upload. It plays
                     automatically when done.
                   </p>
                 )}
@@ -259,11 +262,6 @@ export default async function LessonPage({
                       lessonId={lesson.id}
                       currentVideoId={lesson.videoId}
                     />
-                  </div>
-                )}
-                {isAdmin && videoIdPlausible && (
-                  <div style={{ marginTop: "10px" }}>
-                    <CaptionControls videoId={lesson.videoId} />
                   </div>
                 )}
               </div>

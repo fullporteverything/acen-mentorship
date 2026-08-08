@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { isKinescopeVideoId } from "@/lib/video-id";
 
 interface AddLessonFormProps {
   /**
@@ -12,20 +13,6 @@ interface AddLessonFormProps {
   section?: string;
   /** Button label. Defaults based on mode. */
   label?: string;
-}
-
-/**
- * Same "is this a real Cloudflare Stream UID?" heuristic as
- * components/CloudflarePlayer.tsx, so a typo is caught before it reaches the
- * API. An empty value is fine — the video can be attached later from the
- * lesson page.
- */
-function isPlausibleVideoId(value: string): boolean {
-  if (value.length < 16) return false;
-  if (/\s/.test(value)) return false;
-  if (value.includes("_")) return false;
-  if (/YOUR_VIDEO/i.test(value)) return false;
-  return true;
 }
 
 /**
@@ -73,10 +60,8 @@ export default function AddLessonForm({ section, label }: AddLessonFormProps) {
     }
 
     const trimmedVideoId = videoId.trim();
-    if (trimmedVideoId && !isPlausibleVideoId(trimmedVideoId)) {
-      setError(
-        "That doesn't look like a Stream UID — expect 32 hex characters, no spaces or underscores."
-      );
+    if (trimmedVideoId && !isKinescopeVideoId(trimmedVideoId)) {
+      setError("That doesn't look like a Kinescope video UUID.");
       return;
     }
 
@@ -157,7 +142,7 @@ export default function AddLessonForm({ section, label }: AddLessonFormProps) {
       />
       <input
         type="text"
-        placeholder="Video UID (optional — paste from Upload Video)"
+        placeholder="Kinescope video ID (optional — paste from Upload Video)"
         value={videoId}
         onChange={(e) => setVideoId(e.target.value)}
         spellCheck={false}

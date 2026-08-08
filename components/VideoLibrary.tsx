@@ -3,19 +3,22 @@
 import { useEffect, useState } from "react";
 
 interface LibraryVideo {
-  uid: string;
-  name: string;
+  id: string;
+  title: string;
   createdAt: string;
   duration: number | null;
+  status: string;
+  progress: number | null;
   ready: boolean;
+  error?: string;
   attachedTo: string | null;
 }
 
 /**
- * Persistent list of every video in the Cloudflare Stream account.
+ * Persistent list of every video in the Kinescope project.
  *
- * VideoUpload only shows a UID for the video you just uploaded, and only until
- * the page reloads. This section is the permanent record: every UID stays
+ * VideoUpload only shows an ID for the video you just uploaded, and only until
+ * the page reloads. This section is the permanent record: every ID stays
  * copyable forever, alongside which lesson it's attached to (if any).
  */
 export default function VideoLibrary() {
@@ -58,7 +61,7 @@ export default function VideoLibrary() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {videos.map((video) => (
-            <VideoRow key={video.uid} video={video} />
+            <VideoRow key={video.id} video={video} />
           ))}
         </div>
       )}
@@ -71,11 +74,11 @@ function VideoRow({ video }: { video: LibraryVideo }) {
 
   async function copyUid() {
     try {
-      await navigator.clipboard.writeText(video.uid);
+      await navigator.clipboard.writeText(video.id);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      // Clipboard may be unavailable; the UID is still visible to copy manually.
+      // Clipboard may be unavailable; the ID is still visible to copy manually.
     }
   }
 
@@ -89,7 +92,7 @@ function VideoRow({ video }: { video: LibraryVideo }) {
       }}
     >
       <p style={{ fontSize: "13px", color: "#F5F0F0", marginBottom: "4px" }}>
-        {video.name}
+        {video.title}
       </p>
       <p
         style={{
@@ -100,10 +103,14 @@ function VideoRow({ video }: { video: LibraryVideo }) {
       >
         {formatCreated(video.createdAt)}
         {video.duration !== null ? ` · ${formatDuration(video.duration)}` : ""}
-        {!video.ready ? (
+        {video.error ? (
+          <span style={{ color: "#E8807A", fontStyle: "italic" }}>
+            {" "}· {video.error}
+          </span>
+        ) : !video.ready ? (
           <span style={{ color: "rgba(232,160,160,0.7)", fontStyle: "italic" }}>
-            {" "}
-            · processing
+            {" "}· {video.status}
+            {video.progress !== null ? ` (${Math.round(video.progress)}%)` : ""}
           </span>
         ) : null}
       </p>
@@ -123,7 +130,7 @@ function VideoRow({ video }: { video: LibraryVideo }) {
             fontFamily: "monospace",
           }}
         >
-          {video.uid}
+          {video.id}
         </code>
         <button
           type="button"
@@ -150,7 +157,7 @@ function VideoRow({ video }: { video: LibraryVideo }) {
   );
 }
 
-/** Cloudflare timestamps are ISO strings; fall back to a dash if absent/bad. */
+/** Provider timestamps are ISO strings; fall back to a label if absent/bad. */
 function formatCreated(createdAt: string): string {
   if (!createdAt) return "Unknown date";
   const date = new Date(createdAt);

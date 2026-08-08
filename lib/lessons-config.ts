@@ -1,8 +1,10 @@
+import { isKinescopeVideoId } from "./video-id";
+
 /**
  * Static lesson curriculum for the Dojo.
  *
  * This is the single source of truth for what lessons exist, their order,
- * their Cloudflare Stream video ids, and the homework each one requires.
+ * their Kinescope video IDs, and the homework each one requires.
  * User-specific state (which lessons are unlocked / completed) lives in blob
  * storage — see `lib/lesson-store.ts`. This file only describes the content.
  */
@@ -11,7 +13,7 @@ export interface Lesson {
   id: string; // "lesson-1", "lesson-2", etc.
   title: string; // Display title
   description: string; // Short description
-  videoId: string; // Cloudflare Stream video ID (placeholder: "YOUR_VIDEO_ID_HERE")
+  videoId: string; // Kinescope video UUID; blank means unavailable
   homeworkPrompt: string; // What the student needs to submit
   group: string; // e.g. "CORE CONTENT"
 }
@@ -21,7 +23,7 @@ export const LESSONS: Lesson[] = [
     id: "lesson-1",
     title: "Introduction to Dojo",
     description: "Welcome and overview.",
-    videoId: "YOUR_VIDEO_ID_HERE",
+    videoId: "",
     homeworkPrompt:
       "Submit a 1-page PDF introducing yourself and your trading goals.",
     group: "CORE CONTENT",
@@ -30,7 +32,7 @@ export const LESSONS: Lesson[] = [
     id: "lesson-2",
     title: "Lesson 2",
     description: "Coming soon.",
-    videoId: "YOUR_VIDEO_ID_HERE",
+    videoId: "",
     homeworkPrompt: "Submit your homework for lesson 2.",
     group: "CORE CONTENT",
   },
@@ -38,7 +40,7 @@ export const LESSONS: Lesson[] = [
     id: "lesson-3",
     title: "Lesson 3",
     description: "Coming soon.",
-    videoId: "YOUR_VIDEO_ID_HERE",
+    videoId: "",
     homeworkPrompt: "Submit your homework for lesson 3.",
     group: "CORE CONTENT",
   },
@@ -61,8 +63,8 @@ export interface LessonOverride {
   description?: string;
   homeworkPrompt?: string;
   /**
-   * Cloudflare Stream UID attached from the admin UI. An empty string means
-   * "no override" — the lesson falls back to its static `videoId`.
+   * Kinescope video ID attached from the admin UI. An empty string makes the
+   * lesson unavailable until a replacement is assigned.
    */
   videoId?: string;
 }
@@ -95,10 +97,12 @@ export function applyOverrides(
     ...(typeof o.homeworkPrompt === "string"
       ? { homeworkPrompt: o.homeworkPrompt }
       : {}),
-    // Unlike the copy fields, a blank videoId override is meaningless — it
-    // clears the attachment and reverts to whatever the curriculum declares.
-    ...(typeof o.videoId === "string" && o.videoId.trim()
-      ? { videoId: o.videoId.trim() }
+    ...(typeof o.videoId === "string"
+      ? {
+          videoId: isKinescopeVideoId(o.videoId.trim())
+            ? o.videoId.trim()
+            : "",
+        }
       : {}),
   };
 }
@@ -111,7 +115,17 @@ export function buildEffectiveLessons(
   added: Lesson[] = [],
   overrides: LessonOverrides = {}
 ): Lesson[] {
-  return [...LESSONS, ...added].map((l) => applyOverrides(l, overrides));
+  return [...LESSONS, ...added].map((lesson) =>
+    applyOverrides(
+      {
+        ...lesson,
+        videoId: isKinescopeVideoId(lesson.videoId?.trim())
+          ? lesson.videoId.trim()
+          : "",
+      },
+      overrides
+    )
+  );
 }
 
 /** Look up a single lesson by its id, within `lessons` (defaults to LESSONS). */

@@ -29,6 +29,9 @@ Edit `.env.local` with your values:
 | `DISCORD_CLIENT_SECRET` | Same location |
 | `AUTH_SECRET` | Run `openssl rand -base64 32` in terminal |
 | `NEXTAUTH_URL` | `http://localhost:3000` for dev, your Vercel URL for prod |
+| `KINESCOPE_API_TOKEN` | Server-only token from Kinescope Settings -> API |
+| `KINESCOPE_PROJECT_ID` | Optional when the token can access exactly one project; otherwise select the upload project ID |
+| `KINESCOPE_PLAYER_ID` | Protected player assigned to the project/videos |
 
 ### Discord App Setup
 1. Go to https://discord.com/developers/applications
@@ -36,6 +39,18 @@ Edit `.env.local` with your values:
 3. Go to OAuth2 → Add Redirect URI: `http://localhost:3000/api/auth/callback/discord`
 4. Copy Client ID and Client Secret into `.env.local`
 5. For production, add your Vercel URL as another redirect: `https://your-app.vercel.app/api/auth/callback/discord`
+
+### Kinescope Protected Video Setup
+
+1. In Kinescope, create a project for lesson videos and copy its project ID.
+2. In Settings -> API, create a dedicated API token and keep it server-side.
+3. Create a dedicated protected player, assign it to the project, and copy its player ID.
+4. Enable DRM and recording/capture protection for the project and its videos.
+5. Restrict embeds to the production HTTPS domain.
+6. Disable downloads, sharing, casting, picture-in-picture, and the player fullscreen control. The application supplies its own watermarked fullscreen control.
+7. Add subtitle tracks in Kinescope; the embedded player renders them directly.
+
+Protected playback fails closed when these values are absent. Verify DRM on every supported browser before release; do not publish an unencrypted fallback. Existing lessons must be re-uploaded to Kinescope and assigned their new Kinescope video UUIDs after deployment.
 
 ---
 
@@ -58,6 +73,9 @@ vercel env add DISCORD_CLIENT_ID
 vercel env add DISCORD_CLIENT_SECRET
 vercel env add AUTH_SECRET
 vercel env add NEXTAUTH_URL
+vercel env add KINESCOPE_API_TOKEN
+vercel env add KINESCOPE_PROJECT_ID
+vercel env add KINESCOPE_PLAYER_ID
 # → set NEXTAUTH_URL to your https://your-app.vercel.app URL
 
 # Redeploy after setting env vars

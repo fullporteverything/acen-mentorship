@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { getLessonOverrides, saveLessonOverrides } from "@/lib/lesson-store";
 import { OVERRIDABLE_FIELDS, type OverridableField } from "@/lib/lessons-config";
+import { isKinescopeVideoId } from "@/lib/video-id";
 
 export const dynamic = "force-dynamic";
 
@@ -25,24 +26,10 @@ export async function GET() {
 }
 
 /**
- * Same "is this a real Cloudflare Stream UID?" heuristic as
- * components/CloudflarePlayer.tsx — anything that can't plausibly be one is
- * rejected so a typo never silently blacks out a lesson's player.
- */
-function isPlausibleVideoId(value: string): boolean {
-  if (value.length < 16) return false;
-  if (/\s/.test(value)) return false;
-  if (value.includes("_")) return false;
-  if (/YOUR_VIDEO/i.test(value)) return false;
-  return true;
-}
-
-/**
  * POST: set one overridable field for one lesson. Admin-only.
  * Body: { lessonId, field: "title"|"description"|"homeworkPrompt"|"videoId", value }
  *
- * For `videoId`, the value must either be "" (clears the override, reverting to
- * the curriculum's own video) or a plausible Cloudflare Stream UID.
+ * For `videoId`, the value must either be blank or a Kinescope video UUID.
  */
 export async function POST(req: NextRequest) {
   if (!(await requireAdmin())) {
@@ -69,11 +56,11 @@ export async function POST(req: NextRequest) {
 
   if (field === "videoId") {
     value = value.trim();
-    if (value && !isPlausibleVideoId(value)) {
+    if (value && !isKinescopeVideoId(value)) {
       return NextResponse.json(
         {
           error:
-            "That doesn't look like a Cloudflare Stream video UID. Paste the UID shown after upload (at least 16 characters, no spaces or underscores), or leave it empty to remove the video.",
+            "That doesn't look like a Kinescope video UUID. Paste the video ID shown after upload, or leave it empty to remove the video.",
         },
         { status: 400 }
       );

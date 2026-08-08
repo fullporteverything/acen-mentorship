@@ -1,18 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import * as tus from "tus-js-client";
 
 /**
- * Cloudflare Stream direct-creator uploader (admin only).
+ * Kinescope direct uploader (admin only).
  *
- * Flow: ask our server for a one-time tus `uploadUrl` + `uid`, then push the
- * file straight to Cloudflare with the tus resumable protocol. tus replaces the
- * old single-POST direct upload, which capped out at 200MB (HTTP 413) — there's
- * no practical size limit here, chunks resume after a hiccup, and we still get
- * real progress. On success the returned video UID is shown with a copy button
- * — the admin pastes it into `lib/lessons-config.ts` (the `videoId` of a
- * lesson).
+ * Flow: ask our server for a one-time tus endpoint, then push the file directly
+ * to Kinescope. On success the returned video ID stays copyable for assignment.
  */
 export default function VideoUpload() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -22,45 +17,6 @@ export default function VideoUpload() {
   const [error, setError] = useState("");
   const [uid, setUid] = useState("");
   const [copied, setCopied] = useState(false);
-  const [captions, setCaptions] = useState<
-    "idle" | "requesting" | "done" | "failed"
-  >("idle");
-  const aliveRef = useRef(true);
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => {
-      aliveRef.current = false;
-    };
-  }, []);
-
-  /**
-   * Auto-request AI English captions for a freshly uploaded video. Cloudflare
-   * may reject while the video is still processing, so retry a few times with
-   * a delay. The lesson page's "Generate Captions" control remains the manual
-   * fallback if all attempts fail.
-   */
-  async function autoGenerateCaptions(videoUid: string) {
-    setCaptions("requesting");
-    const delays = [0, 60_000, 120_000];
-    for (const delay of delays) {
-      if (delay) await new Promise((r) => setTimeout(r, delay));
-      if (!aliveRef.current) return;
-      try {
-        const res = await fetch("/api/admin/captions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ videoId: videoUid }),
-        });
-        if (res.ok) {
-          if (aliveRef.current) setCaptions("done");
-          return;
-        }
-      } catch {
-        // network hiccup — fall through to the next retry
-      }
-    }
-    if (aliveRef.current) setCaptions("failed");
-  }
 
   /**
    * tus errors stringify into a wall of request/response detail. Keep the first
@@ -95,11 +51,11 @@ export default function VideoUpload() {
     setStatus("uploading");
     setProgress(0);
 
-    // 1) Mint the one-time tus upload URL (Cloudflare needs the exact size).
+    // 1) Initialize the one-time Kinescope tus upload URL server-side.
     let uploadUrl = "";
     let newUid = "";
     try {
-      const res = await fetch("/api/admin/stream-tus-url", {
+      const res = await fetch("/api/admin/video-upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileSize: file.size, fileName: file.name }),
@@ -111,22 +67,20 @@ export default function VideoUpload() {
         return;
       }
       uploadUrl = data.uploadUrl;
-      newUid = data.uid || "";
+      newUid = data.videoId || "";
     } catch {
       setError("Could not get an upload URL.");
       setStatus("idle");
       return;
     }
 
-    // 2) Push the bytes straight to Cloudflare over tus, in resumable chunks.
+    // 2) Push the bytes straight to Kinescope over tus.
     try {
       await new Promise<void>((resolve, reject) => {
         const upload = new tus.Upload(file, {
           // The URL is pre-created server-side, so point tus at it directly
           // instead of letting it create one via `endpoint`.
           uploadUrl,
-          // Cloudflare requires a whole multiple of 256 KiB. 50 MiB chunks.
-          chunkSize: 52428800,
           metadata: { name: file.name, filetype: file.type },
           onProgress: (bytesSent, bytesTotal) => {
             if (bytesTotal > 0) {
@@ -144,8 +98,6 @@ export default function VideoUpload() {
       setProgress(100);
       setFileName("");
       if (inputRef.current) inputRef.current.value = "";
-      // Fire-and-monitor: captions kick off automatically for every upload.
-      if (newUid) void autoGenerateCaptions(newUid);
     } catch (err) {
       setError(readableError(err));
       setStatus("idle");
@@ -158,7 +110,7 @@ export default function VideoUpload() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      // Clipboard may be unavailable; the UID is still visible to copy manually.
+      // Clipboard may be unavailable; the ID is still visible to copy manually.
     }
   }
 
@@ -207,8 +159,8 @@ export default function VideoUpload() {
             marginBottom: "18px",
           }}
         >
-          Uploads directly to Cloudflare Stream. Max duration 2 hours. Large
-          files supported — uploads are resumable.
+          Uploads directly to Kinescope. Large files are supported and uploads
+          are resumable.
         </p>
 
         {uploading && (
@@ -276,7 +228,7 @@ export default function VideoUpload() {
                 marginBottom: "10px",
               }}
             >
-              Video UID
+              Kinescope Video ID
             </p>
             <div
               style={{
@@ -327,27 +279,18 @@ export default function VideoUpload() {
               Paste this into a lesson&rsquo;s <code>videoId</code> in
               lib/lessons-config.ts.
             </p>
-            {captions !== "idle" && (
-              <p
-                style={{
-                  fontSize: "10px",
-                  letterSpacing: "1px",
-                  color:
-                    captions === "failed"
-                      ? "#E8807A"
-                      : "rgba(232,160,160,0.7)",
-                  fontFamily: "Georgia, serif",
-                  fontStyle: "italic",
-                  marginTop: "8px",
-                }}
-              >
-                {captions === "requesting"
-                  ? "Captions: auto-generating… (retries while the video processes)"
-                  : captions === "done"
-                  ? "Captions: requested ✓ — English subtitles will appear when processing finishes."
-                  : "Captions: auto-request failed — use Generate Captions on the lesson page."}
-              </p>
-            )}
+            <p
+              style={{
+                fontSize: "10px",
+                letterSpacing: "1px",
+                color: "rgba(232,160,160,0.7)",
+                fontFamily: "Georgia, serif",
+                fontStyle: "italic",
+                marginTop: "8px",
+              }}
+            >
+              Subtitle tracks are managed in Kinescope and displayed by its player.
+            </p>
           </div>
         )}
 
@@ -367,7 +310,7 @@ export default function VideoUpload() {
             opacity: uploading ? 0.6 : 1,
           }}
         >
-          {uploading ? "Uploading…" : "Upload to Cloudflare"}
+          {uploading ? "Uploading…" : "Upload to Kinescope"}
         </button>
       </form>
     </section>

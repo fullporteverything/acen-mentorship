@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isKinescopeVideoId } from "@/lib/video-id";
 
 interface VideoAssignProps {
   lessonId: string;
@@ -17,23 +18,8 @@ const TINY_CAPS: React.CSSProperties = {
 };
 
 /**
- * Same "is this a real Cloudflare Stream UID?" heuristic as
- * components/CloudflarePlayer.tsx — checked here so an obvious typo never even
- * reaches the API.
- */
-function isPlausibleVideoId(videoId: string | undefined | null): boolean {
-  if (!videoId) return false;
-  const id = videoId.trim();
-  if (id.length < 16) return false;
-  if (/\s/.test(id)) return false;
-  if (id.includes("_")) return false;
-  if (/YOUR_VIDEO/i.test(id)) return false;
-  return true;
-}
-
-/**
- * Admin-only control to attach a Cloudflare Stream video to a lesson. The
- * Upload Video flow only hands back a UID; this is where that UID gets bound to
+ * Admin-only control to attach a Kinescope video to a lesson. The
+ * Upload Video flow hands back an ID; this is where that ID gets bound to
  * a lesson, persisted as a `videoId` override (see /api/admin/lesson-overrides)
  * so no code change / redeploy is needed. Clearing it reverts the lesson to
  * whatever the curriculum declares — usually the "coming soon" placeholder.
@@ -43,7 +29,7 @@ export default function VideoAssign({
   currentVideoId,
 }: VideoAssignProps) {
   const router = useRouter();
-  const attached = isPlausibleVideoId(currentVideoId);
+  const attached = isKinescopeVideoId(currentVideoId?.trim());
 
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -65,13 +51,13 @@ export default function VideoAssign({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data?.error || "Could not save the video UID.");
+        setError(data?.error || "Could not save the Kinescope video ID.");
         return;
       }
       setDraft("");
       router.refresh();
     } catch {
-      setError("Could not save the video UID.");
+      setError("Could not save the Kinescope video ID.");
     } finally {
       setSaving(false);
     }
@@ -80,13 +66,11 @@ export default function VideoAssign({
   function save() {
     const next = draft.trim();
     if (!next) {
-      setError("Paste a Cloudflare video UID first.");
+      setError("Paste a Kinescope video ID first.");
       return;
     }
-    if (!isPlausibleVideoId(next)) {
-      setError(
-        "That doesn't look like a Stream UID — expect 32 hex characters, no spaces or underscores."
-      );
+    if (!isKinescopeVideoId(next)) {
+      setError("That doesn't look like a Kinescope video UUID.");
       return;
     }
     post(next);
@@ -140,7 +124,7 @@ export default function VideoAssign({
             save();
           }
         }}
-        placeholder="Paste Cloudflare video UID…"
+        placeholder="Paste Kinescope video ID…"
         spellCheck={false}
         style={{
           flex: "0 1 280px",

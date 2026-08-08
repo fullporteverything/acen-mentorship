@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 interface ScreenGuardProps {
   discordId?: string;
   discordUsername?: string;
+  isAdmin?: boolean;
   children: React.ReactNode;
 }
 
@@ -13,24 +14,28 @@ interface ScreenGuardProps {
  * navigator.mediaDevices.getDisplayMedia so that any attempt to start a screen
  * share / recording is logged server-side and slammed with a full-screen lock.
  *
- * This is a deterrent, not real DRM — a determined user can disable JS or use
- * an external camera. The protected video itself is DRM'd via Cloudflare Stream.
- *
- * Hidden escape hatch: set `window.__dojoAdminUnlock = true` in the console to
- * let the capture through / release the lock (used for admin recording).
+ * This is a secondary deterrent. Protected playback and recording restrictions
+ * are configured in Kinescope; client-side code cannot block external capture.
  */
 export default function ScreenGuard({
   discordId,
   discordUsername,
+  isAdmin = false,
   children,
 }: ScreenGuardProps) {
   const [locked, setLocked] = useState(false);
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !navigator.mediaDevices) return;
+    if (
+      isAdmin ||
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getDisplayMedia
+    ) {
+      return;
+    }
 
     const md = navigator.mediaDevices;
-    const original = md.getDisplayMedia?.bind(md);
+    const original = md.getDisplayMedia;
 
     const patched = async (
       constraints?: DisplayMediaStreamOptions
@@ -46,12 +51,6 @@ export default function ScreenGuard({
         }),
       }).catch(() => {});
 
-      // Admin escape hatch — let the real capture through.
-      if (typeof window !== "undefined" && (window as any).__dojoAdminUnlock === true) {
-        if (original) return original(constraints);
-        throw new DOMException("Not supported", "NotSupportedError");
-      }
-
       setLocked(true);
       throw new DOMException("Permission denied", "NotAllowedError");
     };
@@ -59,22 +58,9 @@ export default function ScreenGuard({
     md.getDisplayMedia = patched as typeof md.getDisplayMedia;
 
     return () => {
-      if (original) {
-        md.getDisplayMedia = original;
-      }
+      md.getDisplayMedia = original;
     };
-  }, [discordId, discordUsername]);
-
-  // While locked, watch for the admin unlock flag and release.
-  useEffect(() => {
-    if (!locked) return;
-    const interval = setInterval(() => {
-      if (typeof window !== "undefined" && (window as any).__dojoAdminUnlock === true) {
-        setLocked(false);
-      }
-    }, 500);
-    return () => clearInterval(interval);
-  }, [locked]);
+  }, [discordId, discordUsername, isAdmin]);
 
   return (
     <>
@@ -106,7 +92,7 @@ export default function ScreenGuard({
               marginBottom: "20px",
             }}
           >
-            Screen Recording Detected
+            Screen Capture Blocked
           </h1>
           <div
             style={{
@@ -126,7 +112,7 @@ export default function ScreenGuard({
               letterSpacing: "1px",
             }}
           >
-            lol nice try thanks for the free bread
+            Protected lesson playback cannot be shared or recorded from this page.
           </p>
         </div>
       )}

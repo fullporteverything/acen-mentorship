@@ -14,12 +14,16 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
+  const isAdmin =
+    !!process.env.ADMIN_DISCORD_ID &&
+    session?.user?.discordId === process.env.ADMIN_DISCORD_ID;
 
   return (
     <VpnGuard>
       <ScreenGuard
         discordId={session?.user?.discordId}
         discordUsername={session?.user?.name ?? undefined}
+        isAdmin={isAdmin}
       >
         {children}
         <SiteMeditation />

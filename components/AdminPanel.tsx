@@ -160,7 +160,7 @@ export default function AdminPanel() {
       {/* Upload Video */}
       <VideoUpload />
 
-      {/* Video Library — every uploaded UID, retrievable long after upload */}
+      {/* Video Library — every uploaded video ID, retrievable after upload */}
       <VideoLibrary />
 
       {/* Homework Auto-Approval */}

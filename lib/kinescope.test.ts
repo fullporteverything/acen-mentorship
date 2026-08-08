@@ -123,9 +123,13 @@ describe("kinescopeFetch", () => {
       vi.fn().mockRejectedValue(new Error("<html>Bearer provider-secret-token</html>"))
     );
 
-    await expect(kinescopeFetch("/videos")).rejects.toThrow(
-      "Kinescope integration failed."
-    );
+    const error = await kinescopeFetch("/videos").catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      name: "KinescopeIntegrationError",
+      message: "Kinescope integration failed.",
+    });
+    expect((error as Error).message).not.toContain("provider-secret-token");
+    expect((error as Error).message).not.toContain("<html>");
   });
 
   it("hides non-OK response headers and body", async () => {
@@ -142,8 +146,13 @@ describe("kinescopeFetch", () => {
       )
     );
 
-    await expect(kinescopeFetch("/videos")).rejects.toThrow(
-      "Kinescope integration failed."
-    );
+    const error = await kinescopeFetch("/videos").catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      name: "KinescopeIntegrationError",
+      message: "Kinescope integration failed.",
+    });
+    expect((error as Error).message).not.toContain("response-secret-token");
+    expect((error as Error).message).not.toContain("provider-secret-token");
+    expect((error as Error).message).not.toContain("<html>");
   });
 });

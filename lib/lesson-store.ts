@@ -141,7 +141,7 @@ export async function getUserProgress(
  * other's completed lesson IDs for testing the student experience.
  */
 export async function getViewerProgress(discordId: string): Promise<UserProgress> {
-  const ids = progressViewerIds(discordId, process.env.ADMIN_DISCORD_ID);
+  const ids = progressViewerIds(discordId);
   const records = await Promise.all(ids.map((id) => getUserProgress(id)));
   const own = records[0];
   return {

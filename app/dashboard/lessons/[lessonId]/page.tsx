@@ -66,8 +66,7 @@ export default async function LessonPage({
   const completedLessonIds = autoPassedLessonIds(
     discordId,
     progress.completedLessons,
-    lessons.map((item) => item.id),
-    process.env.ADMIN_DISCORD_ID
+    lessons.map((item) => item.id)
   );
   const lesson = getLesson(params.lessonId, lessons);
   if (!lesson) {

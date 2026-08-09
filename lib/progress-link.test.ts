@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { autoPassedLessonIds, progressViewerIds } from "./progress-link";
+import {
+  autoPassedLessonIds,
+  OWNER_MAIN_DISCORD_ID,
+  progressViewerIds,
+} from "./progress-link";
 
 describe("progressViewerIds", () => {
+  it("uses the confirmed owner account as the main by default", () => {
+    expect(OWNER_MAIN_DISCORD_ID).toBe("353994234983874570");
+    expect(progressViewerIds(OWNER_MAIN_DISCORD_ID)).toEqual([
+      OWNER_MAIN_DISCORD_ID,
+      "1417619259252801546",
+    ]);
+  });
   it("links the configured main account and preview alt in both directions", () => {
     expect(progressViewerIds("main-id", "main-id")).toEqual([
       "main-id",

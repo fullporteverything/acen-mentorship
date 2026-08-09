@@ -43,8 +43,7 @@ export default async function LessonsPage() {
   const completedLessonIds = autoPassedLessonIds(
     discordId,
     progress.completedLessons,
-    lessons.map((lesson) => lesson.id),
-    process.env.ADMIN_DISCORD_ID
+    lessons.map((lesson) => lesson.id)
   );
   // The admin is never gated: every lesson reads as unlocked for them.
   const states = computeLessonStates(

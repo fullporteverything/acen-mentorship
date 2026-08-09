@@ -47,8 +47,7 @@ export default async function DashboardPage() {
   const completedLessonIds = autoPassedLessonIds(
     discordId,
     progress.completedLessons,
-    lessons.map((lesson) => lesson.id),
-    process.env.ADMIN_DISCORD_ID
+    lessons.map((lesson) => lesson.id)
   );
   const coreProgress = buildCoreLearningSummary(
     lessons,

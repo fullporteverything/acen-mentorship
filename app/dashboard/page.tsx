@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import TopNav from "@/components/TopNav";
 import AnnouncementsFeed from "@/components/AnnouncementsFeed";
 import {
@@ -12,8 +13,8 @@ import {
 import { getJournal } from "@/lib/journal-store";
 import { buildEffectiveLessons } from "@/lib/lessons-config";
 import {
+  buildCoreLearningSummary,
   buildOverviewStats,
-  countCoreLessonProgress,
 } from "@/lib/overview-stats";
 
 export const dynamic = "force-dynamic";
@@ -40,12 +41,13 @@ export default async function DashboardPage() {
     getJournal(discordId),
   ]);
   const lessons = buildEffectiveLessons(addedLessons, overrides);
-  const coreProgress = countCoreLessonProgress(
+  const coreProgress = buildCoreLearningSummary(
     lessons,
     progress.completedLessons
   );
   const overviewStats = buildOverviewStats({
-    ...coreProgress,
+    totalLessons: coreProgress.totalLessons,
+    completedLessons: coreProgress.completedLessons,
     journalEntries: journal.length,
   });
 
@@ -56,6 +58,7 @@ export default async function DashboardPage() {
 
       {/* Main content */}
       <main
+        className="overview-page"
         style={{
           marginTop: "76px",
           padding: "60px 56px",
@@ -114,17 +117,19 @@ export default async function DashboardPage() {
         </div>
 
         {/* Stats cards */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "24px",
-            marginBottom: "48px",
-          }}
-        >
-          {overviewStats.map((card) => (
-            <div
+        <div className="overview-stats-grid">
+          {overviewStats.map((card) => {
+            const href =
+              card.label === "Lectures"
+                ? "/dashboard/lessons"
+                : card.label === "Journal"
+                  ? "/dashboard/journal"
+                  : "/dashboard";
+            return (
+            <Link
               key={card.label}
+              href={href}
+              className="overview-stat-card"
               style={{
                 padding: "28px 24px",
                 border: "1px solid rgba(232,160,160,0.12)",
@@ -150,7 +155,7 @@ export default async function DashboardPage() {
               </span>
               <p
                 style={{
-                  fontSize: "9px",
+                  fontSize: "10px",
                   letterSpacing: "3px",
                   color: "rgba(232,160,160,0.6)",
                   textTransform: "uppercase",
@@ -181,9 +186,50 @@ export default async function DashboardPage() {
               >
                 {card.sub}
               </p>
-            </div>
-          ))}
+            </Link>
+          )})}
         </div>
+
+        <section className="overview-progress-card" aria-label="Core learning progress">
+          <div className="overview-progress-copy">
+            <p className="overview-progress-kicker">Core progress</p>
+            <h2>
+              {coreProgress.nextLesson
+                ? "Continue your training"
+                : coreProgress.totalLessons > 0
+                  ? "Core training complete"
+                  : "Core training coming soon"}
+            </h2>
+            <p>
+              {coreProgress.nextLesson
+                ? coreProgress.nextLesson.title
+                : `${coreProgress.completedLessons} of ${coreProgress.totalLessons} core lectures complete`}
+            </p>
+          </div>
+          <div className="overview-progress-action">
+            <div className="overview-progress-value">{coreProgress.percent}%</div>
+            <div
+              className="overview-progress-track"
+              role="progressbar"
+              aria-label="Core lectures completed"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={coreProgress.percent}
+            >
+              <span style={{ width: `${coreProgress.percent}%` }} />
+            </div>
+            <Link
+              className="overview-continue-link"
+              href={
+                coreProgress.nextLesson
+                  ? `/dashboard/lessons/${coreProgress.nextLesson.id}`
+                  : "/dashboard/lessons"
+              }
+            >
+              {coreProgress.nextLesson ? "Continue learning" : "View lectures"} →
+            </Link>
+          </div>
+        </section>
 
         {/* Announcements — live feed, unread pulses burgundy. */}
         <AnnouncementsFeed items={announcements} initialSeen={seen} />

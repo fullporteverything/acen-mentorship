@@ -1,7 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { buildOverviewStats, countCoreLessonProgress } from "./overview-stats";
+import {
+  buildCoreLearningSummary,
+  buildOverviewStats,
+  countCoreLessonProgress,
+} from "./overview-stats";
 
 describe("buildOverviewStats", () => {
+  it("builds a core-only percentage and points to the next incomplete lecture", () => {
+    expect(
+      buildCoreLearningSummary(
+        [
+          { id: "core-1", title: "Foundations", group: "CORE CONTENT" },
+          { id: "external-1", title: "Bonus", group: "EXTERNAL CONTENT" },
+          { id: "core-2", title: "Execution", group: "CORE CONTENT" },
+          { id: "core-3", title: "Risk", group: "CORE CONTENT" },
+        ],
+        ["core-1", "external-1"]
+      )
+    ).toEqual({
+      totalLessons: 3,
+      completedLessons: 1,
+      percent: 33,
+      nextLesson: { id: "core-2", title: "Execution" },
+    });
+  });
+
+  it("reports 100 percent with no next lecture when all core content is complete", () => {
+    expect(
+      buildCoreLearningSummary(
+        [{ id: "core-1", title: "Foundations", group: "CORE CONTENT" }],
+        ["core-1"]
+      )
+    ).toEqual({
+      totalLessons: 1,
+      completedLessons: 1,
+      percent: 100,
+      nextLesson: undefined,
+    });
+  });
+
   it("counts only CORE CONTENT lectures and completions", () => {
     expect(
       countCoreLessonProgress(

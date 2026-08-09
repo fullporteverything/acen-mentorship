@@ -16,6 +16,41 @@ interface OverviewLesson {
   group: string;
 }
 
+interface TitledOverviewLesson extends OverviewLesson {
+  title: string;
+}
+
+export interface CoreLearningSummary {
+  totalLessons: number;
+  completedLessons: number;
+  percent: number;
+  nextLesson?: { id: string; title: string };
+}
+
+export function buildCoreLearningSummary(
+  lessons: TitledOverviewLesson[],
+  completedLessonIds: string[]
+): CoreLearningSummary {
+  const completed = new Set(completedLessonIds);
+  const coreLessons = lessons.filter(
+    (lesson) => lesson.group.trim().toUpperCase() === "CORE CONTENT"
+  );
+  const completedLessons = coreLessons.filter((lesson) =>
+    completed.has(lesson.id)
+  ).length;
+  const next = coreLessons.find((lesson) => !completed.has(lesson.id));
+
+  return {
+    totalLessons: coreLessons.length,
+    completedLessons,
+    percent:
+      coreLessons.length === 0
+        ? 0
+        : Math.round((completedLessons / coreLessons.length) * 100),
+    nextLesson: next ? { id: next.id, title: next.title } : undefined,
+  };
+}
+
 export function countCoreLessonProgress(
   lessons: OverviewLesson[],
   completedLessonIds: string[]

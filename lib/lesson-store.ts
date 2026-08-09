@@ -17,6 +17,7 @@
 
 import { get, list, put } from "@vercel/blob";
 import type { Lesson, LessonOverrides } from "./lessons-config";
+import { progressViewerIds } from "./progress-link";
 
 const STORE_ID = process.env.BLOB_READ_WRITE_TOKEN_STORE_ID;
 
@@ -131,6 +132,24 @@ export async function getUserProgress(
       progress.submissions && typeof progress.submissions === "object"
         ? progress.submissions
         : {},
+  };
+}
+
+/**
+ * Progress used for rendering the curriculum. The owner's submissions stay
+ * private, while the main account and its preview alt see the union of each
+ * other's completed lesson IDs for testing the student experience.
+ */
+export async function getViewerProgress(discordId: string): Promise<UserProgress> {
+  const ids = progressViewerIds(discordId, process.env.ADMIN_DISCORD_ID);
+  const records = await Promise.all(ids.map((id) => getUserProgress(id)));
+  const own = records[0];
+  return {
+    ...own,
+    completedLessons: Array.from(
+      new Set(records.flatMap((record) => record.completedLessons))
+    ),
+    submissions: own.submissions,
   };
 }
 

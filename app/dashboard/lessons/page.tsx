@@ -12,7 +12,7 @@ import {
   getAddedSections,
   getAnnouncements,
   getLessonOverrides,
-  getUserProgress,
+  getViewerProgress,
 } from "@/lib/lesson-store";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export default async function LessonsPage() {
   const discordId = session.user.discordId || session.user.id || "unknown";
   const [progress, announcements, addedLessons, overrides, addedSections] =
     await Promise.all([
-      getUserProgress(discordId),
+      getViewerProgress(discordId),
       getAnnouncements(),
       getAddedLessons(),
       getLessonOverrides(),

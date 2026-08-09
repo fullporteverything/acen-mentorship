@@ -16,7 +16,7 @@ import {
   getAddedLessons,
   getAddedSections,
   getLessonOverrides,
-  getUserProgress,
+  getViewerProgress,
   type SubmissionStatus,
 } from "@/lib/lesson-store";
 import { getKinescopeConfig } from "@/lib/kinescope";
@@ -55,7 +55,7 @@ export default async function LessonPage({
   const discordId = session.user.discordId || "unknown";
   const discordUsername = session.user.name?.trim() || "Discord user";
   const [progress, addedLessons, overrides, addedSections] = await Promise.all([
-    getUserProgress(discordId),
+    getViewerProgress(discordId),
     getAddedLessons(),
     getLessonOverrides(),
     getAddedSections(),

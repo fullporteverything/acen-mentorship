@@ -8,7 +8,7 @@ import {
   getAnnouncements,
   getLessonOverrides,
   getSeenAnnouncements,
-  getUserProgress,
+  getViewerProgress,
 } from "@/lib/lesson-store";
 import { getJournal } from "@/lib/journal-store";
 import { getSecurityMember } from "@/lib/security-store";
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
     await Promise.all([
     getAnnouncements(),
     getSeenAnnouncements(discordId),
-    getUserProgress(discordId),
+    getViewerProgress(discordId),
     getAddedLessons(),
     getLessonOverrides(),
     getJournal(discordId),

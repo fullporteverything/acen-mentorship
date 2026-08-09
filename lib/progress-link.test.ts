@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { progressViewerIds } from "./progress-link";
+import { autoPassedLessonIds, progressViewerIds } from "./progress-link";
 
 describe("progressViewerIds", () => {
   it("links the configured main account and preview alt in both directions", () => {
@@ -15,5 +15,15 @@ describe("progressViewerIds", () => {
 
   it("leaves every student account isolated", () => {
     expect(progressViewerIds("student-id", "main-id")).toEqual(["student-id"]);
+  });
+
+  it("automatically passes all current and future lessons for both test accounts", () => {
+    const lessons = ["lesson-1", "lesson-2", "new-lesson"];
+    expect(autoPassedLessonIds("main-id", ["lesson-1"], lessons, "main-id"))
+      .toEqual(lessons);
+    expect(autoPassedLessonIds("1417619259252801546", [], lessons, "main-id"))
+      .toEqual(lessons);
+    expect(autoPassedLessonIds("student-id", ["lesson-1"], lessons, "main-id"))
+      .toEqual(["lesson-1"]);
   });
 });

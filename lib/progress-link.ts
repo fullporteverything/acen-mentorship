@@ -11,3 +11,14 @@ export function progressViewerIds(discordId: string, mainDiscordId?: string): st
   if (discordId === PREVIEW_ALT_DISCORD_ID) return [discordId, main];
   return [discordId];
 }
+
+export function autoPassedLessonIds(
+  discordId: string,
+  completedLessonIds: string[],
+  allLessonIds: string[],
+  mainDiscordId?: string
+): string[] {
+  return progressViewerIds(discordId, mainDiscordId).length > 1
+    ? [...allLessonIds]
+    : completedLessonIds;
+}

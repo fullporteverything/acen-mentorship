@@ -14,6 +14,7 @@ import {
   getLessonOverrides,
   getViewerProgress,
 } from "@/lib/lesson-store";
+import { autoPassedLessonIds } from "@/lib/progress-link";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +40,15 @@ export default async function LessonsPage() {
     ]);
 
   const lessons = buildEffectiveLessons(addedLessons, overrides);
+  const completedLessonIds = autoPassedLessonIds(
+    discordId,
+    progress.completedLessons,
+    lessons.map((lesson) => lesson.id),
+    process.env.ADMIN_DISCORD_ID
+  );
   // The admin is never gated: every lesson reads as unlocked for them.
   const states = computeLessonStates(
-    progress.completedLessons,
+    completedLessonIds,
     lessons,
     isAdmin
   );
@@ -62,7 +69,7 @@ export default async function LessonsPage() {
       >
         {/* Lessons sub-navigation */}
         <LessonsSidebar
-          completedLessons={progress.completedLessons}
+          completedLessons={completedLessonIds}
           lessons={lessons}
           addedSections={addedSections}
           isAdmin={isAdmin}

@@ -12,6 +12,7 @@ import {
 } from "@/lib/lesson-store";
 import { getJournal } from "@/lib/journal-store";
 import { getSecurityMember } from "@/lib/security-store";
+import { autoPassedLessonIds } from "@/lib/progress-link";
 import { buildEffectiveLessons } from "@/lib/lessons-config";
 import {
   buildCoreLearningSummary,
@@ -43,9 +44,15 @@ export default async function DashboardPage() {
     getSecurityMember(discordId, session.user.name ?? undefined),
   ]);
   const lessons = buildEffectiveLessons(addedLessons, overrides);
+  const completedLessonIds = autoPassedLessonIds(
+    discordId,
+    progress.completedLessons,
+    lessons.map((lesson) => lesson.id),
+    process.env.ADMIN_DISCORD_ID
+  );
   const coreProgress = buildCoreLearningSummary(
     lessons,
-    progress.completedLessons
+    completedLessonIds
   );
   const overviewStats = buildOverviewStats({
     totalLessons: coreProgress.totalLessons,

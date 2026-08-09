@@ -22,6 +22,7 @@ import {
 import { getKinescopeConfig } from "@/lib/kinescope";
 import { isKinescopeVideoId } from "@/lib/video-id";
 import { getVideoPlayback } from "@/lib/video-status";
+import { autoPassedLessonIds } from "@/lib/progress-link";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,12 @@ export default async function LessonPage({
   ]);
 
   const lessons = buildEffectiveLessons(addedLessons, overrides);
+  const completedLessonIds = autoPassedLessonIds(
+    discordId,
+    progress.completedLessons,
+    lessons.map((item) => item.id),
+    process.env.ADMIN_DISCORD_ID
+  );
   const lesson = getLesson(params.lessonId, lessons);
   if (!lesson) {
     notFound();
@@ -70,7 +77,7 @@ export default async function LessonPage({
   // The admin bypasses sequential gating — they never see the lock screen.
   const unlocked = isLessonUnlocked(
     lesson.id,
-    progress.completedLessons,
+    completedLessonIds,
     lessons,
     isAdmin
   );
@@ -110,7 +117,7 @@ export default async function LessonPage({
         }}
       >
         <LessonsSidebar
-          completedLessons={progress.completedLessons}
+          completedLessons={completedLessonIds}
           activeLessonId={lesson.id}
           lessons={lessons}
           addedSections={addedSections}

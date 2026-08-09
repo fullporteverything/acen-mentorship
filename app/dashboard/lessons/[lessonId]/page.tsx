@@ -245,7 +245,6 @@ export default async function LessonPage({
                     title={lesson.title}
                     discordId={discordId}
                     discordUsername={discordUsername}
-                    isAdmin={isAdmin}
                     protectedPlaybackConfigured={protectedPlaybackConfigured}
                   />
                 )}

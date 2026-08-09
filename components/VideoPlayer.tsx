@@ -10,7 +10,6 @@ export interface VideoPlayerProps {
   title?: string;
   discordId?: string;
   discordUsername?: string;
-  isAdmin: boolean;
   protectedPlaybackConfigured: boolean;
 }
 
@@ -20,7 +19,6 @@ export default function VideoPlayer({
   title = "Lesson video",
   discordId,
   discordUsername,
-  isAdmin,
   protectedPlaybackConfigured,
 }: VideoPlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -104,12 +102,10 @@ export default function VideoPlayer({
               border: "none",
             }}
           />
-          {!isAdmin && (
-            <StudentWatermark
-              discordId={discordId}
-              discordUsername={discordUsername}
-            />
-          )}
+          <StudentWatermark
+            discordId={discordId}
+            discordUsername={discordUsername}
+          />
           <button
             type="button"
             onClick={toggleFullscreen}

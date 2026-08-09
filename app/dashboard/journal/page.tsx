@@ -195,7 +195,7 @@ export default async function JournalPage() {
 
           {/* Composer */}
           <section style={{ marginBottom: 51 }}>
-            <JournalComposer action={createEntry} />
+            <JournalComposer action={createEntry} draftKey={`acen-journal-draft:${discordId}`} />
           </section>
 
           {/* Entries */}

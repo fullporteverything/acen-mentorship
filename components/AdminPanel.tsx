@@ -14,6 +14,14 @@ interface CaptureLog {
   userAgent?: string;
 }
 
+interface SecurityMember {
+  discordId: string;
+  discordUsername: string;
+  strikes: number;
+  locked: boolean;
+  updatedAt: string;
+}
+
 interface AdminSubmission {
   discordId: string;
   discordUsername: string;
@@ -113,11 +121,10 @@ function SkeletonBar({ width = "140px" }: { width?: string }) {
 
 export default function AdminPanel() {
   const [logs, setLogs] = useState<CaptureLog[]>([]);
+  const [securityMembers, setSecurityMembers] = useState<SecurityMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [unlockState, setUnlockState] = useState<"idle" | "working" | "done">(
-    "idle"
-  );
+  const [resettingMember, setResettingMember] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -127,7 +134,10 @@ export default function AdminPanel() {
         return res.json();
       })
       .then((data) => {
-        if (!cancelled) setLogs(Array.isArray(data?.logs) ? data.logs : []);
+        if (!cancelled) {
+          setLogs(Array.isArray(data?.logs) ? data.logs : []);
+          setSecurityMembers(Array.isArray(data?.members) ? data.members : []);
+        }
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -140,17 +150,23 @@ export default function AdminPanel() {
     };
   }, []);
 
-  async function handleUnlock() {
-    setUnlockState("working");
+  async function handleUnlock(discordId: string) {
+    setResettingMember(discordId);
     try {
-      await fetch("/api/admin/unlock-all", { method: "POST" });
+      const response = await fetch("/api/admin/unlock-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discordId }),
+      });
+      if (response.ok) {
+        setSecurityMembers((members) =>
+          members.filter((member) => member.discordId !== discordId)
+        );
+      }
     } catch {
       // ignore — still flip the client flag below
     }
-    if (typeof window !== "undefined") {
-      (window as any).__dojoAdminUnlock = true;
-    }
-    setUnlockState("done");
+    setResettingMember("");
   }
 
   return (
@@ -174,6 +190,33 @@ export default function AdminPanel() {
 
       {/* Announcements */}
       <AnnouncementsSection />
+
+      <section style={cardStyle}>
+        <p style={sectionLabel}>Security Members</p>
+        {loading ? (
+          <SkeletonBar width="180px" />
+        ) : securityMembers.length === 0 ? (
+          <p style={mutedItalic}>No members currently have strikes.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {securityMembers.map((member) => (
+              <div key={member.discordId} className="security-member-row">
+                <div>
+                  <p>{member.discordUsername}</p>
+                  <span>{member.discordId} · {member.strikes}/3 strikes {member.locked ? "· Locked" : ""}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleUnlock(member.discordId)}
+                  disabled={resettingMember === member.discordId}
+                >
+                  {resettingMember === member.discordId ? "Resetting…" : "Reset strikes"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Screen Capture Attempts */}
       <section style={cardStyle}>
@@ -217,26 +260,6 @@ export default function AdminPanel() {
         )}
       </section>
 
-      {/* Unlock Screen Lock */}
-      <section style={cardStyle}>
-        <p style={sectionLabel}>Unlock Screen Lock</p>
-        <p style={{ ...mutedItalic, marginBottom: "20px" }}>
-          Releases the screen-recording lock for the current session.
-        </p>
-        <button
-          type="button"
-          onClick={handleUnlock}
-          disabled={unlockState === "working"}
-          className="btn-discord"
-          style={{ opacity: unlockState === "working" ? 0.6 : 1 }}
-        >
-          {unlockState === "done"
-            ? "Unlocked"
-            : unlockState === "working"
-            ? "Unlocking…"
-            : "Unlock Screen Lock"}
-        </button>
-      </section>
     </>
   );
 }

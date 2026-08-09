@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import VpnGuard from "@/components/VpnGuard";
 import ScreenGuard from "@/components/ScreenGuard";
 import SiteMeditation from "@/components/SiteMeditation";
+import { getSecurityMember } from "@/lib/security-store";
 
 /**
  * Wraps every /dashboard route with the security guards:
@@ -17,13 +18,18 @@ export default async function DashboardLayout({
   const isAdmin =
     !!process.env.ADMIN_DISCORD_ID &&
     session?.user?.discordId === process.env.ADMIN_DISCORD_ID;
+  const discordId = session?.user?.discordId;
+  const securityMember = discordId && !isAdmin
+    ? await getSecurityMember(discordId, session?.user?.name ?? undefined)
+    : null;
 
   return (
     <VpnGuard>
       <ScreenGuard
-        discordId={session?.user?.discordId}
-        discordUsername={session?.user?.name ?? undefined}
         isAdmin={isAdmin}
+        initialStrikes={securityMember?.strikes}
+        initialAcknowledgedStrikes={securityMember?.acknowledgedStrikes}
+        initialLocked={securityMember?.locked}
       >
         {children}
         <SiteMeditation />

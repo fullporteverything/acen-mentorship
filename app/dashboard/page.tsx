@@ -11,6 +11,7 @@ import {
   getUserProgress,
 } from "@/lib/lesson-store";
 import { getJournal } from "@/lib/journal-store";
+import { getSecurityMember } from "@/lib/security-store";
 import { buildEffectiveLessons } from "@/lib/lessons-config";
 import {
   buildCoreLearningSummary,
@@ -31,7 +32,7 @@ export default async function DashboardPage() {
 
   const discordId =
     session.user.discordId || session.user.id || "unknown";
-  const [announcements, seen, progress, addedLessons, overrides, journal] =
+  const [announcements, seen, progress, addedLessons, overrides, journal, securityMember] =
     await Promise.all([
     getAnnouncements(),
     getSeenAnnouncements(discordId),
@@ -39,6 +40,7 @@ export default async function DashboardPage() {
     getAddedLessons(),
     getLessonOverrides(),
     getJournal(discordId),
+    getSecurityMember(discordId, session.user.name ?? undefined),
   ]);
   const lessons = buildEffectiveLessons(addedLessons, overrides);
   const coreProgress = buildCoreLearningSummary(
@@ -115,6 +117,16 @@ export default async function DashboardPage() {
             Welcome, {session.user.name?.split(" ")[0] || "Member"}
           </h1>
         </div>
+
+        {securityMember.strikes > 0 && securityMember.strikes < 3 && (
+          <div className="overview-strike-notice" role="status">
+            <span>Security notice</span>
+            <p>
+              Your account has {securityMember.strikes} of 3 screen-sharing strikes.
+              A third attempt will revoke access.
+            </p>
+          </div>
+        )}
 
         {/* Stats cards */}
         <div className="overview-stats-grid">

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import {
   computeLessonStates,
   getLessonGroups,
@@ -33,6 +36,7 @@ export default function LessonsSidebar({
   addedSections = [],
   isAdmin = false,
 }: LessonsSidebarProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const states = computeLessonStates(completedLessons, lessons, isAdmin);
   const stateById = new Map(states.map((s) => [s.lesson.id, s]));
 
@@ -43,7 +47,18 @@ export default function LessonsSidebar({
   const groups = getLessonGroups(lessons, addedSections);
 
   return (
+    <>
+    <button
+      type="button"
+      className="lessons-mobile-toggle"
+      aria-expanded={mobileOpen}
+      onClick={() => setMobileOpen((open) => !open)}
+    >
+      <span>Lessons · {pct}% complete</span>
+      <span aria-hidden>{mobileOpen ? "Close" : "Browse"}</span>
+    </button>
     <aside
+      className={`lessons-sidebar ${mobileOpen ? "mobile-open" : ""}`}
       style={{
         width: "240px",
         flex: "0 0 240px",
@@ -244,5 +259,6 @@ export default function LessonsSidebar({
         )}
       </nav>
     </aside>
+    </>
   );
 }

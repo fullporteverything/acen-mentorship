@@ -1,54 +1,96 @@
-/**
- * In-memory security store shared across the security + admin API routes.
- *
- * NOTE: this is process-local. On serverless/multi-instance deploys each
- * instance keeps its own copy — fine for the current "best-effort deterrent"
- * scope. Backed by `globalThis` so state survives Next.js dev HMR reloads.
- */
+import "server-only";
 
-export interface CaptureLog {
-  discordId?: string;
-  discordUsername?: string;
-  timestamp: string;
-  ip?: string;
-  userAgent?: string;
+import { get, list, put } from "@vercel/blob";
+import {
+  applyCaptureAttempt,
+  normalizeSecurityMember,
+  type CaptureLog,
+  type SecurityMember,
+} from "./security-model";
+
+const STORE_ID = process.env.BLOB_READ_WRITE_TOKEN_STORE_ID;
+const PREFIX = "dojo/security/members/";
+
+function safeDiscordId(discordId: string): string {
+  return discordId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 100) || "unknown";
 }
 
-interface SecurityState {
-  captureLogs: CaptureLog[];
-  /** When false, the client-side screen lock should be released. */
-  lockActive: boolean;
+function memberPath(discordId: string): string {
+  return `${PREFIX}${safeDiscordId(discordId)}.json`;
 }
 
-const globalStore = globalThis as unknown as {
-  __dojoSecurityState?: SecurityState;
-};
-
-const state: SecurityState =
-  globalStore.__dojoSecurityState ??
-  (globalStore.__dojoSecurityState = {
-    captureLogs: [],
-    lockActive: true,
-  });
-
-export function addCaptureLog(entry: CaptureLog): CaptureLog {
-  state.captureLogs.push(entry);
-  // Keep the list bounded so a spammy client can't grow it unbounded.
-  if (state.captureLogs.length > 500) {
-    state.captureLogs.splice(0, state.captureLogs.length - 500);
+async function readMember(
+  discordId: string,
+  discordUsername = "Discord member"
+): Promise<SecurityMember> {
+  try {
+    const result = await get(memberPath(discordId), {
+      access: "private",
+      storeId: STORE_ID,
+      useCache: false,
+    });
+    if (!result || result.statusCode !== 200 || !result.stream) {
+      return normalizeSecurityMember(null, discordId, discordUsername);
+    }
+    const raw = JSON.parse(await new Response(result.stream).text());
+    return normalizeSecurityMember(raw, discordId, discordUsername);
+  } catch {
+    return normalizeSecurityMember(null, discordId, discordUsername);
   }
-  return entry;
 }
 
-export function getCaptureLogs(): CaptureLog[] {
-  // Newest first for the admin panel.
-  return [...state.captureLogs].reverse();
+async function writeMember(member: SecurityMember): Promise<void> {
+  await put(memberPath(member.discordId), JSON.stringify(member, null, 2), {
+    access: "private",
+    storeId: STORE_ID,
+    contentType: "application/json",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  });
 }
 
-export function clearLocks(): void {
-  state.lockActive = false;
+export function getSecurityMember(discordId: string, username?: string) {
+  return readMember(discordId, username);
 }
 
-export function isLockActive(): boolean {
-  return state.lockActive;
+export async function recordCaptureAttempt(
+  discordId: string,
+  discordUsername: string,
+  attempt: CaptureLog
+): Promise<SecurityMember> {
+  const current = await readMember(discordId, discordUsername);
+  const next = applyCaptureAttempt(current, attempt, discordUsername);
+  await writeMember(next);
+  return next;
+}
+
+export async function acknowledgeStrike(discordId: string): Promise<SecurityMember> {
+  const member = await readMember(discordId);
+  const next = { ...member, acknowledgedStrikes: member.strikes };
+  await writeMember(next);
+  return next;
+}
+
+export async function resetSecurityMember(discordId: string): Promise<SecurityMember> {
+  const member = await readMember(discordId);
+  const next = {
+    ...member,
+    strikes: 0,
+    acknowledgedStrikes: 0,
+    locked: false,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeMember(next);
+  return next;
+}
+
+export async function getSecurityMembers(): Promise<SecurityMember[]> {
+  const { blobs } = await list({ prefix: PREFIX, storeId: STORE_ID });
+  const ids = blobs.map((blob) =>
+    blob.pathname.slice(PREFIX.length).replace(/\.json$/, "")
+  );
+  const members = await Promise.all(ids.map((id) => readMember(id)));
+  return members
+    .filter((member) => member.strikes > 0)
+    .sort((a, b) => b.strikes - a.strikes || b.updatedAt.localeCompare(a.updatedAt));
 }

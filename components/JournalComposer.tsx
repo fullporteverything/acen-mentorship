@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { parseJournalDraft } from "@/lib/journal-draft";
 
 const MAX = 5000;
 const MAX_IMAGES = 4;
@@ -18,8 +19,10 @@ type Preview = { file: File; url: string };
  */
 export default function JournalComposer({
   action,
+  draftKey,
 }: {
   action: (formData: FormData) => Promise<{ failedImages: number }>;
+  draftKey: string;
 }) {
   const [value, setValue] = useState("");
   const [previews, setPreviews] = useState<Preview[]>([]);
@@ -28,6 +31,26 @@ export default function JournalComposer({
   const [warning, setWarning] = useState("");
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [draftReady, setDraftReady] = useState(false);
+
+  useEffect(() => {
+    const draft = parseJournalDraft(window.localStorage.getItem(draftKey));
+    setValue(draft.body);
+    setSelectedTag(draft.tag);
+    setDraftReady(true);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    if (!value && !selectedTag) {
+      window.localStorage.removeItem(draftKey);
+      return;
+    }
+    window.localStorage.setItem(
+      draftKey,
+      JSON.stringify({ body: value, tag: selectedTag })
+    );
+  }, [draftKey, draftReady, selectedTag, value]);
 
   const count = value.length;
   const over = count > MAX;
@@ -80,6 +103,7 @@ export default function JournalComposer({
       setPreviews([]);
       setValue("");
       setSelectedTag(null);
+      window.localStorage.removeItem(draftKey);
       setError("");
       const failed = result?.failedImages ?? 0;
       setWarning(
@@ -279,6 +303,10 @@ export default function JournalComposer({
           {pending ? "Posting…" : "Post Entry"}
         </button>
       </div>
+
+      {draftReady && value.length > 0 && !pending && (
+        <p className="journal-draft-status">Draft saved on this device</p>
+      )}
 
       {warning && (
         <p

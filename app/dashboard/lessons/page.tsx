@@ -52,6 +52,7 @@ export default async function LessonsPage() {
       <TopNav active="/dashboard/lessons" />
 
       <main
+        className="lessons-layout"
         style={{
           marginTop: "76px",
           minHeight: "calc(100vh - 76px)",
@@ -69,6 +70,7 @@ export default async function LessonsPage() {
 
         {/* Content */}
         <div
+          className="lessons-content"
           style={{
             flex: 1,
             padding: "60px 56px",

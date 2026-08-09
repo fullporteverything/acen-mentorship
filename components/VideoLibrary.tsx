@@ -71,6 +71,11 @@ export default function VideoLibrary() {
 
 function VideoRow({ video }: { video: LibraryVideo }) {
   const [copied, setCopied] = useState(false);
+  const stateLabel = video.error
+    ? "Processing failed"
+    : video.ready
+      ? "Ready to assign"
+      : `Processing${video.progress !== null ? ` · ${Math.round(video.progress)}%` : ""}`;
 
   async function copyUid() {
     try {
@@ -93,6 +98,9 @@ function VideoRow({ video }: { video: LibraryVideo }) {
     >
       <p style={{ fontSize: "13px", color: "#F5F0F0", marginBottom: "4px" }}>
         {video.title}
+        <span className={`video-state ${video.error ? "error" : video.ready ? "ready" : "processing"}`}>
+          {stateLabel}
+        </span>
       </p>
       <p
         style={{

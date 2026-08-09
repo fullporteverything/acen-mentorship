@@ -3,117 +3,126 @@
 import { useEffect, useState } from "react";
 
 interface ScreenGuardProps {
-  discordId?: string;
-  discordUsername?: string;
   isAdmin?: boolean;
+  initialStrikes?: number;
+  initialAcknowledgedStrikes?: number;
+  initialLocked?: boolean;
   children: React.ReactNode;
 }
 
-/**
- * Best-effort screen-recording deterrent. Monkey-patches
- * navigator.mediaDevices.getDisplayMedia so that any attempt to start a screen
- * share / recording is logged server-side and slammed with a full-screen lock.
- *
- * This is a secondary deterrent. Protected playback and recording restrictions
- * are configured in Kinescope; client-side code cannot block external capture.
- */
+const COPY = {
+  1: {
+    title: "I can see you…",
+    line1: "Screen sharing or recording was detected.",
+    line2: "Don’t make that mistake again.",
+  },
+  2: {
+    title: "Last chance.",
+    line1: "Another screen sharing or recording attempt was detected.",
+    line2: "Your next attempt will revoke access to the site.",
+  },
+  3: {
+    title: "Access revoked.",
+    line1: "This account was locked after repeated screen sharing or recording attempts.",
+    line2: "Contact an administrator to appeal this lockout.",
+  },
+} as const;
+
 export default function ScreenGuard({
-  discordId,
-  discordUsername,
   isAdmin = false,
+  initialStrikes = 0,
+  initialAcknowledgedStrikes = 0,
+  initialLocked = false,
   children,
 }: ScreenGuardProps) {
-  const [locked, setLocked] = useState(false);
+  const [strikes, setStrikes] = useState(Math.min(3, initialStrikes));
+  const [warning, setWarning] = useState<0 | 1 | 2 | 3>(
+    initialLocked
+      ? 3
+      : initialStrikes > initialAcknowledgedStrikes
+        ? Math.min(3, initialStrikes) as 1 | 2 | 3
+        : 0
+  );
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (
-      isAdmin ||
-      typeof navigator === "undefined" ||
-      !navigator.mediaDevices?.getDisplayMedia
-    ) {
-      return;
-    }
-
+    if (isAdmin || !navigator.mediaDevices?.getDisplayMedia) return;
     const md = navigator.mediaDevices;
     const original = md.getDisplayMedia;
-
-    const patched = async (
-      constraints?: DisplayMediaStreamOptions
-    ): Promise<MediaStream> => {
-      // Log the attempt (fire-and-forget).
+    const patched = async (): Promise<MediaStream> => {
+      const provisional = Math.min(3, strikes + 1) as 1 | 2 | 3;
+      setStrikes(provisional);
+      setWarning(provisional);
+      setAcknowledged(false);
       fetch("/api/security/log-capture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          discordId,
-          discordUsername,
-          timestamp: new Date().toISOString(),
-        }),
-      }).catch(() => {});
-
-      setLocked(true);
+        body: JSON.stringify({ timestamp: new Date().toISOString() }),
+      })
+        .then((response) => response.ok ? response.json() : null)
+        .then((data) => {
+          if (typeof data?.strikes === "number") {
+            const confirmed = Math.min(3, data.strikes) as 1 | 2 | 3;
+            setStrikes(confirmed);
+            setWarning(confirmed);
+          }
+        })
+        .catch(() => {});
       throw new DOMException("Permission denied", "NotAllowedError");
     };
-
     md.getDisplayMedia = patched as typeof md.getDisplayMedia;
+    return () => { md.getDisplayMedia = original; };
+  }, [isAdmin, strikes]);
 
-    return () => {
-      md.getDisplayMedia = original;
-    };
-  }, [discordId, discordUsername, isAdmin]);
+  async function continueAfterWarning() {
+    if (!acknowledged || warning === 3) return;
+    setSaving(true);
+    try {
+      const response = await fetch("/api/security/acknowledge", { method: "POST" });
+      if (response.ok) setWarning(0);
+    } finally {
+      setSaving(false);
+    }
+  }
 
+  const copy = warning ? COPY[warning] : null;
   return (
     <>
       {children}
-      {locked && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 99999,
-            background: "#000",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            padding: "24px",
-            userSelect: "none",
-          }}
-        >
-          <h1
-            style={{
-              fontFamily: "Georgia, serif",
-              color: "#E8A0A0",
-              textTransform: "uppercase",
-              letterSpacing: "6px",
-              fontSize: "clamp(20px, 4vw, 34px)",
-              fontWeight: 400,
-              marginBottom: "20px",
-            }}
-          >
-            Screen Capture Blocked
-          </h1>
-          <div
-            style={{
-              width: "40px",
-              height: "1px",
-              background:
-                "linear-gradient(90deg, transparent, #E8A0A0, transparent)",
-              marginBottom: "20px",
-            }}
-          />
-          <p
-            style={{
-              fontFamily: "Georgia, serif",
-              color: "rgba(245,240,240,0.55)",
-              fontStyle: "italic",
-              fontSize: "14px",
-              letterSpacing: "1px",
-            }}
-          >
-            Protected lesson playback cannot be shared or recorded from this page.
-          </p>
+      {copy && (
+        <div className="security-strike-screen" role="alertdialog" aria-modal="true">
+          <div className="security-strike-mark" aria-hidden>警</div>
+          <div className="security-strike-box">
+            <p className="security-strike-label">
+              {warning === 3 ? "Membership security" : `Security warning · Strike ${warning} of 3`}
+            </p>
+            <h1>{copy.title}</h1>
+            <div className="security-strike-divider" />
+            <p>{copy.line1}</p>
+            <p>{copy.line2}</p>
+          </div>
+          {warning < 3 ? (
+            <div className="security-strike-ack">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={acknowledged}
+                  onChange={(event) => setAcknowledged(event.target.checked)}
+                />
+                <span>I acknowledge this warning</span>
+              </label>
+              <button
+                type="button"
+                disabled={!acknowledged || saving}
+                onClick={continueAfterWarning}
+              >
+                {saving ? "Saving…" : "Continue"}
+              </button>
+            </div>
+          ) : (
+            <p className="security-strike-support">Contact admin support to appeal.</p>
+          )}
         </div>
       )}
     </>

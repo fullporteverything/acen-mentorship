@@ -17,6 +17,7 @@ export default function VideoUpload() {
   const [error, setError] = useState("");
   const [uid, setUid] = useState("");
   const [copied, setCopied] = useState(false);
+  const [captionState, setCaptionState] = useState<"idle" | "requesting" | "queued" | "failed">("idle");
 
   /**
    * tus errors stringify into a wall of request/response detail. Keep the first
@@ -37,6 +38,7 @@ export default function VideoUpload() {
     setError("");
     setUid("");
     setCopied(false);
+    setCaptionState("idle");
 
     const file = inputRef.current?.files?.[0];
     if (!file) {
@@ -98,6 +100,14 @@ export default function VideoUpload() {
       setProgress(100);
       setFileName("");
       if (inputRef.current) inputRef.current.value = "";
+      setCaptionState("requesting");
+      fetch("/api/admin/video-captions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: newUid }),
+      })
+        .then((response) => setCaptionState(response.ok ? "queued" : "failed"))
+        .catch(() => setCaptionState("failed"));
     } catch (err) {
       setError(readableError(err));
       setStatus("idle");
@@ -276,8 +286,8 @@ export default function VideoUpload() {
                 lineHeight: 1.7,
               }}
             >
-              Paste this into a lesson&rsquo;s <code>videoId</code> in
-              lib/lessons-config.ts.
+              Upload complete. Kinescope is processing the video now; it will
+              appear as ready in the library when playback is available.
             </p>
             <p
               style={{
@@ -289,7 +299,11 @@ export default function VideoUpload() {
                 marginTop: "8px",
               }}
             >
-              Subtitle tracks are managed in Kinescope and displayed by its player.
+              {captionState === "queued"
+                ? "English captions queued automatically."
+                : captionState === "failed"
+                  ? "Video is safe; captions could not be queued yet. Retry from Kinescope."
+                  : "Requesting automatic English captions…"}
             </p>
           </div>
         )}

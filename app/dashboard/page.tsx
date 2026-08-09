@@ -2,7 +2,16 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import TopNav from "@/components/TopNav";
 import AnnouncementsFeed from "@/components/AnnouncementsFeed";
-import { getAnnouncements, getSeenAnnouncements } from "@/lib/lesson-store";
+import {
+  getAddedLessons,
+  getAnnouncements,
+  getLessonOverrides,
+  getSeenAnnouncements,
+  getUserProgress,
+} from "@/lib/lesson-store";
+import { getJournal } from "@/lib/journal-store";
+import { buildEffectiveLessons } from "@/lib/lessons-config";
+import { buildOverviewStats } from "@/lib/overview-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +27,25 @@ export default async function DashboardPage() {
 
   const discordId =
     session.user.discordId || session.user.id || "unknown";
-  const [announcements, seen] = await Promise.all([
+  const [announcements, seen, progress, addedLessons, overrides, journal] =
+    await Promise.all([
     getAnnouncements(),
     getSeenAnnouncements(discordId),
+    getUserProgress(discordId),
+    getAddedLessons(),
+    getLessonOverrides(),
+    getJournal(discordId),
   ]);
+  const lessons = buildEffectiveLessons(addedLessons, overrides);
+  const completedLessonIds = new Set(progress.completedLessons);
+  const completedLessons = lessons.filter((lesson) =>
+    completedLessonIds.has(lesson.id)
+  ).length;
+  const overviewStats = buildOverviewStats({
+    totalLessons: lessons.length,
+    completedLessons,
+    journalEntries: journal.length,
+  });
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
@@ -96,11 +120,7 @@ export default async function DashboardPage() {
             marginBottom: "48px",
           }}
         >
-          {[
-            { label: "Lessons", value: "—", sub: "Coming soon", kanji: "修" },
-            { label: "Journal", value: "—", sub: "Your ledger", kanji: "念" },
-            { label: "Members", value: "—", sub: "Private", kanji: "礼" },
-          ].map((card) => (
+          {overviewStats.map((card) => (
             <div
               key={card.label}
               style={{

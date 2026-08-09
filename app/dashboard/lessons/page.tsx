@@ -254,7 +254,11 @@ export default async function LessonsPage() {
                       >
                         Lesson {String(sectionLessonNumber(s.lesson.id, lessons)).padStart(2, "0")}
                       </span>
-                      <span style={{ fontSize: "12px", color: "#E8A0A0" }}>
+                      <span
+                        className={`lesson-card-status ${s.completed ? "completed" : ""}`}
+                        aria-label={s.completed ? "Completed" : locked ? "Locked" : s.current ? "Current lesson" : undefined}
+                        title={s.completed ? "Completed" : undefined}
+                      >
                         {s.completed ? "✓" : locked ? "🔒" : s.current ? "→" : ""}
                       </span>
                     </div>

@@ -584,6 +584,20 @@ body {
 
 /* Mobile curriculum navigation, local journal drafts, and video states. */
 .lessons-mobile-toggle { display: none; }
+.lesson-card-status {
+  min-width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  color: #e8a0a0;
+  font: 12px/1 Georgia, serif;
+}
+.lesson-card-status.completed {
+  border: 1px solid rgba(232,160,160,.42);
+  border-radius: 50%;
+  background: rgba(232,160,160,.08);
+  box-shadow: 0 0 12px rgba(232,160,160,.08);
+}
 .journal-draft-status {
   margin-top: 9px;
   color: rgba(245,240,240,.4);

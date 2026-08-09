@@ -11,7 +11,10 @@ import {
 } from "@/lib/lesson-store";
 import { getJournal } from "@/lib/journal-store";
 import { buildEffectiveLessons } from "@/lib/lessons-config";
-import { buildOverviewStats } from "@/lib/overview-stats";
+import {
+  buildOverviewStats,
+  countCoreLessonProgress,
+} from "@/lib/overview-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -37,13 +40,12 @@ export default async function DashboardPage() {
     getJournal(discordId),
   ]);
   const lessons = buildEffectiveLessons(addedLessons, overrides);
-  const completedLessonIds = new Set(progress.completedLessons);
-  const completedLessons = lessons.filter((lesson) =>
-    completedLessonIds.has(lesson.id)
-  ).length;
+  const coreProgress = countCoreLessonProgress(
+    lessons,
+    progress.completedLessons
+  );
   const overviewStats = buildOverviewStats({
-    totalLessons: lessons.length,
-    completedLessons,
+    ...coreProgress,
     journalEntries: journal.length,
   });
 

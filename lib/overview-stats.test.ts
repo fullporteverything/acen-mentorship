@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { buildOverviewStats } from "./overview-stats";
+import { buildOverviewStats, countCoreLessonProgress } from "./overview-stats";
 
 describe("buildOverviewStats", () => {
+  it("counts only CORE CONTENT lectures and completions", () => {
+    expect(
+      countCoreLessonProgress(
+        [
+          { id: "core-1", group: "CORE CONTENT" },
+          { id: "external-1", group: "EXTERNAL CONTENT" },
+          { id: "core-2", group: "CORE CONTENT" },
+        ],
+        ["core-1", "external-1"]
+      )
+    ).toEqual({ totalLessons: 2, completedLessons: 1 });
+  });
+
   it("reports real lecture totals, completed lectures, and journal entries", () => {
     expect(
       buildOverviewStats({

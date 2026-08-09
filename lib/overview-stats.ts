@@ -11,6 +11,27 @@ export interface OverviewStatCard {
   kanji: string;
 }
 
+interface OverviewLesson {
+  id: string;
+  group: string;
+}
+
+export function countCoreLessonProgress(
+  lessons: OverviewLesson[],
+  completedLessonIds: string[]
+): Pick<OverviewStatsInput, "totalLessons" | "completedLessons"> {
+  const completed = new Set(completedLessonIds);
+  const coreLessons = lessons.filter(
+    (lesson) => lesson.group.trim().toUpperCase() === "CORE CONTENT"
+  );
+
+  return {
+    totalLessons: coreLessons.length,
+    completedLessons: coreLessons.filter((lesson) => completed.has(lesson.id))
+      .length,
+  };
+}
+
 export function buildOverviewStats({
   totalLessons,
   completedLessons,

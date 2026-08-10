@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import TopNav from "@/components/TopNav";
 import LessonsSidebar from "@/components/LessonsSidebar";
 import VideoPlayer from "@/components/VideoPlayer";
@@ -10,6 +11,7 @@ import {
   buildEffectiveLessons,
   computeCurriculumStates,
   getLesson,
+  getLessonNavigation,
   isCoreLesson,
   sectionLessonNumber,
 } from "@/lib/lessons-config";
@@ -24,6 +26,7 @@ import { getKinescopeConfig } from "@/lib/kinescope";
 import { isKinescopeVideoId } from "@/lib/video-id";
 import { getVideoPlayback } from "@/lib/video-status";
 import { autoPassedLessonIds } from "@/lib/progress-link";
+import { getWatchProgressByLesson } from "@/lib/watch-progress-store";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +57,10 @@ export default async function LessonPage({
     !!process.env.ADMIN_DISCORD_ID &&
     session.user.discordId === process.env.ADMIN_DISCORD_ID;
 
-  const discordId = session.user.discordId || "unknown";
+  const discordId = session.user.discordId || session.user.id;
+  if (!discordId) {
+    redirect("/");
+  }
   const discordUsername = session.user.name?.trim() || "Discord user";
   const [progress, addedLessons, overrides, addedSections] = await Promise.all([
     getViewerProgress(discordId),
@@ -101,6 +107,16 @@ export default async function LessonPage({
     videoIdPlausible &&
     protectedPlaybackConfigured &&
     !playback.ready;
+  const watchProgressByLesson = unlocked
+    ? await getWatchProgressByLesson(discordId)
+    : {};
+  const initialWatchProgress = watchProgressByLesson[lesson.id] || null;
+  const navigation = getLessonNavigation(
+    lesson.id,
+    completedLessonIds,
+    lessons,
+    isAdmin
+  );
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
@@ -121,6 +137,7 @@ export default async function LessonPage({
           lessons={lessons}
           addedSections={addedSections}
           isAdmin={isAdmin}
+          watchProgressByLesson={watchProgressByLesson}
         />
 
         <div
@@ -243,8 +260,11 @@ export default async function LessonPage({
                   </div>
                 ) : (
                   <VideoPlayer
+                    key={lesson.id}
                     videoId={lesson.videoId}
                     embedUrl={playback.embedUrl}
+                    lessonId={lesson.id}
+                    initialWatchProgress={initialWatchProgress}
                     title={lesson.title}
                     discordId={discordId}
                     discordUsername={discordUsername}
@@ -445,6 +465,50 @@ export default async function LessonPage({
                   </div>
                 )}
               </section>
+              <nav
+                aria-label="Lesson navigation"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: "16px",
+                  maxWidth: "760px",
+                  marginTop: "40px",
+                  paddingTop: "24px",
+                  borderTop: "1px solid rgba(232,160,160,0.15)",
+                }}
+              >
+                {navigation.previous ? (
+                  <Link
+                    href={`/dashboard/lessons/${navigation.previous.id}`}
+                    style={lessonNavigationStyle}
+                  >
+                    ← Previous · {navigation.previous.title}
+                  </Link>
+                ) : (
+                  <span />
+                )}
+                {navigation.next ? (
+                  <Link
+                    href={`/dashboard/lessons/${navigation.next.id}`}
+                    style={{ ...lessonNavigationStyle, textAlign: "right" }}
+                  >
+                    Next · {navigation.next.title} →
+                  </Link>
+                ) : navigation.nextLocked ? (
+                  <span
+                    style={{
+                      color: "rgba(245,240,240,0.3)",
+                      fontFamily: "Georgia, serif",
+                      fontSize: "11px",
+                      textAlign: "right",
+                    }}
+                  >
+                    Next lesson unlocks after approval
+                  </span>
+                ) : (
+                  <span />
+                )}
+              </nav>
             </>
           )}
         </div>
@@ -452,3 +516,12 @@ export default async function LessonPage({
     </div>
   );
 }
+
+const lessonNavigationStyle = {
+  color: "#E8A0A0",
+  fontFamily: "Georgia, serif",
+  fontSize: "11px",
+  letterSpacing: "0.8px",
+  lineHeight: 1.5,
+  textDecoration: "none",
+} as const;

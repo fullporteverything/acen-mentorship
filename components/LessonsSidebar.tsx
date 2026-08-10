@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   computeCurriculumStates,
   getLessonGroups,
@@ -9,6 +10,7 @@ import {
   sectionLessonNumber,
   type Lesson,
 } from "@/lib/lessons-config";
+import type { WatchProgress } from "@/lib/watch-progress";
 import AddLessonForm from "@/components/AddLessonForm";
 import SectionAdminControls from "@/components/SectionAdminControls";
 
@@ -22,6 +24,7 @@ interface LessonsSidebarProps {
   addedSections?: string[];
   /** When true, show admin "add lesson"/"add section" controls. */
   isAdmin?: boolean;
+  watchProgressByLesson?: Record<string, WatchProgress>;
 }
 
 /**
@@ -36,6 +39,7 @@ export default function LessonsSidebar({
   lessons = LESSONS,
   addedSections = [],
   isAdmin = false,
+  watchProgressByLesson = {},
 }: LessonsSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const curriculum = computeCurriculumStates(completedLessons, lessons, isAdmin);
@@ -191,7 +195,7 @@ export default function LessonsSidebar({
                 const icon = !s.unlocked ? "🔒" : s.completed ? "✓" : s.current ? "→" : "";
 
                 return (
-                  <a
+                  <Link
                     key={s.lesson.id}
                     href={`/dashboard/lessons/${s.lesson.id}`}
                     style={{
@@ -234,6 +238,18 @@ export default function LessonsSidebar({
                         {String(sectionLessonNumber(s.lesson.id, lessons)).padStart(2, "0")}
                       </span>
                       {s.lesson.title}
+                      {s.unlocked && watchProgressByLesson[s.lesson.id] && (
+                        <span
+                          style={{
+                            display: "block",
+                            marginTop: "2px",
+                            color: "rgba(232,160,160,0.5)",
+                            fontSize: "9px",
+                          }}
+                        >
+                          {watchProgressByLesson[s.lesson.id].percent}% watched
+                        </span>
+                      )}
                     </span>
 
                     <span
@@ -249,7 +265,7 @@ export default function LessonsSidebar({
                     >
                       {icon}
                     </span>
-                  </a>
+                  </Link>
                 );
               })}
 

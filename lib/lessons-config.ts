@@ -188,6 +188,12 @@ export interface CurriculumStates {
   supplementalUnlocked: boolean;
 }
 
+export interface LessonNavigation {
+  previous?: Lesson;
+  next?: Lesson;
+  nextLocked?: Lesson;
+}
+
 /**
  * Derive the complete student curriculum without allowing supplemental items
  * to interrupt the sequential CORE path. All supplemental groups share the
@@ -224,6 +230,39 @@ export function computeCurriculumStates(
     stateById: new Map(states.map((state) => [state.lesson.id, state])),
     supplementalGateLesson,
     supplementalUnlocked,
+  };
+}
+
+/** Access-aware navigation that never crosses between CORE and supplemental. */
+export function getLessonNavigation(
+  lessonId: string,
+  completedLessons: string[],
+  lessons: Lesson[] = LESSONS,
+  unlockAll = false
+): LessonNavigation {
+  const current = getLesson(lessonId, lessons);
+  if (!current) return {};
+  const curriculum = computeCurriculumStates(
+    completedLessons,
+    lessons,
+    unlockAll
+  );
+  const sequence = isCoreLesson(current)
+    ? partitionCurriculum(lessons).coreLessons
+    : partitionCurriculum(lessons).supplementalLessons.filter(
+        (lesson) =>
+          normalizeGroupName(lesson.group) === normalizeGroupName(current.group)
+      );
+  const index = sequence.findIndex((lesson) => lesson.id === lessonId);
+  const accessible = (lesson: Lesson | undefined) =>
+    lesson && curriculum.stateById.get(lesson.id)?.unlocked ? lesson : undefined;
+
+  const nextCandidate = index >= 0 ? sequence[index + 1] : undefined;
+  const next = accessible(nextCandidate);
+  return {
+    previous: accessible(index > 0 ? sequence[index - 1] : undefined),
+    next,
+    nextLocked: nextCandidate && !next ? nextCandidate : undefined,
   };
 }
 

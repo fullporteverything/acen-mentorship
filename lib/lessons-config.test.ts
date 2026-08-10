@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeCurriculumStates,
+  getLessonNavigation,
   isCoreLesson,
   isLessonUnlocked,
   partitionCurriculum,
@@ -116,5 +117,32 @@ describe("curriculum gating", () => {
   it("lets an admin access every existing lesson", () => {
     const result = computeCurriculumStates([], interleaved, true);
     expect(result.states.every((state) => state.unlocked)).toBe(true);
+  });
+
+  it("navigates CORE without entering supplemental categories", () => {
+    const navigation = getLessonNavigation(
+      "core-2",
+      ["core-1", "core-2"],
+      interleaved
+    );
+    expect(navigation.previous?.id).toBe("core-1");
+    expect(navigation.next?.id).toBe("core-3");
+  });
+
+  it("keeps supplemental navigation inside its category and access gate", () => {
+    const locked = getLessonNavigation(
+      "weekly-1",
+      ["core-1", "core-2"],
+      interleaved
+    );
+    expect(locked.next).toBeUndefined();
+    expect(locked.nextLocked?.id).toBe("weekly-2");
+    expect(
+      getLessonNavigation(
+        "weekly-1",
+        ["core-1", "core-2", "core-3", "core-4"],
+        interleaved
+      ).next?.id
+    ).toBe("weekly-2");
   });
 });

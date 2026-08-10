@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import TopNav from "@/components/TopNav";
 import LessonsSidebar from "@/components/LessonsSidebar";
 import {
@@ -16,6 +17,7 @@ import {
   getViewerProgress,
 } from "@/lib/lesson-store";
 import { autoPassedLessonIds } from "@/lib/progress-link";
+import { getWatchProgressByLesson } from "@/lib/watch-progress-store";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,7 @@ export default async function LessonsPage() {
     progress.completedLessons,
     lessons.map((lesson) => lesson.id)
   );
+  const watchProgressByLesson = await getWatchProgressByLesson(discordId);
   // CORE advances independently; supplemental groups share the CORE 04 gate.
   const curriculum = computeCurriculumStates(
     completedLessonIds,
@@ -74,6 +77,7 @@ export default async function LessonsPage() {
           lessons={lessons}
           addedSections={addedSections}
           isAdmin={isAdmin}
+          watchProgressByLesson={watchProgressByLesson}
         />
 
         {/* Content */}
@@ -229,7 +233,7 @@ export default async function LessonsPage() {
               {states.map((s) => {
                 const locked = !s.unlocked;
                 return (
-                  <a
+                  <Link
                     key={s.lesson.id}
                     href={`/dashboard/lessons/${s.lesson.id}`}
                     style={{
@@ -291,6 +295,18 @@ export default async function LessonsPage() {
                     >
                       {s.lesson.description}
                     </p>
+                    {s.unlocked && watchProgressByLesson[s.lesson.id] && (
+                      <p
+                        style={{
+                          marginTop: "9px",
+                          fontSize: "10px",
+                          color: "rgba(232,160,160,0.7)",
+                          fontFamily: "Georgia, serif",
+                        }}
+                      >
+                        Watch progress · {watchProgressByLesson[s.lesson.id].percent}%
+                      </p>
+                    )}
                     {locked && !isCoreLesson(s.lesson) && (
                       <p
                         style={{
@@ -304,14 +320,14 @@ export default async function LessonsPage() {
                         Locked until CORE Lecture 04 is passed.
                       </p>
                     )}
-                  </a>
+                  </Link>
                 );
               })}
             </div>
 
             {currentState && (
               <div style={{ marginTop: "32px" }}>
-                <a
+                <Link
                   href={`/dashboard/lessons/${currentState.lesson.id}`}
                   className="btn-discord"
                   style={{ textDecoration: "none" }}
@@ -319,7 +335,7 @@ export default async function LessonsPage() {
                   {currentState.index === 0
                     ? "Start with Lesson 1"
                     : `Continue · ${currentState.lesson.title}`}
-                </a>
+                </Link>
               </div>
             )}
           </section>

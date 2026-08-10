@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
 
   submission.status = action === "approve" ? "approved" : "rejected";
   submission.feedback = feedback;
+  submission.reviewedAt = new Date().toISOString();
 
   if (action === "approve") {
     if (!progress.completedLessons.includes(lessonId)) {

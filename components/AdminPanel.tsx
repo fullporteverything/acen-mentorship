@@ -120,6 +120,9 @@ function SkeletonBar({ width = "140px" }: { width?: string }) {
 }
 
 export default function AdminPanel() {
+  const [activeTab, setActiveTab] = useState<
+    "homework" | "students" | "videos" | "announcements" | "security"
+  >("homework");
   const [logs, setLogs] = useState<CaptureLog[]>([]);
   const [securityMembers, setSecurityMembers] = useState<SecurityMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,23 +177,60 @@ export default function AdminPanel() {
       <style>{`@keyframes dojoPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
 
       {/* Upload Video */}
+      <nav
+        aria-label="Admin sections"
+        style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "24px" }}
+      >
+        {(
+          [
+            ["homework", "Homework"],
+            ["students", "Students"],
+            ["videos", "Videos"],
+            ["announcements", "Announcements"],
+            ["security", "Security"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            aria-pressed={activeTab === id}
+            style={{
+              ...smallBtn,
+              background: activeTab === id ? "#E8A0A0" : "transparent",
+              color: activeTab === id ? "#000" : "#E8A0A0",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+        <a href="/dashboard/lessons" style={{ ...smallBtn, textDecoration: "none" }}>
+          Curriculum ↗
+        </a>
+      </nav>
+
+      {activeTab === "videos" && <>
       <VideoUpload />
 
       {/* Video Library — every uploaded video ID, retrievable after upload */}
       <VideoLibrary />
+      </>}
 
       {/* Homework Auto-Approval */}
+      {activeTab === "homework" && <>
       <AutoApproveSection />
 
       {/* Homework Submissions Queue */}
       <HomeworkQueueSection />
+      </>}
 
       {/* Student Progress — manually advance / reset a student's completions */}
-      <StudentProgress />
+      {activeTab === "students" && <StudentProgress />}
 
       {/* Announcements */}
-      <AnnouncementsSection />
+      {activeTab === "announcements" && <AnnouncementsSection />}
 
+      {activeTab === "security" && <>
       <section style={cardStyle}>
         <p style={sectionLabel}>Security Members</p>
         {loading ? (
@@ -259,6 +299,7 @@ export default function AdminPanel() {
           </div>
         )}
       </section>
+      </>}
 
     </>
   );

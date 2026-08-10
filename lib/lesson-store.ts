@@ -37,6 +37,8 @@ export interface Submission {
   submittedAt: string;
   status: SubmissionStatus;
   feedback: string;
+  /** When an admin last approved or rejected this submission. */
+  reviewedAt?: string;
 }
 
 export interface UserProgress {
@@ -362,6 +364,44 @@ export async function markAnnouncementSeen(
   const current = await getSeenAnnouncements(discordId);
   if (current.includes(id)) return;
   await writeJson(seenPath(discordId), [...current, id]);
+}
+
+function notificationSeenPrefix(discordId: string): string {
+  return `dojo/notifications-seen/${encodeURIComponent(discordId)}/`;
+}
+
+export async function getSeenNotifications(
+  discordId: string
+): Promise<string[]> {
+  const prefix = notificationSeenPrefix(discordId);
+  const pathnames: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await list({ prefix, cursor, storeId: STORE_ID });
+    pathnames.push(...page.blobs.map((blob) => blob.pathname));
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+
+  return pathnames.map((pathname) => {
+    const filename = pathname.slice(prefix.length);
+    return decodeURIComponent(filename.replace(/\.json$/, ""));
+  });
+}
+
+export async function markNotificationsSeen(
+  discordId: string,
+  ids: string[]
+): Promise<void> {
+  const clean = ids.filter((id) => typeof id === "string" && id.length <= 300);
+  if (clean.length === 0) return;
+  await Promise.all(
+    Array.from(new Set(clean)).map((id) =>
+      writeJson(
+        `${notificationSeenPrefix(discordId)}${encodeURIComponent(id)}.json`,
+        { seenAt: new Date().toISOString() }
+      )
+    )
+  );
 }
 
 // ---------------------------------------------------------------------------

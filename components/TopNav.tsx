@@ -2,6 +2,7 @@ import { auth, signOut } from "@/auth";
 import PhiLogo from "@/components/PhiLogo";
 import JournalNavBadge from "@/components/JournalNavBadge";
 import ProfileTrigger from "@/components/ProfileTrigger";
+import NotificationCenter from "@/components/NotificationCenter";
 
 interface TopNavProps {
   /** href of the nav link that should render as active. */
@@ -91,6 +92,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
 
       {/* Right cluster: user + sign out */}
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <NotificationCenter />
         <ProfileTrigger
           discordId={session?.user?.discordId}
           name={session?.user?.name ?? undefined}

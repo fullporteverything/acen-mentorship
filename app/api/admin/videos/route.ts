@@ -25,6 +25,12 @@ interface AttachedLibraryVideo extends LibraryVideo {
   attachedTo: string | null;
 }
 
+interface AssignableLesson {
+  id: string;
+  title: string;
+  videoId: string;
+}
+
 export async function GET() {
   if (!(await requireAdmin())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -47,13 +53,19 @@ export async function GET() {
   }
 
   let idToLesson = new Map<string, string>();
+  let lessons: AssignableLesson[] = [];
   try {
     const [added, overrides] = await Promise.all([
       getAddedLessons(),
       getLessonOverrides(),
     ]);
+    lessons = buildEffectiveLessons(added, overrides).map((lesson) => ({
+      id: lesson.id,
+      title: lesson.title,
+      videoId: lesson.videoId,
+    }));
     idToLesson = new Map(
-      buildEffectiveLessons(added, overrides)
+      lessons
         .filter((lesson) => lesson.videoId)
         .map((lesson) => [lesson.videoId, lesson.title])
     );
@@ -99,7 +111,7 @@ export async function GET() {
         return a.createdAt < b.createdAt ? 1 : -1;
       });
 
-    return NextResponse.json({ videos });
+    return NextResponse.json({ videos, lessons });
   } catch {
     return NextResponse.json(
       { error: "Failed to reach Kinescope." },

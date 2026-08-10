@@ -1,18 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-interface LibraryVideo {
-  id: string;
-  title: string;
-  createdAt: string;
-  duration: number | null;
-  status: string;
-  progress: number | null;
-  ready: boolean;
-  error?: string;
-  attachedTo: string | null;
-}
+import {
+  assignVideoToLesson,
+  loadVideoLibrary,
+  type AssignableLesson,
+  type LibraryVideo,
+  type VideoLibraryData,
+} from "@/lib/video-library-client";
 
 /**
  * Persistent list of every video in the Kinescope project.
@@ -23,19 +18,17 @@ interface LibraryVideo {
  */
 export default function VideoLibrary() {
   const [videos, setVideos] = useState<LibraryVideo[]>([]);
+  const [lessons, setLessons] = useState<AssignableLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/videos")
-      .then((res) => {
-        if (!res.ok) throw new Error("bad status");
-        return res.json();
-      })
+    loadVideoLibrary()
       .then((data) => {
         if (!cancelled) {
-          setVideos(Array.isArray(data?.videos) ? data.videos : []);
+          setVideos(data.videos);
+          setLessons(data.lessons);
         }
       })
       .catch(() => {
@@ -49,6 +42,11 @@ export default function VideoLibrary() {
     };
   }, []);
 
+  function reconcile(data: VideoLibraryData) {
+    setVideos(data.videos);
+    setLessons(data.lessons);
+  }
+
   return (
     <section style={cardStyle}>
       <p style={sectionLabel}>Video Library</p>
@@ -61,7 +59,12 @@ export default function VideoLibrary() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {videos.map((video) => (
-            <VideoRow key={video.id} video={video} />
+            <VideoRow
+              key={video.id}
+              video={video}
+              lessons={lessons}
+              onAssigned={reconcile}
+            />
           ))}
         </div>
       )}
@@ -69,8 +72,20 @@ export default function VideoLibrary() {
   );
 }
 
-function VideoRow({ video }: { video: LibraryVideo }) {
+function VideoRow({
+  video,
+  lessons,
+  onAssigned,
+}: {
+  video: LibraryVideo;
+  lessons: AssignableLesson[];
+  onAssigned: (data: VideoLibraryData) => void;
+}) {
   const [copied, setCopied] = useState(false);
+  const [lessonId, setLessonId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [captioning, setCaptioning] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
   const stateLabel = video.error
     ? "Processing failed"
     : video.ready
@@ -84,6 +99,45 @@ function VideoRow({ video }: { video: LibraryVideo }) {
       setTimeout(() => setCopied(false), 1800);
     } catch {
       // Clipboard may be unavailable; the ID is still visible to copy manually.
+    }
+  }
+
+  async function assignVideo() {
+    const lesson = lessons.find((item) => item.id === lessonId);
+    if (!lesson) return;
+    setAssigning(true);
+    setActionMessage("");
+    try {
+      const data = await assignVideoToLesson(video.id, lessonId);
+      onAssigned(data);
+      setActionMessage(`Assigned to ${lesson.title}.`);
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error ? error.message : "Assignment failed — retry."
+      );
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  async function retryCaptions() {
+    setCaptioning(true);
+    setActionMessage("");
+    try {
+      const response = await fetch("/api/admin/video-captions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: video.id }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Caption request failed.");
+      setActionMessage("English captions queued.");
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error ? error.message : "Caption request failed — retry."
+      );
+    } finally {
+      setCaptioning(false);
     }
   }
 
@@ -161,9 +215,72 @@ function VideoRow({ video }: { video: LibraryVideo }) {
       <p style={{ ...mutedItalic, fontSize: "11px", marginTop: "10px" }}>
         {video.attachedTo ? `→ ${video.attachedTo}` : "unassigned"}
       </p>
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          flexWrap: "wrap",
+          alignItems: "center",
+          marginTop: "12px",
+        }}
+      >
+        <select
+          value={lessonId}
+          onChange={(event) => setLessonId(event.target.value)}
+          aria-label={`Assign ${video.title} to lesson`}
+          style={{
+            minWidth: "220px",
+            padding: "8px 10px",
+            background: "#080606",
+            color: "#F5F0F0",
+            border: "1px solid rgba(232,160,160,0.25)",
+            fontFamily: "Georgia, serif",
+          }}
+        >
+          <option value="">Choose lesson…</option>
+          {lessons.map((lesson) => (
+            <option key={lesson.id} value={lesson.id}>
+              {lesson.title}{lesson.videoId ? " · has video" : ""}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={assignVideo}
+          disabled={!video.ready || !lessonId || assigning}
+          style={{ ...secondaryButton, opacity: !video.ready || !lessonId ? 0.45 : 1 }}
+        >
+          {assigning ? "Assigning…" : "Assign to lesson"}
+        </button>
+        <button
+          type="button"
+          onClick={retryCaptions}
+          disabled={!video.ready || captioning}
+          style={{ ...secondaryButton, opacity: !video.ready ? 0.45 : 1 }}
+        >
+          {captioning ? "Queuing…" : "Generate / retry captions"}
+        </button>
+      </div>
+      {actionMessage && (
+        <p style={{ ...mutedItalic, fontSize: "11px", marginTop: "9px" }}>
+          {actionMessage}
+        </p>
+      )}
     </div>
   );
 }
+
+const secondaryButton: React.CSSProperties = {
+  padding: "8px 12px",
+  background: "transparent",
+  color: "#E8A0A0",
+  border: "1px solid rgba(232,160,160,0.35)",
+  fontFamily: "Georgia, serif",
+  fontSize: "9px",
+  letterSpacing: "1px",
+  textTransform: "uppercase",
+  cursor: "pointer",
+};
 
 /** Provider timestamps are ISO strings; fall back to a label if absent/bad. */
 function formatCreated(createdAt: string): string {

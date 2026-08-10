@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { getLessonOverrides, saveLessonOverrides } from "@/lib/lesson-store";
-import { OVERRIDABLE_FIELDS, type OverridableField } from "@/lib/lessons-config";
+import {
+  getAddedLessons,
+  getLessonOverrides,
+  saveLessonOverrides,
+} from "@/lib/lesson-store";
+import {
+  buildEffectiveLessons,
+  getLesson,
+  OVERRIDABLE_FIELDS,
+  type OverridableField,
+} from "@/lib/lessons-config";
 import { isKinescopeVideoId } from "@/lib/video-id";
 
 export const dynamic = "force-dynamic";
@@ -67,7 +76,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const overrides = await getLessonOverrides();
+  const [overrides, addedLessons] = await Promise.all([
+    getLessonOverrides(),
+    getAddedLessons(),
+  ]);
+  if (!getLesson(lessonId, buildEffectiveLessons(addedLessons, overrides))) {
+    return NextResponse.json({ error: "Unknown lesson" }, { status: 400 });
+  }
   overrides[lessonId] = { ...overrides[lessonId], [field]: value };
   await saveLessonOverrides(overrides);
 

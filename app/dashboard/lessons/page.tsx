@@ -4,7 +4,8 @@ import TopNav from "@/components/TopNav";
 import LessonsSidebar from "@/components/LessonsSidebar";
 import {
   buildEffectiveLessons,
-  computeLessonStates,
+  computeCurriculumStates,
+  isCoreLesson,
   sectionLessonNumber,
 } from "@/lib/lessons-config";
 import {
@@ -45,13 +46,14 @@ export default async function LessonsPage() {
     progress.completedLessons,
     lessons.map((lesson) => lesson.id)
   );
-  // The admin is never gated: every lesson reads as unlocked for them.
-  const states = computeLessonStates(
+  // CORE advances independently; supplemental groups share the CORE 04 gate.
+  const curriculum = computeCurriculumStates(
     completedLessonIds,
     lessons,
     isAdmin
   );
-  const currentState = states.find((s) => s.current);
+  const states = curriculum.states;
+  const currentState = curriculum.coreStates.find((s) => s.current);
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>
@@ -258,14 +260,14 @@ export default async function LessonsPage() {
                           fontFamily: "Georgia, serif",
                         }}
                       >
-                        Lesson {String(sectionLessonNumber(s.lesson.id, lessons)).padStart(2, "0")}
+                        {isCoreLesson(s.lesson) ? "Core" : s.lesson.group} · Lesson {String(sectionLessonNumber(s.lesson.id, lessons)).padStart(2, "0")}
                       </span>
                       <span
-                        className={`lesson-card-status ${s.completed ? "completed" : ""}`}
-                        aria-label={s.completed ? "Completed" : locked ? "Locked" : s.current ? "Current lesson" : undefined}
+                        className={`lesson-card-status ${s.unlocked && s.completed ? "completed" : ""}`}
+                        aria-label={locked ? "Locked until CORE Lecture 04 is passed" : s.completed ? "Completed" : s.current ? "Current lesson" : undefined}
                         title={s.completed ? "Completed" : undefined}
                       >
-                        {s.completed ? "✓" : locked ? "🔒" : s.current ? "→" : ""}
+                        {locked ? "🔒" : s.completed ? "✓" : s.current ? "→" : ""}
                       </span>
                     </div>
                     <p
@@ -289,6 +291,19 @@ export default async function LessonsPage() {
                     >
                       {s.lesson.description}
                     </p>
+                    {locked && !isCoreLesson(s.lesson) && (
+                      <p
+                        style={{
+                          marginTop: "10px",
+                          fontSize: "10px",
+                          color: "rgba(232,160,160,0.65)",
+                          fontFamily: "Georgia, serif",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        Locked until CORE Lecture 04 is passed.
+                      </p>
+                    )}
                   </a>
                 );
               })}

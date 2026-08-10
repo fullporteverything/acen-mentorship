@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import {
-  computeLessonStates,
+  computeCurriculumStates,
   getLessonGroups,
+  isCoreLesson,
   LESSONS,
   sectionLessonNumber,
   type Lesson,
@@ -37,14 +38,19 @@ export default function LessonsSidebar({
   isAdmin = false,
 }: LessonsSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const states = computeLessonStates(completedLessons, lessons, isAdmin);
-  const stateById = new Map(states.map((s) => [s.lesson.id, s]));
+  const curriculum = computeCurriculumStates(completedLessons, lessons, isAdmin);
+  const { stateById } = curriculum;
 
-  const total = states.length;
-  const done = states.filter((s) => s.completed).length;
+  // Curriculum progress represents the required CORE path only.
+  const total = curriculum.coreStates.length;
+  const done = curriculum.coreStates.filter((s) => s.completed).length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
 
-  const groups = getLessonGroups(lessons, addedSections);
+  const groups = getLessonGroups(lessons, addedSections).sort((a, b) => {
+    const aCore = a.lessons.some(isCoreLesson) ? 1 : 0;
+    const bCore = b.lessons.some(isCoreLesson) ? 1 : 0;
+    return bCore - aCore;
+  });
 
   return (
     <>
@@ -121,7 +127,10 @@ export default function LessonsSidebar({
           const groupStates = group.lessons
             .map((l) => stateById.get(l.id))
             .filter((s): s is NonNullable<typeof s> => Boolean(s));
-          const groupDone = groupStates.filter((s) => s.completed).length;
+          const groupDone = groupStates.filter(
+            (s) => s.unlocked && s.completed
+          ).length;
+          const isSupplementalGroup = !group.lessons.some(isCoreLesson);
 
           return (
             <div key={group.group} style={{ marginBottom: "8px" }}>
@@ -159,10 +168,27 @@ export default function LessonsSidebar({
                 </span>
               </div>
 
+              {isSupplementalGroup &&
+                !isAdmin &&
+                !curriculum.supplementalUnlocked && (
+                  <p
+                    style={{
+                      padding: "0 28px 10px",
+                      fontSize: "9px",
+                      lineHeight: 1.5,
+                      color: "rgba(232,160,160,0.55)",
+                      fontFamily: "Georgia, serif",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Locked until CORE Lecture 04 is passed.
+                  </p>
+                )}
+
               {/* Lessons in group */}
               {groupStates.map((s) => {
                 const isActive = s.lesson.id === activeLessonId;
-                const icon = s.completed ? "✓" : !s.unlocked ? "🔒" : s.current ? "→" : "";
+                const icon = !s.unlocked ? "🔒" : s.completed ? "✓" : s.current ? "→" : "";
 
                 return (
                   <a
@@ -190,10 +216,10 @@ export default function LessonsSidebar({
                         fontSize: "11px",
                         letterSpacing: "1px",
                         lineHeight: 1.5,
-                        color: s.completed
-                          ? "rgba(245,240,240,0.75)"
-                          : !s.unlocked
+                        color: !s.unlocked
                           ? "rgba(245,240,240,0.3)"
+                          : s.completed
+                          ? "rgba(245,240,240,0.75)"
                           : isActive
                           ? "#F0B0B0"
                           : "rgba(245,240,240,0.6)",
@@ -214,9 +240,11 @@ export default function LessonsSidebar({
                       style={{
                         fontSize: "12px",
                         flex: "0 0 auto",
-                        color: s.completed
-                          ? "#E8A0A0"
-                          : "rgba(245,240,240,0.25)",
+                        color: !s.unlocked
+                          ? "rgba(245,240,240,0.25)"
+                          : s.completed
+                            ? "#E8A0A0"
+                            : "rgba(245,240,240,0.25)",
                       }}
                     >
                       {icon}

@@ -152,6 +152,81 @@ export interface LessonState {
   current: boolean;
 }
 
+export const CORE_GROUP = "CORE CONTENT";
+export const SUPPLEMENTAL_GATE_CORE_POSITION = 4;
+
+function normalizeGroupName(group: string): string {
+  return group.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+/** A normalized group comparison keeps admin-entered casing/spacing harmless. */
+export function isCoreLesson(lesson: { group: string }): boolean {
+  return normalizeGroupName(lesson.group) === CORE_GROUP;
+}
+
+export function partitionCurriculum(lessons: Lesson[] = LESSONS): {
+  coreLessons: Lesson[];
+  supplementalLessons: Lesson[];
+} {
+  return lessons.reduce(
+    (result, lesson) => {
+      if (isCoreLesson(lesson)) result.coreLessons.push(lesson);
+      else result.supplementalLessons.push(lesson);
+      return result;
+    },
+    { coreLessons: [] as Lesson[], supplementalLessons: [] as Lesson[] }
+  );
+}
+
+export interface CurriculumStates {
+  coreStates: LessonState[];
+  supplementalStates: LessonState[];
+  /** CORE first, then supplemental content in its original relative order. */
+  states: LessonState[];
+  stateById: Map<string, LessonState>;
+  supplementalGateLesson?: Lesson;
+  supplementalUnlocked: boolean;
+}
+
+/**
+ * Derive the complete student curriculum without allowing supplemental items
+ * to interrupt the sequential CORE path. All supplemental groups share the
+ * fourth CORE lesson as one gate and fail closed when that lesson is absent.
+ */
+export function computeCurriculumStates(
+  completedLessons: string[],
+  lessons: Lesson[] = LESSONS,
+  unlockAll = false
+): CurriculumStates {
+  const completed = new Set(completedLessons);
+  const { coreLessons, supplementalLessons } = partitionCurriculum(lessons);
+  const coreStates = computeLessonStates(completedLessons, coreLessons, unlockAll);
+  const supplementalGateLesson =
+    coreLessons[SUPPLEMENTAL_GATE_CORE_POSITION - 1];
+  const supplementalUnlocked =
+    unlockAll ||
+    Boolean(
+      supplementalGateLesson && completed.has(supplementalGateLesson.id)
+    );
+  const supplementalStates = supplementalLessons.map((lesson, index) => ({
+    lesson,
+    index,
+    completed: completed.has(lesson.id),
+    unlocked: supplementalUnlocked,
+    current: false,
+  }));
+  const states = [...coreStates, ...supplementalStates];
+
+  return {
+    coreStates,
+    supplementalStates,
+    states,
+    stateById: new Map(states.map((state) => [state.lesson.id, state])),
+    supplementalGateLesson,
+    supplementalUnlocked,
+  };
+}
+
 /**
  * `unlockAll` bypasses sequential gating entirely — every lesson reports as
  * unlocked. Used for the admin, who is never locked out of their own
@@ -192,6 +267,12 @@ export function computeLessonStates(
 export function sectionLessonNumber(lessonId: string, lessons: Lesson[]): number {
   const lesson = lessons.find((l) => l.id === lessonId);
   if (!lesson) return 1;
+  if (isCoreLesson(lesson)) {
+    const idx = partitionCurriculum(lessons).coreLessons.findIndex(
+      (candidate) => candidate.id === lessonId
+    );
+    return idx >= 0 ? idx + 1 : 1;
+  }
   const siblings = lessons.filter((l) => l.group === lesson.group);
   const idx = siblings.findIndex((l) => l.id === lessonId);
   return idx >= 0 ? idx + 1 : 1;
@@ -203,10 +284,11 @@ export function isLessonUnlocked(
   lessons: Lesson[] = LESSONS,
   unlockAll = false
 ): boolean {
-  const idx = lessons.findIndex((l) => l.id === lessonId);
-  if (unlockAll) return idx >= 0;
-  if (idx <= 0) return idx === 0; // first lesson always unlocked; unknown => false
-  return completedLessons.includes(lessons[idx - 1].id);
+  return (
+    computeCurriculumStates(completedLessons, lessons, unlockAll).stateById.get(
+      lessonId
+    )?.unlocked ?? false
+  );
 }
 
 /**

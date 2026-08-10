@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { getLesson } from "@/lib/lessons-config";
 import {
+  buildEffectiveLessons,
+  computeCurriculumStates,
+  getLesson,
+} from "@/lib/lessons-config";
+import {
+  getAddedLessons,
+  getLessonOverrides,
   getSettings,
   getUserProgress,
   saveUserProgress,
   uploadHomework,
 } from "@/lib/lesson-store";
+import { autoPassedLessonIds } from "@/lib/progress-link";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +39,38 @@ export async function POST(req: NextRequest) {
   const lessonId = form.get("lessonId");
   const file = form.get("file");
 
-  if (typeof lessonId !== "string" || !getLesson(lessonId)) {
+  if (typeof lessonId !== "string") {
     return NextResponse.json({ error: "Unknown lesson" }, { status: 400 });
+  }
+
+  const [addedLessons, overrides, progress] = await Promise.all([
+    getAddedLessons(),
+    getLessonOverrides(),
+    getUserProgress(discordId),
+  ]);
+  const lessons = buildEffectiveLessons(addedLessons, overrides);
+  const lesson = getLesson(lessonId, lessons);
+  if (!lesson) {
+    return NextResponse.json({ error: "Unknown lesson" }, { status: 400 });
+  }
+
+  const isAdmin =
+    !!process.env.ADMIN_DISCORD_ID &&
+    discordId === process.env.ADMIN_DISCORD_ID;
+  const completedLessonIds = autoPassedLessonIds(
+    discordId,
+    progress.completedLessons,
+    lessons.map((item) => item.id)
+  );
+  const unlocked =
+    computeCurriculumStates(completedLessonIds, lessons, isAdmin).stateById.get(
+      lessonId
+    )?.unlocked ?? false;
+  if (!unlocked) {
+    return NextResponse.json(
+      { error: "Complete the required CORE lessons before submitting here." },
+      { status: 403 }
+    );
   }
 
   if (!(file instanceof File)) {
@@ -64,7 +101,6 @@ export async function POST(req: NextRequest) {
   );
 
   // Record the submission on the user's progress.
-  const progress = await getUserProgress(discordId);
   progress.discordUsername = session.user.name || progress.discordUsername;
 
   const settings = await getSettings();

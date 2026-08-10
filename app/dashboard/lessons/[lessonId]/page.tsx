@@ -8,8 +8,9 @@ import HomeworkUpload from "@/components/HomeworkUpload";
 import EditableText from "@/components/EditableText";
 import {
   buildEffectiveLessons,
+  computeCurriculumStates,
   getLesson,
-  isLessonUnlocked,
+  isCoreLesson,
   sectionLessonNumber,
 } from "@/lib/lessons-config";
 import {
@@ -73,13 +74,12 @@ export default async function LessonPage({
     notFound();
   }
 
-  // The admin bypasses sequential gating — they never see the lock screen.
-  const unlocked = isLessonUnlocked(
-    lesson.id,
+  const curriculum = computeCurriculumStates(
     completedLessonIds,
     lessons,
     isAdmin
   );
+  const unlocked = curriculum.stateById.get(lesson.id)?.unlocked ?? false;
   const submission = progress.submissions[lesson.id];
   const lessonNumber = sectionLessonNumber(lesson.id, lessons);
 
@@ -198,8 +198,11 @@ export default async function LessonPage({
                   lineHeight: 1.8,
                 }}
               >
-                Complete the previous lesson&rsquo;s homework to unlock this
-                lesson.
+                {isCoreLesson(lesson)
+                  ? "Complete the previous CORE lesson’s homework to unlock this lesson."
+                  : curriculum.supplementalGateLesson
+                    ? `Complete CORE Lecture 04 — ${curriculum.supplementalGateLesson.title} to unlock this category.`
+                    : "This category unlocks after CORE Lecture 04 is available and completed."}
               </p>
             </div>
           ) : (

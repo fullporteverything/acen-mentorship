@@ -32,9 +32,7 @@ export function buildCoreLearningSummary(
   completedLessonIds: string[]
 ): CoreLearningSummary {
   const completed = new Set(completedLessonIds);
-  const coreLessons = lessons.filter(
-    (lesson) => lesson.group.trim().toUpperCase() === "CORE CONTENT"
-  );
+  const coreLessons = lessons.filter(isCoreLesson);
   const completedLessons = coreLessons.filter((lesson) =>
     completed.has(lesson.id)
   ).length;
@@ -56,9 +54,7 @@ export function countCoreLessonProgress(
   completedLessonIds: string[]
 ): Pick<OverviewStatsInput, "totalLessons" | "completedLessons"> {
   const completed = new Set(completedLessonIds);
-  const coreLessons = lessons.filter(
-    (lesson) => lesson.group.trim().toUpperCase() === "CORE CONTENT"
-  );
+  const coreLessons = lessons.filter(isCoreLesson);
 
   return {
     totalLessons: coreLessons.length,
@@ -97,3 +93,4 @@ export function buildOverviewStats({
     },
   ];
 }
+import { isCoreLesson } from "./lessons-config";

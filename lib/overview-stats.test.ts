@@ -52,6 +52,18 @@ describe("buildOverviewStats", () => {
     ).toEqual({ totalLessons: 2, completedLessons: 1 });
   });
 
+  it("uses the shared normalized CORE classifier", () => {
+    expect(
+      countCoreLessonProgress(
+        [
+          { id: "core-1", group: " core   content " },
+          { id: "external-1", group: "EXTERNAL CONTENT" },
+        ],
+        ["core-1"]
+      )
+    ).toEqual({ totalLessons: 1, completedLessons: 1 });
+  });
+
   it("reports real lecture totals, completed lectures, and journal entries", () => {
     expect(
       buildOverviewStats({

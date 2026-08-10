@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { watermarkLabelStyle } from "@/lib/watermark-style";
 
 interface StudentWatermarkProps {
   discordId?: string;
@@ -65,20 +66,9 @@ export default function StudentWatermark(props: StudentWatermarkProps) {
           <span
             key={index}
             style={{
-              position: "absolute",
+              ...watermarkLabelStyle(compact),
               top: position.top,
               left: position.left,
-              maxWidth: "34%",
-              color: "rgba(255,255,255,0.28)",
-              fontFamily: "monospace",
-              fontSize: compact ? "clamp(9px, 2.4vw, 12px)" : "clamp(10px, 1.2vw, 14px)",
-              letterSpacing: "0.06em",
-              lineHeight: 1.35,
-              textShadow: "0 1px 3px rgba(0,0,0,0.75)",
-              overflowWrap: "anywhere",
-              transition: "top 1.2s ease, left 1.2s ease",
-              pointerEvents: "none",
-              userSelect: "none",
             }}
           >
             {text}

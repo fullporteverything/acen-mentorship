@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   assignVideoToLesson,
   loadVideoLibrary,
@@ -8,6 +8,7 @@ import {
   type LibraryVideo,
   type VideoLibraryData,
 } from "@/lib/video-library-client";
+import RetryButton from "@/components/RetryButton";
 
 /**
  * Persistent list of every video in the Kinescope project.
@@ -22,25 +23,23 @@ export default function VideoLibrary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    loadVideoLibrary()
-      .then((data) => {
-        if (!cancelled) {
-          setVideos(data.videos);
-          setLessons(data.lessons);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await loadVideoLibrary();
+      setVideos(data.videos);
+      setLessons(data.lessons);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   function reconcile(data: VideoLibraryData) {
     setVideos(data.videos);
@@ -53,9 +52,12 @@ export default function VideoLibrary() {
       {loading ? (
         <SkeletonBar width="200px" />
       ) : error ? (
-        <p style={errorItalic}>Couldn&apos;t load videos — refresh to retry.</p>
+        <div className="state-message state-message-error">
+          <p>Couldn&apos;t load videos.</p>
+          <RetryButton onRetry={load} />
+        </div>
       ) : videos.length === 0 ? (
-        <p style={mutedItalic}>No videos uploaded yet.</p>
+        <div className="state-message"><p>No videos uploaded yet.</p></div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {videos.map((video) => (
@@ -332,13 +334,7 @@ const cardStyle: React.CSSProperties = {
 
 const mutedItalic: React.CSSProperties = {
   fontSize: "13px",
-  color: "rgba(245,240,240,0.45)",
+  color: "rgba(245,240,240,0.58)",
   fontFamily: "Georgia, serif",
   fontStyle: "italic",
-};
-
-/** Same muted-italic voice, but tinted with the error rose to signal a failure. */
-const errorItalic: React.CSSProperties = {
-  ...mutedItalic,
-  color: "#E8807A",
 };

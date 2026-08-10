@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import RetryButton from "@/components/RetryButton";
 
 interface NotificationItem {
   id: string;
@@ -63,9 +64,12 @@ export default function NotificationCenter() {
             <button type="button" onClick={load} style={retryStyle}>Refresh</button>
           </div>
           {error ? (
-            <p style={mutedStyle}>Couldn&apos;t load notifications. Refresh to retry.</p>
+            <div className="state-message state-message-error">
+              <p>Couldn&apos;t load notifications.</p>
+              <RetryButton onRetry={load} />
+            </div>
           ) : items.length === 0 ? (
-            <p style={mutedStyle}>You&apos;re all caught up.</p>
+            <div className="state-message"><p>You&apos;re all caught up.</p></div>
           ) : (
             <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
               {items.map((item) => (

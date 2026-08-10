@@ -18,6 +18,7 @@ import {
   buildCoreLearningSummary,
   buildOverviewStats,
 } from "@/lib/overview-stats";
+import SupportLink from "@/components/SupportLink";
 
 export const dynamic = "force-dynamic";
 
@@ -197,7 +198,7 @@ export default async function DashboardPage() {
               <p
                 style={{
                   fontSize: "11px",
-                  color: "rgba(245,240,240,0.28)",
+                  color: "rgba(245,240,240,0.5)",
                   fontFamily: "Georgia, serif",
                   fontStyle: "italic",
                 }}
@@ -252,6 +253,8 @@ export default async function DashboardPage() {
         {/* Announcements — live feed, unread pulses burgundy. */}
         <AnnouncementsFeed items={announcements} initialSeen={seen} />
 
+        <footer className="dashboard-footer">
+        <SupportLink>Support and access appeals</SupportLink>
         {/* Kanji footer accent */}
         <div
           style={{
@@ -265,6 +268,7 @@ export default async function DashboardPage() {
         >
           道剣心武礼修練気
         </div>
+        </footer>
       </main>
     </div>
   );

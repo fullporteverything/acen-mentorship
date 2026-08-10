@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { assignVideoToLesson } from "./video-library-client";
+import { assignVideoToLesson, loadVideoLibrary } from "./video-library-client";
 
 describe("video assignment reconciliation", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -36,5 +36,22 @@ describe("video assignment reconciliation", () => {
       { id: "video-b", attachedTo: null },
     ]);
     expect(reconciled.lessons[1]).toMatchObject({ videoId: "video-a" });
+  });
+
+  it("can retry a failed library GET and return recovered rows", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, json: async () => null })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ videos: [{ id: "recovered" }], lessons: [] }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(loadVideoLibrary()).rejects.toThrow();
+    await expect(loadVideoLibrary()).resolves.toEqual({
+      videos: [{ id: "recovered" }],
+      lessons: [],
+    });
   });
 });

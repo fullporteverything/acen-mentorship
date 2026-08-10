@@ -390,7 +390,9 @@ function EntryCard({
             {entry.feedback}
           </p>
         </div>
-      ) : null}
+      ) : (
+        <div className="journal-feedback-empty">No mentor feedback yet.</div>
+      )}
     </article>
   );
 }

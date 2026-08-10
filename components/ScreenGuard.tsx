@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import SupportLink from "@/components/SupportLink";
 
 interface ScreenGuardProps {
   isAdmin?: boolean;
@@ -121,7 +122,9 @@ export default function ScreenGuard({
               </button>
             </div>
           ) : (
-            <p className="security-strike-support">Contact admin support to appeal.</p>
+            <p className="security-strike-support">
+              <SupportLink>Contact admin support to appeal</SupportLink>
+            </p>
           )}
         </div>
       )}

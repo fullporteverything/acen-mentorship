@@ -7,6 +7,7 @@ import VideoPlayer from "@/components/VideoPlayer";
 import VideoAssign from "@/components/VideoAssign";
 import HomeworkUpload from "@/components/HomeworkUpload";
 import EditableText from "@/components/EditableText";
+import SupportLink from "@/components/SupportLink";
 import {
   buildEffectiveLessons,
   computeCurriculumStates,
@@ -209,7 +210,7 @@ export default async function LessonPage({
               <p
                 style={{
                   fontSize: "13px",
-                  color: "rgba(245,240,240,0.6)",
+                  color: "rgba(245,240,240,0.72)",
                   fontFamily: "Georgia, serif",
                   fontStyle: "italic",
                   lineHeight: 1.8,
@@ -221,6 +222,9 @@ export default async function LessonPage({
                     ? `Complete CORE Lecture 04 — ${curriculum.supplementalGateLesson.title} to unlock this category.`
                     : "This category unlocks after CORE Lecture 04 is available and completed."}
               </p>
+              <div style={{ marginTop: "22px" }}>
+                <SupportLink>Need help with lesson access?</SupportLink>
+              </div>
             </div>
           ) : (
             <>
@@ -303,7 +307,7 @@ export default async function LessonPage({
                 value={lesson.description}
                 style={{
                   fontSize: "13px",
-                  color: "rgba(245,240,240,0.55)",
+                  color: "rgba(245,240,240,0.7)",
                   fontFamily: "Georgia, serif",
                   lineHeight: 1.8,
                   maxWidth: "760px",
@@ -385,7 +389,7 @@ export default async function LessonPage({
                         style={{
                           fontSize: "13px",
                           fontFamily: "Georgia, serif",
-                          color: "rgba(245,240,240,0.6)",
+                          color: "rgba(245,240,240,0.72)",
                           lineHeight: 1.7,
                           fontStyle: "italic",
                         }}

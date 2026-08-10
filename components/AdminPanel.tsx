@@ -5,22 +5,12 @@ import { LESSONS } from "@/lib/lessons-config";
 import VideoUpload from "@/components/VideoUpload";
 import VideoLibrary from "@/components/VideoLibrary";
 import StudentProgress from "@/components/StudentProgress";
-
-interface CaptureLog {
-  discordId?: string;
-  discordUsername?: string;
-  timestamp: string;
-  ip?: string;
-  userAgent?: string;
-}
-
-interface SecurityMember {
-  discordId: string;
-  discordUsername: string;
-  strikes: number;
-  locked: boolean;
-  updatedAt: string;
-}
+import RetryButton from "@/components/RetryButton";
+import {
+  loadAdminSecurity,
+  type CaptureLogData,
+  type SecurityMemberData,
+} from "@/lib/admin-security-client";
 
 interface AdminSubmission {
   discordId: string;
@@ -59,15 +49,9 @@ const cardStyle: React.CSSProperties = {
 
 const mutedItalic: React.CSSProperties = {
   fontSize: "13px",
-  color: "rgba(245,240,240,0.45)",
+  color: "rgba(245,240,240,0.58)",
   fontFamily: "Georgia, serif",
   fontStyle: "italic",
-};
-
-/** Same muted-italic voice, but tinted with the error rose to signal a load failure. */
-const errorItalic: React.CSSProperties = {
-  ...mutedItalic,
-  color: "#E8807A",
 };
 
 const inputStyle: React.CSSProperties = {
@@ -123,35 +107,29 @@ export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<
     "homework" | "students" | "videos" | "announcements" | "security"
   >("homework");
-  const [logs, setLogs] = useState<CaptureLog[]>([]);
-  const [securityMembers, setSecurityMembers] = useState<SecurityMember[]>([]);
+  const [logs, setLogs] = useState<CaptureLogData[]>([]);
+  const [securityMembers, setSecurityMembers] = useState<SecurityMemberData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [resettingMember, setResettingMember] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/admin/capture-logs")
-      .then((res) => {
-        if (!res.ok) throw new Error("bad status");
-        return res.json();
-      })
-      .then((data) => {
-        if (!cancelled) {
-          setLogs(Array.isArray(data?.logs) ? data.logs : []);
-          setSecurityMembers(Array.isArray(data?.members) ? data.members : []);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const loadSecurity = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await loadAdminSecurity();
+      setLogs(data.logs);
+      setSecurityMembers(data.members);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadSecurity();
+  }, [loadSecurity]);
 
   async function handleUnlock(discordId: string) {
     setResettingMember(discordId);
@@ -235,6 +213,11 @@ export default function AdminPanel() {
         <p style={sectionLabel}>Security Members</p>
         {loading ? (
           <SkeletonBar width="180px" />
+        ) : error ? (
+          <div className="state-message state-message-error">
+            <p>Couldn&apos;t load security members.</p>
+            <RetryButton onRetry={loadSecurity} />
+          </div>
         ) : securityMembers.length === 0 ? (
           <p style={mutedItalic}>No members currently have strikes.</p>
         ) : (
@@ -264,9 +247,10 @@ export default function AdminPanel() {
         {loading ? (
           <SkeletonBar width="180px" />
         ) : error ? (
-          <p style={errorItalic}>
-            Couldn&apos;t load capture logs — refresh to retry.
-          </p>
+          <div className="state-message state-message-error">
+            <p>Couldn&apos;t load capture logs.</p>
+            <RetryButton onRetry={loadSecurity} />
+          </div>
         ) : logs.length === 0 ? (
           <p style={mutedItalic}>No capture attempts recorded.</p>
         ) : (
@@ -478,11 +462,12 @@ function HomeworkQueueSection() {
       {loading ? (
         <SkeletonBar width="200px" />
       ) : error ? (
-        <p style={errorItalic}>
-          Couldn&apos;t load submissions — refresh to retry.
-        </p>
+        <div className="state-message state-message-error">
+          <p>Couldn&apos;t load submissions.</p>
+          <RetryButton onRetry={load} />
+        </div>
       ) : pending.length === 0 ? (
-        <p style={mutedItalic}>No pending submissions.</p>
+        <div className="state-message"><p>No pending submissions.</p></div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {pending.map((sub) => {
@@ -658,13 +643,12 @@ function AnnouncementsSection() {
       {loading ? (
         <SkeletonBar width="160px" />
       ) : error ? (
-        <p style={{ ...errorItalic, marginBottom: "20px" }}>
-          Couldn&apos;t load announcements — refresh to retry.
-        </p>
+        <div className="state-message state-message-error">
+          <p>Couldn&apos;t load announcements.</p>
+          <RetryButton onRetry={load} />
+        </div>
       ) : announcements.length === 0 ? (
-        <p style={{ ...mutedItalic, marginBottom: "20px" }}>
-          No announcements yet.
-        </p>
+        <div className="state-message"><p>No announcements yet.</p></div>
       ) : (
         <div
           style={{

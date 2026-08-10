@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import SupportLink from "@/components/SupportLink";
 
 /**
  * Full-screen "cracked gate" error state. Rendered when NextAuth redirects
@@ -114,6 +115,7 @@ export default function CrackedGate({ code }: { code?: string }) {
           >
             Try Again
           </Link>
+          <SupportLink>Get access help</SupportLink>
         </motion.div>
       </motion.div>
     </motion.div>
@@ -223,6 +225,6 @@ function friendlyCode(code: string): string {
     case "OAuthCreateAccount":
       return "Discord sign-in failed";
     default:
-      return `Error · ${code}`;
+      return "Discord sign-in could not be completed";
   }
 }

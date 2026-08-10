@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import PhiLogo from "@/components/PhiLogo";
 import ThresholdOverlay from "@/components/ThresholdOverlay";
 import CrackedGate from "@/components/CrackedGate";
+import SupportLink from "@/components/SupportLink";
 
 // Idle time before the login card slips into meditation mode.
 const MEDITATION_IDLE_MS = 30_000;
@@ -280,8 +281,12 @@ export default function LoginCard({ errorCode }: { errorCode?: string } = {}) {
             fontFamily: "Georgia, serif",
           }}
         >
-          Members only — Authorized access required
+          Discord sign-in is required. Your Discord membership controls access.
         </motion.p>
+
+        <motion.div variants={itemVariants} style={{ marginBottom: "24px" }}>
+          <SupportLink>Having trouble signing in?</SupportLink>
+        </motion.div>
 
         {/* Bottom rule */}
         <motion.div

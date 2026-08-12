@@ -9,6 +9,7 @@
 
 # isolated feature worktrees
 /.worktrees/
+/.superpowers/sdd/
 
 # next.js
 /.next/

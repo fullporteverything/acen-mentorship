@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import TopNav from "@/components/TopNav";
@@ -49,20 +49,10 @@ export default async function LessonPage({
 }: {
   params: { lessonId: string };
 }) {
-  const session = await auth();
-  if (!session?.user) {
-    redirect("/");
-  }
-
-  const isAdmin =
-    !!process.env.ADMIN_DISCORD_ID &&
-    session.user.discordId === process.env.ADMIN_DISCORD_ID;
-
-  const discordId = session.user.discordId || session.user.id;
-  if (!discordId) {
-    redirect("/");
-  }
-  const discordUsername = session.user.name?.trim() || "Discord user";
+  const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error) ?? redirect("/"));
+  const isAdmin = identity.isAdmin;
+  const discordId = identity.discordId;
+  const discordUsername = identity.name?.trim() || "Discord user";
   const [progress, addedLessons, overrides, addedSections] = await Promise.all([
     getViewerProgress(discordId),
     getAddedLessons(),

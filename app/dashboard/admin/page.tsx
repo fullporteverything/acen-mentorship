@@ -1,18 +1,11 @@
-import { auth } from "@/auth";
+import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import { redirect } from "next/navigation";
 import TopNav from "@/components/TopNav";
 import AdminPanel from "@/components/AdminPanel";
 
 export default async function AdminPage() {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect("/");
-  }
-
-  const isAdmin =
-    !!process.env.ADMIN_DISCORD_ID &&
-    session.user.discordId === process.env.ADMIN_DISCORD_ID;
+  const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error) ?? redirect("/"));
+  const isAdmin = identity.isAdmin;
 
   return (
     <div className="scrollable" style={{ background: "#000000" }}>

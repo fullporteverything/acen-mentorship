@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
+  requireAdmin: vi.fn(),
   getAddedLessons: vi.fn(),
   getLessonOverrides: vi.fn(),
   saveLessonOverrides: vi.fn(),
 }));
 
-vi.mock("@/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/authz", () => ({ requireAdmin: mocks.requireAdmin }));
 vi.mock("@/lib/lesson-store", () => ({
   getAddedLessons: mocks.getAddedLessons,
   getLessonOverrides: mocks.getLessonOverrides,
@@ -19,8 +19,7 @@ import { POST } from "./route";
 describe("POST /api/admin/lesson-overrides", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.ADMIN_DISCORD_ID = "admin-1";
-    mocks.auth.mockResolvedValue({ user: { discordId: "admin-1" } });
+    mocks.requireAdmin.mockResolvedValue({ discordId: "admin-1", isAdmin: true });
     mocks.getAddedLessons.mockResolvedValue([]);
     mocks.getLessonOverrides.mockResolvedValue({});
     mocks.saveLessonOverrides.mockResolvedValue(undefined);

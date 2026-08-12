@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireMemberOrResponse } from "@/lib/authz";
 import { getJournal } from "@/lib/journal-store";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
  * The nav badge compares it to a locally-stored "last seen" to show a dot.
  */
 export async function GET() {
-  const session = await auth();
-  const uid = session?.user?.discordId || session?.user?.id;
-  if (!uid) return NextResponse.json({ latestFeedbackAt: null });
+  const member = await requireMemberOrResponse();
+  if (member instanceof Response) return member;
+  const uid = member.discordId;
 
   const entries = await getJournal(uid);
   let latest: string | null = null;

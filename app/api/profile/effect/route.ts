@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireMemberOrResponse } from "@/lib/authz";
 import {
   getProfile,
   saveProfile,
@@ -19,15 +19,9 @@ function isProfileEffect(value: unknown): value is ProfileEffect {
 
 /** GET: the signed-in member's own selected profile effect. */
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const discordId = session.user.discordId || session.user.id;
-  if (!discordId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
+  const discordId = identity.discordId;
 
   const { effect } = await getProfile(discordId);
   return NextResponse.json({ effect });
@@ -35,15 +29,9 @@ export async function GET() {
 
 /** POST: set the signed-in member's own profile effect. */
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const discordId = session.user.discordId || session.user.id;
-  if (!discordId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
+  const discordId = identity.discordId;
 
   let body: { effect?: unknown };
   try {

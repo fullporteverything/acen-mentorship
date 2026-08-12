@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireMemberOrResponse } from "@/lib/authz";
 import {
   buildEffectiveLessons,
   computeCurriculumStates,
@@ -19,7 +19,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-async function authorizeLesson(discordId: string, lessonId: string) {
+async function authorizeLesson(discordId: string, lessonId: string, isAdmin: boolean) {
   const [addedLessons, overrides, progress] = await Promise.all([
     getAddedLessons(),
     getLessonOverrides(),
@@ -27,9 +27,6 @@ async function authorizeLesson(discordId: string, lessonId: string) {
   ]);
   const lessons = buildEffectiveLessons(addedLessons, overrides);
   if (!getLesson(lessonId, lessons)) return { exists: false, unlocked: false };
-  const isAdmin =
-    !!process.env.ADMIN_DISCORD_ID &&
-    discordId === process.env.ADMIN_DISCORD_ID;
   const completedLessonIds = autoPassedLessonIds(
     discordId,
     progress.completedLessons,
@@ -45,13 +42,11 @@ async function authorizeLesson(discordId: string, lessonId: string) {
 }
 
 export async function GET(req: Request) {
-  const session = await auth();
-  const discordId = session?.user?.discordId || session?.user?.id || null;
-  if (!discordId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
+  const { discordId, isAdmin } = identity;
   const lessonId = new URL(req.url).searchParams.get("lessonId") || "";
-  const access = await authorizeLesson(discordId, lessonId);
+  const access = await authorizeLesson(discordId, lessonId, isAdmin);
   if (!access.exists) {
     return NextResponse.json({ error: "Unknown lesson" }, { status: 400 });
   }
@@ -64,11 +59,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  const discordId = session?.user?.discordId || session?.user?.id || null;
-  if (!discordId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
+  const { discordId, isAdmin } = identity;
 
   let body: Record<string, unknown>;
   try {
@@ -85,7 +78,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid progress" }, { status: 400 });
   }
 
-  const access = await authorizeLesson(discordId, lessonId);
+  const access = await authorizeLesson(discordId, lessonId, isAdmin);
   if (!access.exists) {
     return NextResponse.json({ error: "Unknown lesson" }, { status: 400 });
   }

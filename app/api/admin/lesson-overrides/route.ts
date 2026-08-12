@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse, requireMemberOrResponse } from "@/lib/authz";
 import {
   getAddedLessons,
   getLessonOverrides,
@@ -16,20 +16,10 @@ import { isKinescopeVideoId } from "@/lib/video-id";
 
 export const dynamic = "force-dynamic";
 
-async function requireAdmin() {
-  const session = await auth();
-  return (
-    !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID
-  );
-}
 
 /** GET: current content overrides. Anyone signed in can read them. */
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const member = await requireMemberOrResponse(); if (member instanceof Response) return member;
 
   return NextResponse.json(await getLessonOverrides());
 }
@@ -41,9 +31,7 @@ export async function GET() {
  * For `videoId`, the value must either be blank or a Kinescope video UUID.
  */
 export async function POST(req: NextRequest) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   let body: { lessonId?: string; field?: string; value?: string };
   try {

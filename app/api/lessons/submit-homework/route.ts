@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireMemberOrResponse } from "@/lib/authz";
 import {
   buildEffectiveLessons,
   computeCurriculumStates,
@@ -22,12 +22,9 @@ const MAX_BYTES = 20 * 1024 * 1024; // 20MB
 
 /** Student submits (or resubmits) homework for a lesson. */
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  const discordId = session?.user?.discordId;
-
-  if (!session?.user || !discordId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
+  const discordId = identity.discordId;
 
   let form: FormData;
   try {
@@ -54,9 +51,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unknown lesson" }, { status: 400 });
   }
 
-  const isAdmin =
-    !!process.env.ADMIN_DISCORD_ID &&
-    discordId === process.env.ADMIN_DISCORD_ID;
+  const isAdmin = identity.isAdmin;
   const completedLessonIds = autoPassedLessonIds(
     discordId,
     progress.completedLessons,
@@ -101,7 +96,7 @@ export async function POST(req: NextRequest) {
   );
 
   // Record the submission on the user's progress.
-  progress.discordUsername = session.user.name || progress.discordUsername;
+  progress.discordUsername = identity.name || progress.discordUsername;
 
   const settings = await getSettings();
   const status = settings.autoApprove ? "approved" : "pending";

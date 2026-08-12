@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const VIDEO_ID = "21c39a46-fda5-4222-bec6-6a6be8b1a461";
 const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
+  requireAdminOrResponse: vi.fn(),
   kinescopeFetch: vi.fn(),
   put: vi.fn(),
   get: vi.fn(),
   del: vi.fn(),
 }));
 
-vi.mock("@/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/authz", () => ({ requireAdminOrResponse: mocks.requireAdminOrResponse }));
 vi.mock("@/lib/kinescope", () => ({ kinescopeFetch: mocks.kinescopeFetch }));
 vi.mock("@vercel/blob", () => ({
   put: mocks.put,
@@ -33,8 +33,7 @@ function providerResponse(payload: unknown) {
 describe("POST /api/admin/video-captions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.ADMIN_DISCORD_ID = "admin";
-    mocks.auth.mockResolvedValue({ user: { discordId: "admin" } });
+    mocks.requireAdminOrResponse.mockResolvedValue({ discordId: "admin", isAdmin: true });
     mocks.del.mockResolvedValue(undefined);
   });
 
@@ -47,6 +46,11 @@ describe("POST /api/admin/video-captions", () => {
 
     expect(data).toMatchObject({ ok: true, existing: true });
     expect(mocks.put).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 when Discord membership verification is unavailable", async () => {
+    mocks.requireAdminOrResponse.mockResolvedValue(new Response(null, { status: 503 }));
+    expect((await POST(request())).status).toBe(503);
   });
 
   it("allows only one simultaneous request to enqueue captions", async () => {

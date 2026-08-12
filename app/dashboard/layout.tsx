@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import VpnGuard from "@/components/VpnGuard";
 import ScreenGuard from "@/components/ScreenGuard";
 import SiteMeditation from "@/components/SiteMeditation";
@@ -14,13 +14,11 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-  const isAdmin =
-    !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID;
-  const discordId = session?.user?.discordId;
+  const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error));
+  const isAdmin = identity?.isAdmin ?? false;
+  const discordId = identity?.discordId;
   const securityMember = discordId && !isAdmin
-    ? await getSecurityMember(discordId, session?.user?.name ?? undefined)
+    ? await getSecurityMember(discordId, identity?.name ?? undefined)
     : null;
 
   return (

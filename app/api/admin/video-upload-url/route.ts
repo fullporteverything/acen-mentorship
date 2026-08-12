@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse } from "@/lib/authz";
 import {
   getKinescopeConfig,
   KinescopeIntegrationError,
@@ -13,18 +13,9 @@ export const dynamic = "force-dynamic";
 const KINESCOPE_UPLOAD_INIT_URL = "https://uploader.kinescope.io/v2/init";
 const MAX_FILE_SIZE = 30 * 1024 * 1024 * 1024;
 
-async function requireAdmin() {
-  const session = await auth();
-  return (
-    !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID
-  );
-}
 
 export async function POST(request: Request) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   const body = await request.json().catch(() => null);
   const fileName = typeof body?.fileName === "string" ? body.fileName.trim() : "";

@@ -26,7 +26,6 @@ declare module "next-auth/jwt" {
   /** Extra claims we persist on the JWT. */
   interface JWT {
     discordId?: string;
-    accessToken?: string;
     avatarHash?: string;
     bannerHash?: string;
     accentColor?: number;

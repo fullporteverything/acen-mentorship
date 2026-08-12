@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireMemberOrResponse } from "@/lib/authz";
 import { recordCaptureAttempt } from "@/lib/security-store";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  const discordId = session?.user?.discordId;
-  if (!discordId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
+  const discordId = identity.discordId;
 
   const body = await req.json().catch(() => ({}));
   const requestedTimestamp = typeof body?.timestamp === "string" ? body.timestamp : "";
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || undefined;
   const member = await recordCaptureAttempt(
     discordId,
-    session.user.name?.trim() || "Discord member",
+    identity.name?.trim() || "Discord member",
     {
       timestamp,
       ip,

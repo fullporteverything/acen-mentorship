@@ -1,10 +1,5 @@
-import dynamic from "next/dynamic";
 import LoginCard from "@/components/LoginCard";
-
-// Load kanji background only on client side (no SSR)
-const KanjiBackground = dynamic(() => import("@/components/ThreeBackground"), {
-  ssr: false,
-});
+import KanjiBackground from "@/components/ThreeBackground";
 
 export default async function LoginPage({
   searchParams,

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
+  requireMemberOrResponse: vi.fn(),
   getAnnouncements: vi.fn(),
   getSeenNotifications: vi.fn(),
   getViewerProgress: vi.fn(),
@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   getSecurityMembers: vi.fn(),
 }));
 
-vi.mock("@/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/authz", () => ({ requireMemberOrResponse: mocks.requireMemberOrResponse }));
 vi.mock("@/lib/lesson-store", () => ({
   getAnnouncements: mocks.getAnnouncements,
   getSeenNotifications: mocks.getSeenNotifications,
@@ -27,7 +27,7 @@ import { GET, POST } from "./route";
 describe("GET /api/notifications privacy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.auth.mockResolvedValue({ user: { discordId: "student-1" } });
+    mocks.requireMemberOrResponse.mockResolvedValue({ discordId: "student-1" });
     mocks.getAnnouncements.mockResolvedValue([]);
     mocks.getSeenNotifications.mockResolvedValue([]);
     mocks.getViewerProgress.mockResolvedValue({
@@ -102,5 +102,13 @@ describe("GET /api/notifications privacy", () => {
       "announcement:a",
       "homework:b",
     ]);
+  });
+
+  it("preserves temporary Discord verification failures as 503 responses", async () => {
+    mocks.requireMemberOrResponse.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Membership verification is temporarily unavailable" }), { status: 503 })
+    );
+
+    expect((await GET()).status).toBe(503);
   });
 });

@@ -1,0 +1,118 @@
+import "server-only";
+
+import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import {
+  type RoleCheckResult,
+  verifyDiscordMembership,
+} from "@/lib/discord-membership";
+import { progressViewerIds } from "@/lib/progress-link";
+
+export interface MemberIdentity {
+  /** Canonical Discord id used for all member-owned records. */
+  discordId: string;
+  /** Both canonical and legacy NextAuth ids accepted by owner checks. */
+  ownerIds: string[];
+  isAdmin: boolean;
+  name?: string | null;
+}
+
+export class AuthorizationError extends Error {
+  constructor(
+    public readonly status: 401 | 403 | 503,
+    message: string
+  ) {
+    super(message);
+    this.name = "AuthorizationError";
+  }
+}
+
+/** Converts the centralized authorization outcome into a safe API response. */
+export function authorizationErrorResponse(error: unknown): NextResponse {
+  if (error instanceof AuthorizationError) {
+    return NextResponse.json({ error: error.message }, { status: error.status });
+  }
+  return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+}
+
+/** Lets pages redirect denied visitors without masking a temporary 503 outage. */
+export function rethrowTemporaryAuthorizationError(error: unknown): never | null {
+  if (error instanceof AuthorizationError && error.status === 503) throw error;
+  return null;
+}
+
+export async function requireMemberOrResponse(): Promise<MemberIdentity | NextResponse> {
+  try {
+    return await requireMember();
+  } catch (error) {
+    return authorizationErrorResponse(error);
+  }
+}
+
+export async function requireAdminOrResponse(): Promise<MemberIdentity | NextResponse> {
+  try {
+    return await requireAdmin();
+  } catch (error) {
+    return authorizationErrorResponse(error);
+  }
+}
+
+const MEMBERSHIP_REVALIDATION_MS = 60_000;
+const membershipCache = new Map<string, { checkedAt: number; result: RoleCheckResult }>();
+
+async function revalidateMembership(discordId: string): Promise<RoleCheckResult> {
+  const cached = membershipCache.get(discordId);
+  if (cached && Date.now() - cached.checkedAt < MEMBERSHIP_REVALIDATION_MS) {
+    return cached.result;
+  }
+
+  const result = await verifyDiscordMembership(discordId);
+  // Never extend access because Discord is unavailable or the required role is absent.
+  if (result.member) {
+    membershipCache.set(discordId, { checkedAt: Date.now(), result });
+  } else {
+    membershipCache.delete(discordId);
+  }
+  return result;
+}
+
+/** Returns a fresh, Discord-role-verified identity or throws a fail-closed error. */
+export async function requireMember(): Promise<MemberIdentity> {
+  const session = await auth();
+  const user = session?.user;
+  const discordId = user?.discordId?.trim() || user?.id?.trim();
+
+  if (!user || !discordId) {
+    throw new AuthorizationError(401, "Authentication required");
+  }
+
+  const roleCheck = await revalidateMembership(discordId);
+  if (roleCheck.unavailable) {
+    throw new AuthorizationError(503, "Membership verification is temporarily unavailable");
+  }
+  if (!roleCheck.member) {
+    throw new AuthorizationError(403, "Discord membership is required");
+  }
+
+  const ownerIds = Array.from(
+    new Set(
+      [...progressViewerIds(discordId), user.id].filter(
+        (id): id is string => Boolean(id)
+      )
+    )
+  );
+  const isAdmin =
+    Boolean(process.env.ADMIN_DISCORD_ID) &&
+    discordId === process.env.ADMIN_DISCORD_ID;
+
+  return { discordId, ownerIds, isAdmin, name: user.name };
+}
+
+/** Returns a verified administrator identity or throws a fail-closed error. */
+export async function requireAdmin(): Promise<MemberIdentity> {
+  const identity = await requireMember();
+  if (!identity.isAdmin) {
+    throw new AuthorizationError(403, "Administrator access is required");
+  }
+  return identity;
+}

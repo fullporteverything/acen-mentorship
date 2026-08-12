@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import TopNav from "@/components/TopNav";
@@ -26,14 +26,8 @@ export const dynamic = "force-dynamic";
 const KANJI_ACCENTS = ["道", "剣", "心", "武", "礼", "修", "練", "気"];
 
 export default async function DashboardPage() {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect("/");
-  }
-
-  const discordId =
-    session.user.discordId || session.user.id || "unknown";
+  const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error) ?? redirect("/"));
+  const discordId = identity.discordId;
   const [announcements, seen, progress, addedLessons, overrides, journal, securityMember] =
     await Promise.all([
     getAnnouncements(),
@@ -42,7 +36,7 @@ export default async function DashboardPage() {
     getAddedLessons(),
     getLessonOverrides(),
     getJournal(discordId),
-    getSecurityMember(discordId, session.user.name ?? undefined),
+    getSecurityMember(discordId, identity.name ?? undefined),
   ]);
   const lessons = buildEffectiveLessons(addedLessons, overrides);
   const completedLessonIds = autoPassedLessonIds(
@@ -121,7 +115,7 @@ export default async function DashboardPage() {
               fontFamily: "Georgia, serif",
             }}
           >
-            Welcome, {session.user.name?.split(" ")[0] || "Member"}
+            Welcome, {identity.name?.split(" ")[0] || "Member"}
           </h1>
         </div>
 

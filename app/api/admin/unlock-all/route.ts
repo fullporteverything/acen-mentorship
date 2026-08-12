@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse } from "@/lib/authz";
 import { resetSecurityMember } from "@/lib/security-store";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const session = await auth();
-  const isAdmin = !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID;
-  if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const admin = await requireAdminOrResponse();
+  if (admin instanceof Response) return admin;
 
   const body = await request.json().catch(() => null);
   const discordId = typeof body?.discordId === "string" ? body.discordId.trim() : "";

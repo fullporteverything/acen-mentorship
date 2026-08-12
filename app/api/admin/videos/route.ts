@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse } from "@/lib/authz";
 import {
   getKinescopeConfig,
   KinescopeProjectResolutionError,
@@ -13,13 +13,6 @@ import { getAddedLessons, getLessonOverrides } from "@/lib/lesson-store";
 
 export const dynamic = "force-dynamic";
 
-async function requireAdmin() {
-  const session = await auth();
-  return (
-    !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID
-  );
-}
 
 interface AttachedLibraryVideo extends LibraryVideo {
   attachedTo: string | null;
@@ -32,9 +25,7 @@ interface AssignableLesson {
 }
 
 export async function GET() {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   let projectId: string;
   try {

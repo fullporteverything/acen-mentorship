@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import TopNav from "@/components/TopNav";
@@ -29,20 +29,16 @@ const MAX_ENTRY = 5000;
  * backdrop has been removed for a clean black background.
  */
 export default async function JournalPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/");
-
-  const discordId = session.user.discordId || session.user.id || "unknown";
-  const isAdmin =
-    !!process.env.ADMIN_DISCORD_ID &&
-    session.user.discordId === process.env.ADMIN_DISCORD_ID;
+  const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error) ?? redirect("/"));
+  const discordId = identity.discordId;
+  const isAdmin = identity.isAdmin;
   const entries = await getJournal(discordId);
 
   async function createEntry(formData: FormData): Promise<{ failedImages: number }> {
     "use server";
-    const s = await auth();
-    if (!s?.user) return { failedImages: 0 };
-    const uid = s.user.discordId || s.user.id || "unknown";
+    const member = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error));
+    if (!member) return { failedImages: 0 };
+    const uid = member.discordId;
 
     const body = String(formData.get("body") ?? "").trim().slice(0, MAX_ENTRY);
     const rawTag = String(formData.get("tag") ?? "").trim();
@@ -76,7 +72,7 @@ export default async function JournalPage() {
       body,
       mood: "",
       createdAt: new Date().toISOString(),
-      discordUsername: s.user.name || undefined,
+      discordUsername: member.name || undefined,
       images: images.length ? images : undefined,
       tags,
     };
@@ -89,9 +85,9 @@ export default async function JournalPage() {
 
   async function deleteEntry(formData: FormData) {
     "use server";
-    const s = await auth();
-    if (!s?.user) return;
-    const uid = s.user.discordId || s.user.id || "unknown";
+    const member = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error));
+    if (!member) return;
+    const uid = member.discordId;
     const id = String(formData.get("id") ?? "");
     if (!id) return;
     const current = await getJournal(uid);

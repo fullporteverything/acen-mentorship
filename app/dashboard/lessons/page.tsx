@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import TopNav from "@/components/TopNav";
@@ -22,17 +22,9 @@ import { getWatchProgressByLesson } from "@/lib/watch-progress-store";
 export const dynamic = "force-dynamic";
 
 export default async function LessonsPage() {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect("/");
-  }
-
-  const isAdmin =
-    !!process.env.ADMIN_DISCORD_ID &&
-    session.user.discordId === process.env.ADMIN_DISCORD_ID;
-
-  const discordId = session.user.discordId || session.user.id || "unknown";
+  const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error) ?? redirect("/"));
+  const isAdmin = identity.isAdmin;
+  const discordId = identity.discordId;
   const [progress, announcements, addedLessons, overrides, addedSections] =
     await Promise.all([
       getViewerProgress(discordId),

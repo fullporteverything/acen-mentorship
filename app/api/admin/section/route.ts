@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse } from "@/lib/authz";
 import {
   getAddedLessons,
   getAddedSections,
@@ -11,13 +11,6 @@ import { LESSONS } from "@/lib/lessons-config";
 
 export const dynamic = "force-dynamic";
 
-async function requireAdmin() {
-  const session = await auth();
-  return (
-    !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID
-  );
-}
 
 /** True when the static curriculum contributes any lesson to `section`. */
 function hasStaticLessons(section: string): boolean {
@@ -33,9 +26,7 @@ function hasStaticLessons(section: string): boolean {
  * `lib/lessons-config.ts` and not stored in a blob — so the request is refused.
  */
 export async function PATCH(req: NextRequest) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   let body: { from?: string; to?: string };
   try {
@@ -110,9 +101,7 @@ export async function PATCH(req: NextRequest) {
  * Sections that contain built-in (static) lessons can never be deleted.
  */
 export async function DELETE(req: NextRequest) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   let body: { section?: string; force?: boolean };
   try {

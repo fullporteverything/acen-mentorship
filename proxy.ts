@@ -2,6 +2,33 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+function contentSecurityPolicy(nonce: string) {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    `script-src 'self' 'nonce-${nonce}' https://discord.com https://*.discord.com https://*.kinescope.io`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https://cdn.discordapp.com https://media.discordapp.net https://*.public.blob.vercel-storage.com",
+    "connect-src 'self' https://discord.com https://*.discord.com https://*.kinescope.io https://kinescope.io https://*.public.blob.vercel-storage.com",
+    "frame-src 'self' https://*.kinescope.io",
+    "media-src 'self' blob: https://*.kinescope.io https://*.public.blob.vercel-storage.com",
+  ].join("; ");
+}
+
+function withSecurityHeaders(response: NextResponse, nonce: string) {
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  return response;
+}
+
 function isChrome(req: NextRequest): boolean {
   const ua = req.headers.get("user-agent") || "";
   // Must have Chrome but NOT Chromium-based browsers masking as Chrome on non-Chrome platforms
@@ -14,12 +41,13 @@ function isChrome(req: NextRequest): boolean {
 }
 
 export default auth((req) => {
+  const nonce = crypto.randomUUID().replace(/-/g, "");
   const { pathname } = req.nextUrl;
 
   // Skip browser check for API routes and static assets
   const isApi = pathname.startsWith("/api");
   if (!isApi && !isChrome(req)) {
-    return new NextResponse(
+    return withSecurityHeaders(new NextResponse(
       `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -66,7 +94,7 @@ export default auth((req) => {
         status: 403,
         headers: { "Content-Type": "text/html" },
       }
-    );
+    ), nonce);
   }
 
   const isLoggedIn = !!req.auth;
@@ -74,16 +102,19 @@ export default auth((req) => {
   // Protect all /dashboard routes
   if (pathname.startsWith("/dashboard")) {
     if (!isLoggedIn) {
-      return NextResponse.redirect(new URL("/", req.url));
+      return withSecurityHeaders(NextResponse.redirect(new URL("/", req.url)), nonce);
     }
   }
 
   // Redirect logged-in users away from the login page
   if (pathname === "/" && isLoggedIn) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    return withSecurityHeaders(NextResponse.redirect(new URL("/dashboard", req.url)), nonce);
   }
 
-  return NextResponse.next();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  return withSecurityHeaders(response, nonce);
 });
 
 export const config = {

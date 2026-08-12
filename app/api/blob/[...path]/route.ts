@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { get } from "@vercel/blob";
-import { auth } from "@/auth";
+import { requireMemberOrResponse } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +20,12 @@ const STORE_ID = process.env.BLOB_READ_WRITE_TOKEN_STORE_ID;
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
 
-  const pathname = (params.path || []).join("/");
+  const pathname = ((await params).path || []).join("/");
   const segs = pathname.split("/");
   // Expect dojo/{area}/{ownerId}/...
   if (segs[0] !== "dojo" || segs.length < 4) {
@@ -35,11 +33,7 @@ export async function GET(
   }
 
   const ownerId = segs[2];
-  const uid = session.user.discordId || session.user.id;
-  const isAdmin =
-    !!process.env.ADMIN_DISCORD_ID &&
-    session.user.discordId === process.env.ADMIN_DISCORD_ID;
-  if (!isAdmin && ownerId !== uid) {
+  if (!identity.isAdmin && !identity.ownerIds.includes(ownerId)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 

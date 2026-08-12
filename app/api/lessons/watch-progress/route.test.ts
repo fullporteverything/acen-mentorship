@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Lesson } from "@/lib/lessons-config";
 
 const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
+  requireMemberOrResponse: vi.fn(),
   getAddedLessons: vi.fn(),
   getLessonOverrides: vi.fn(),
   getUserProgress: vi.fn(),
@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   saveWatchProgress: vi.fn(),
 }));
 
-vi.mock("@/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/authz", () => ({ requireMemberOrResponse: mocks.requireMemberOrResponse }));
 vi.mock("@/lib/lesson-store", () => ({
   getAddedLessons: mocks.getAddedLessons,
   getLessonOverrides: mocks.getLessonOverrides,
@@ -54,8 +54,8 @@ describe("POST /api/lessons/watch-progress authorization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.ADMIN_DISCORD_ID;
-    mocks.auth.mockResolvedValue({
-      user: { discordId: "student-1", name: "Student" },
+    mocks.requireMemberOrResponse.mockResolvedValue({
+      discordId: "student-1", isAdmin: false, name: "Student",
     });
     mocks.getAddedLessons.mockResolvedValue(additions);
     mocks.getLessonOverrides.mockResolvedValue({});
@@ -92,7 +92,9 @@ describe("POST /api/lessons/watch-progress authorization", () => {
   });
 
   it("preserves the admin bypass", async () => {
-    process.env.ADMIN_DISCORD_ID = "student-1";
+    mocks.requireMemberOrResponse.mockResolvedValue({
+      discordId: "student-1", isAdmin: true, name: "Student",
+    });
     mocks.getUserProgress.mockResolvedValue({
       completedLessons: [],
       submissions: {},

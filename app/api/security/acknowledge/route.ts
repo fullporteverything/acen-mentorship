@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireMemberOrResponse } from "@/lib/authz";
 import { acknowledgeStrike } from "@/lib/security-store";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const session = await auth();
-  const discordId = session?.user?.discordId;
-  if (!discordId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
+  const discordId = identity.discordId;
   const member = await acknowledgeStrike(discordId);
   return NextResponse.json({ ok: true, acknowledgedStrikes: member.acknowledgedStrikes });
 }

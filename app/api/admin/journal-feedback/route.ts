@@ -1,32 +1,21 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse } from "@/lib/authz";
 import { getAllJournals, setEntryFeedback } from "@/lib/journal-store";
 
 export const dynamic = "force-dynamic";
 
-async function requireAdmin() {
-  const session = await auth();
-  return (
-    !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID
-  );
-}
 
 /** GET: every member's journal entries, flattened newest-first. Admin-only. */
 export async function GET() {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
   const entries = await getAllJournals();
   return NextResponse.json({ entries });
 }
 
 /** POST: set the mentor feedback on one specific entry. Admin-only. */
 export async function POST(req: NextRequest) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   let body: { discordId?: string; entryId?: string; feedback?: string };
   try {

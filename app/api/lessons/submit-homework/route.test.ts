@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import type { Lesson } from "@/lib/lessons-config";
 
 const mocks = vi.hoisted(() => ({
-  auth: vi.fn(),
+  requireMemberOrResponse: vi.fn(),
   getAddedLessons: vi.fn(),
   getLessonOverrides: vi.fn(),
   getSettings: vi.fn(),
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   uploadHomework: vi.fn(),
 }));
 
-vi.mock("@/auth", () => ({ auth: mocks.auth }));
+vi.mock("@/lib/authz", () => ({ requireMemberOrResponse: mocks.requireMemberOrResponse }));
 vi.mock("@/lib/lesson-store", () => ({
   getAddedLessons: mocks.getAddedLessons,
   getLessonOverrides: mocks.getLessonOverrides,
@@ -69,8 +69,8 @@ describe("POST /api/lessons/submit-homework curriculum authorization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.ADMIN_DISCORD_ID;
-    mocks.auth.mockResolvedValue({
-      user: { discordId: "student-1", name: "Student" },
+    mocks.requireMemberOrResponse.mockResolvedValue({
+      discordId: "student-1", isAdmin: false, name: "Student",
     });
     mocks.getAddedLessons.mockResolvedValue(addedLessons);
     mocks.getLessonOverrides.mockResolvedValue({});
@@ -114,7 +114,9 @@ describe("POST /api/lessons/submit-homework curriculum authorization", () => {
   });
 
   it("preserves the admin bypass at the mutation boundary", async () => {
-    process.env.ADMIN_DISCORD_ID = "student-1";
+    mocks.requireMemberOrResponse.mockResolvedValue({
+      discordId: "student-1", isAdmin: true, name: "Student",
+    });
     mocks.getUserProgress.mockResolvedValue(progress());
 
     const response = await POST(requestFor("weekly-1"));

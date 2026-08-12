@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse, requireMemberOrResponse } from "@/lib/authz";
 import {
   getAnnouncements,
   saveAnnouncements,
@@ -9,20 +9,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-async function requireAdmin() {
-  const session = await auth();
-  return (
-    !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID
-  );
-}
 
 /** GET: anyone signed in can read announcements. */
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const member = await requireMemberOrResponse(); if (member instanceof Response) return member;
 
   const announcements = await getAnnouncements();
   return NextResponse.json({ announcements });
@@ -30,9 +20,7 @@ export async function GET() {
 
 /** POST: add an announcement. Admin-only. */
 export async function POST(req: NextRequest) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   let body: { title?: string; body?: string };
   try {
@@ -79,9 +67,7 @@ export async function POST(req: NextRequest) {
 
 /** DELETE: remove an announcement by id. Admin-only. */
 export async function DELETE(req: NextRequest) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   let body: { id?: string };
   try {

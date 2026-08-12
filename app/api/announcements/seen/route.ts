@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireMemberOrResponse } from "@/lib/authz";
 import { markAnnouncementSeen } from "@/lib/lesson-store";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +10,9 @@ export const dynamic = "force-dynamic";
  * Records that the current user has seen this announcement.
  */
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
-  const uid = session.user.discordId || session.user.id || "unknown";
+  const member = await requireMemberOrResponse();
+  if (member instanceof Response) return member;
+  const uid = member.discordId;
 
   let body: unknown;
   try {

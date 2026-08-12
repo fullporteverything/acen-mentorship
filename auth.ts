@@ -1,8 +1,6 @@
 import NextAuth from "next-auth";
 import Discord from "next-auth/providers/discord";
-
-const GUILD_ID = process.env.DISCORD_GUILD_ID!;
-const REQUIRED_ROLE_ID = process.env.DISCORD_REQUIRED_ROLE_ID!;
+import { verifyDiscordMembership } from "@/lib/discord-membership";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -21,31 +19,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/",
   },
   callbacks: {
-    async signIn({ account }) {
+    async signIn({ account, profile, user }) {
       if (!account?.access_token) return false;
+      const discordId = typeof profile?.id === "string" ? profile.id : user.id;
+      if (!discordId) return false;
 
-      try {
-        const res = await fetch(
-          `https://discord.com/api/users/@me/guilds/${GUILD_ID}/member`,
-          {
-            headers: {
-              Authorization: `Bearer ${account.access_token}`,
-            },
-            // Bound the sign-in handoff — never hang on a slow Discord API.
-            signal: AbortSignal.timeout(5000),
-          }
-        );
-
-        if (!res.ok) return false;
-
-        const member = await res.json();
-        const hasRole = Array.isArray(member.roles) &&
-          member.roles.includes(REQUIRED_ROLE_ID);
-
-        return hasRole;
-      } catch {
-        return false;
-      }
+      const roleCheck = await verifyDiscordMembership(
+        discordId,
+        account.access_token
+      );
+      return roleCheck.member;
     },
     async session({ session, token }) {
       if (token?.sub) {
@@ -65,7 +48,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token, account, profile }) {
       if (account) {
-        token.accessToken = account.access_token;
         token.discordId = profile?.id as string;
         // Cosmetics from the raw Discord user object (identify scope):
         // animated avatars/banners have an "a_"-prefixed hash; the avatar

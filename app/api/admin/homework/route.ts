@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse } from "@/lib/authz";
 import {
   getAllSubmissions,
   getUserProgress,
@@ -9,19 +9,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-async function requireAdmin() {
-  const session = await auth();
-  const isAdmin =
-    !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID;
-  return isAdmin;
-}
 
 /** GET: every submission across all users, for the admin review queue. */
 export async function GET() {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   const submissions = await getAllSubmissions();
   return NextResponse.json({ submissions });
@@ -29,9 +20,7 @@ export async function GET() {
 
 /** POST: approve or reject a specific user's submission. */
 export async function POST(req: NextRequest) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   let body: {
     discordId?: string;

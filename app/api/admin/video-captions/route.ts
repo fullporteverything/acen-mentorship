@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse } from "@/lib/authz";
 import { kinescopeFetch } from "@/lib/kinescope";
 import { isKinescopeVideoId } from "@/lib/video-id";
 import { hasEnglishSubtitle } from "@/lib/captions";
@@ -65,10 +65,8 @@ async function englishCaptionsExist(videoId: string): Promise<boolean> {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  const isAdmin = !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID;
-  if (!isAdmin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const admin = await requireAdminOrResponse();
+  if (admin instanceof Response) return admin;
 
   const body = await request.json().catch(() => null);
   const videoId = body?.videoId;

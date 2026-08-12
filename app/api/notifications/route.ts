@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireMemberOrResponse } from "@/lib/authz";
 import {
   getAnnouncements,
   getSeenNotifications,
@@ -19,16 +19,10 @@ interface NotificationItem {
   createdAt: string;
 }
 
-async function identity() {
-  const session = await auth();
-  return session?.user?.discordId || session?.user?.id || null;
-}
-
 export async function GET() {
-  const discordId = await identity();
-  if (!discordId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
+  const { discordId } = identity;
   const [announcements, progress, journal, securityMembers, seen] =
     await Promise.all([
       getAnnouncements(),
@@ -89,10 +83,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const discordId = await identity();
-  if (!discordId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
+  const { discordId } = identity;
   const body = await request.json().catch(() => null);
   const ids = Array.isArray(body?.ids)
     ? body.ids.filter((id: unknown): id is string => typeof id === "string").slice(0, 100)

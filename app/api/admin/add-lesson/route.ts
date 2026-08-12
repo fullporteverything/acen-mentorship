@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminOrResponse } from "@/lib/authz";
 import {
   getAddedLessons,
   getAddedSections,
@@ -12,13 +12,6 @@ import { isKinescopeVideoId } from "@/lib/video-id";
 
 export const dynamic = "force-dynamic";
 
-async function requireAdmin() {
-  const session = await auth();
-  return (
-    !!process.env.ADMIN_DISCORD_ID &&
-    session?.user?.discordId === process.env.ADMIN_DISCORD_ID
-  );
-}
 
 /**
  * POST: append a new lesson to the admin-added list. Admin-only.
@@ -31,9 +24,7 @@ async function requireAdmin() {
  * sections list so it renders even before it holds any lesson.
  */
 export async function POST(req: NextRequest) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
 
   let body: {
     title?: string;

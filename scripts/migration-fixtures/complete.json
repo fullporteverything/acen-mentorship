@@ -1,0 +1,4 @@
+[
+  { "family": "progress", "key": "fixture-member", "memberId": "fixture-member", "payload": { "completedLessons": ["fixture-lesson"], "submissions": {} }, "updatedAt": "2026-01-01T00:00:00.000Z" },
+  { "family": "journal", "key": "fixture-member/fixture-entry", "memberId": "fixture-member", "payload": { "body": "fixture journal" }, "updatedAt": "2026-01-02T00:00:00.000Z" }
+]

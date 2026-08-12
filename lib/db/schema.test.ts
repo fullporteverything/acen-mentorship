@@ -15,6 +15,8 @@ import {
   lessonNotes,
   lessonProgress,
   lessons,
+  legacyBlobRecords,
+  migrationVerificationArtifacts,
   memberIdentities,
   members,
   migrationChecksums,
@@ -45,6 +47,10 @@ function constraintNames(table: Parameters<typeof getTableConfig>[0]) {
     ...tableConfig.uniqueConstraints.map((constraint) => constraint.getName()),
     ...tableConfig.checks.map((check) => check.name),
   ];
+}
+
+function indexNames(table: Parameters<typeof getTableConfig>[0]) {
+  return config(table).indexes.map((index) => index.config.name);
 }
 
 describe("Neon transactional data model", () => {
@@ -80,9 +86,11 @@ describe("Neon transactional data model", () => {
       uploads,
       uploadQuarantine,
       orphanedUploads,
+      legacyBlobRecords,
+      migrationVerificationArtifacts,
     ];
 
-    expect(tables).toHaveLength(30);
+    expect(tables).toHaveLength(32);
     for (const table of tables) {
       expect(config(table).columns.map((column) => column.name)).toContain("created_at");
       expect(config(table).columns.map((column) => column.name)).toContain("updated_at");
@@ -139,6 +147,10 @@ describe("Neon transactional data model", () => {
     expect(constraintNames(migrationRuns)).toContain("migration_runs_name_unique");
     expect(constraintNames(migrationItems)).toContain("migration_items_run_source_key_unique");
     expect(constraintNames(migrationChecksums)).toContain("migration_checksums_run_table_unique");
+    expect(constraintNames(legacyBlobRecords)).toContain("legacy_blob_records_family_key_unique");
+    expect(constraintNames(migrationVerificationArtifacts)).not.toContain("migration_verification_artifacts_source_unique");
+    expect(indexNames(migrationVerificationArtifacts)).toContain("migration_verification_artifacts_source_index");
+    expect(constraintNames(migrationVerificationArtifacts)).toContain("migration_verification_artifacts_expiry_bounded");
   });
 
   it("keeps collaboration, transcript, upload quarantine, and audit records relational", () => {

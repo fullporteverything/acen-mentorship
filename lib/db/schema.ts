@@ -467,6 +467,10 @@ export const migrationRuns = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     status: varchar("status", { length: 32 }).notNull().default("running"),
+    /** Immutable source evidence for a verifier-created cutover run. */
+    sourceManifest: jsonb("source_manifest"),
+    sourceManifestChecksum: varchar("source_manifest_checksum", { length: 128 }),
+    sourceScope: text("source_scope"),
     ...timestamps,
   },
   (table) => [unique("migration_runs_name_unique").on(table.name)]
@@ -557,6 +561,56 @@ export const orphanedUploads = pgTable(
     ...timestamps,
   },
   (table) => [unique("orphaned_uploads_upload_unique").on(table.uploadId)]
+);
+
+/**
+ * Lossless, idempotent staging rows for legacy Blob records. Task 3 writes
+ * here only on an isolated verification database; production reads stay Blob.
+ */
+export const legacyBlobRecords = pgTable(
+  "legacy_blob_records",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    family: varchar("family", { length: 64 }).notNull(),
+    recordKey: text("record_key").notNull(),
+    memberDiscordId: varchar("member_discord_id", { length: 128 }),
+    payload: jsonb("payload").notNull(),
+    sourcePath: text("source_path"),
+    sourceChecksum: varchar("source_checksum", { length: 128 }).notNull(),
+    sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("legacy_blob_records_family_key_unique").on(table.family, table.recordKey),
+    index("legacy_blob_records_member_family_index").on(table.memberDiscordId, table.family),
+  ]
+);
+
+/** Persisted evidence required before a runtime Postgres cutover is allowed. */
+export const migrationVerificationArtifacts = pgTable(
+  "migration_verification_artifacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => migrationRuns.id),
+    sourceManifestChecksum: varchar("source_manifest_checksum", { length: 128 }).notNull(),
+    destinationManifestChecksum: varchar("destination_manifest_checksum", { length: 128 }).notNull(),
+    mismatchCount: integer("mismatch_count").notNull().default(0),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull().defaultNow(),
+    /** HMAC issued exclusively by the migration verifier. */
+    verificationSeal: varchar("verification_seal", { length: 128 }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index("migration_verification_artifacts_source_index").on(table.sourceManifestChecksum),
+    check("migration_verification_artifacts_nonnegative_mismatches", sql`${table.mismatchCount} >= 0`),
+    check(
+      "migration_verification_artifacts_expiry_bounded",
+      sql`${table.expiresAt} > ${table.verifiedAt} and ${table.expiresAt} <= ${table.verifiedAt} + interval '30 minutes'`
+    ),
+  ]
 );
 
 export type MemberRow = typeof members.$inferSelect;

@@ -43,6 +43,41 @@
       "when": 1786541497253,
       "tag": "0005_eminent_rachel_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786542165596,
+      "tag": "0006_petite_lord_tyger",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786543354355,
+      "tag": "0007_magenta_silver_fox",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786545000000,
+      "tag": "0008_verified_migration_gate",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786545600000,
+      "tag": "0009_enforce_verified_migration_gate",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786546200000,
+      "tag": "0010_append_only_verification_artifacts",
+      "breakpoints": true
     }
   ]
 }

@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  requireAdmin: vi.fn(),
+  requireAdminOrResponse: vi.fn(),
   getAddedLessons: vi.fn(),
   getLessonOverrides: vi.fn(),
   saveLessonOverrides: vi.fn(),
 }));
 
-vi.mock("@/lib/authz", () => ({ requireAdmin: mocks.requireAdmin }));
+vi.mock("@/lib/authz", () => ({ requireAdminOrResponse: mocks.requireAdminOrResponse }));
 vi.mock("@/lib/lesson-store", () => ({
   getAddedLessons: mocks.getAddedLessons,
   getLessonOverrides: mocks.getLessonOverrides,
@@ -19,7 +19,7 @@ import { POST } from "./route";
 describe("POST /api/admin/lesson-overrides", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireAdmin.mockResolvedValue({ discordId: "admin-1", isAdmin: true });
+    mocks.requireAdminOrResponse.mockResolvedValue({ discordId: "admin-1", isAdmin: true });
     mocks.getAddedLessons.mockResolvedValue([]);
     mocks.getLessonOverrides.mockResolvedValue({});
     mocks.saveLessonOverrides.mockResolvedValue(undefined);
@@ -39,6 +39,7 @@ describe("POST /api/admin/lesson-overrides", () => {
     );
 
     expect(response.status).toBe(400);
+    expect(mocks.requireAdminOrResponse).toHaveBeenCalledTimes(1);
     expect(mocks.saveLessonOverrides).not.toHaveBeenCalled();
   });
 });

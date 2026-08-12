@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786540815827,
+      "tag": "0000_cooing_rachel_grey",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786540935956,
+      "tag": "0001_nifty_maestro",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786540940624,
+      "tag": "0002_immutable_homework_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786541442236,
+      "tag": "0003_lying_colleen_wing",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786541456314,
+      "tag": "0004_append_only_homework_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786541497253,
+      "tag": "0005_eminent_rachel_grey",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+-- Kept as an empty generated migration entry after preserving the existing
+-- homework_review_counters foreign key in migration 0003.

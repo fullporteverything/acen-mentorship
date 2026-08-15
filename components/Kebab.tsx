@@ -134,6 +134,7 @@ export default function Kebab({
                 fontSize: 11,
                 letterSpacing: 2,
                 textTransform: "uppercase",
+                whiteSpace: "nowrap",
                 color: it.disabled
                   ? "rgba(245,240,240,0.3)"
                   : it.danger

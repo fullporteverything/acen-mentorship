@@ -328,6 +328,29 @@ body {
   letter-spacing: 3px;
 }
 
+/* Admin kebab menus — hidden until the parent row is hovered or the menu is
+   open. Keeps the sidebar clean for members and calm for admins who aren't
+   currently editing. `focus-within` keeps the trigger accessible via keyboard. */
+.kebab-visible-on-hover .kebab {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.kebab-visible-on-hover:hover .kebab,
+.kebab-visible-on-hover:focus-within .kebab,
+.kebab-visible-on-hover .kebab.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.kebab-trigger:hover {
+  border-color: rgba(232, 160, 160, 0.35) !important;
+  color: #F0B0B0 !important;
+}
+.kebab.is-open .kebab-trigger {
+  border-color: rgba(232, 160, 160, 0.55) !important;
+  color: #F0B0B0 !important;
+}
+
 /* Overview: responsive cards and a clear core-curriculum progress path. */
 .overview-stats-grid {
   display: grid;

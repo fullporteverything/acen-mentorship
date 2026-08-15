@@ -30,7 +30,25 @@ export function resolveDatabaseUrl(
       `${useTestDatabase ? "DATABASE_URL_TEST" : "DATABASE_URL"} is required for the Neon data model`
     );
   }
-  return url;
+  const trimmed = url.trim();
+  const quote = trimmed[0];
+  const normalized =
+    (quote === '"' || quote === "'") && trimmed.at(-1) === quote
+      ? trimmed.slice(1, -1).trim()
+      : trimmed;
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "postgresql:" && parsed.protocol !== "postgres:") {
+      throw new Error("unsupported protocol");
+    }
+  } catch {
+    throw new Error(
+      `${useTestDatabase ? "DATABASE_URL_TEST" : "DATABASE_URL"} must be a valid PostgreSQL URL`
+    );
+  }
+
+  return normalized;
 }
 
 function getDatabase(): Database {

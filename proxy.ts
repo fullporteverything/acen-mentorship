@@ -13,8 +13,8 @@ function contentSecurityPolicy(nonce: string) {
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://cdn.discordapp.com https://media.discordapp.net https://*.public.blob.vercel-storage.com",
     "connect-src 'self' https://discord.com https://*.discord.com https://*.kinescope.io https://kinescope.io https://*.public.blob.vercel-storage.com",
-    "frame-src 'self' https://*.kinescope.io",
-    "media-src 'self' blob: https://*.kinescope.io https://*.public.blob.vercel-storage.com",
+    "frame-src 'self' https://kinescope.io https://*.kinescope.io",
+    "media-src 'self' blob: https://kinescope.io https://*.kinescope.io https://*.public.blob.vercel-storage.com",
   ].join("; ");
 }
 

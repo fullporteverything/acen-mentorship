@@ -114,8 +114,13 @@ export async function requireMember(): Promise<MemberIdentity> {
 
   const roleCheck = await revalidateMembership(discordId);
   if (roleCheck.unavailable) {
+    // Sign-in verified the role with the USER'S own OAuth token and stamped
+    // memberVerifiedAt. When the bot-token revalidation can't get an answer
+    // (Discord down, bot token rotated, bot kicked / intent missing), a
+    // recent login proof rides through instead of locking every member out.
+    // This applies whether or not a bot token is configured — a present-but-
+    // broken bot token must not be stricter than no bot token at all.
     const loginProofIsRecent =
-      !process.env.DISCORD_BOT_TOKEN &&
       typeof user.memberVerifiedAt === "number" &&
       Date.now() - user.memberVerifiedAt >= 0 &&
       Date.now() - user.memberVerifiedAt <= LOGIN_PROOF_MAX_AGE_MS;

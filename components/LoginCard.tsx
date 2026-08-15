@@ -11,7 +11,14 @@ import SupportLink from "@/components/SupportLink";
 // Idle time before the login card slips into meditation mode.
 const MEDITATION_IDLE_MS = 30_000;
 
-export default function LoginCard({ errorCode }: { errorCode?: string } = {}) {
+export default function LoginCard({
+  errorCode,
+  signOutAction,
+}: {
+  errorCode?: string;
+  /** Server action: sign out, then land back on a clean login page. */
+  signOutAction?: () => Promise<void>;
+} = {}) {
   const [loading, setLoading] = useState(false);
   const [entering, setEntering] = useState(false);
   const [meditating, setMeditating] = useState(false);
@@ -99,7 +106,9 @@ export default function LoginCard({ errorCode }: { errorCode?: string } = {}) {
   return (
     <>
       <AnimatePresence>{entering && <ThresholdOverlay />}</AnimatePresence>
-      <AnimatePresence>{errored && <CrackedGate code={errorCode} />}</AnimatePresence>
+      <AnimatePresence>
+        {errored && <CrackedGate code={errorCode} signOutAction={signOutAction} />}
+      </AnimatePresence>
 
       {/* Meditation dimmer — fades in over the sakura when the user goes idle. */}
       <AnimatePresence>

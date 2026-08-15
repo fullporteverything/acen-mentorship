@@ -42,6 +42,15 @@ export async function verifyDiscordMembership(
       return { member: false, unavailable: true };
     }
     if (!response.ok) {
+      // Bot-token mode: 401 (token invalid/rotated) and 403 (bot kicked from
+      // the guild or missing the Server Members intent) are failures of OUR
+      // credential — they say nothing about the user, so they must NOT be
+      // read as an authoritative "not a member" (that misclassification
+      // locked out members who hold the role). Only 404 — user genuinely not
+      // in the guild — is authoritative here.
+      if (!usingMemberToken && response.status !== 404) {
+        return { member: false, unavailable: true };
+      }
       return { member: false, unavailable: false };
     }
 

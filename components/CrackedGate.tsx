@@ -13,7 +13,14 @@ import SupportLink from "@/components/SupportLink";
  * Reversible: delete this file, drop the CrackedGate import + `error` prop
  * usage in LoginCard.tsx, and remove `searchParams` from app/page.tsx.
  */
-export default function CrackedGate({ code }: { code?: string }) {
+export default function CrackedGate({
+  code,
+  signOutAction,
+}: {
+  code?: string;
+  /** Server action that signs out then lands on a clean login page. */
+  signOutAction?: () => Promise<void>;
+}) {
   return (
     <motion.div
       style={{
@@ -108,13 +115,28 @@ export default function CrackedGate({ code }: { code?: string }) {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 1.25 }}
         >
-          <Link
-            href="/"
-            className="btn-discord"
-            style={{ padding: "12px 26px", textDecoration: "none" }}
-          >
-            Try Again
-          </Link>
+          {signOutAction ? (
+            /* Sign out first — a still-signed-in visitor who just followed a
+               plain "/" link would bounce straight back into the failing
+               dashboard and land here again. */
+            <form action={signOutAction}>
+              <button
+                type="submit"
+                className="btn-discord"
+                style={{ padding: "12px 26px" }}
+              >
+                Try Again
+              </button>
+            </form>
+          ) : (
+            <Link
+              href="/"
+              className="btn-discord"
+              style={{ padding: "12px 26px", textDecoration: "none" }}
+            >
+              Try Again
+            </Link>
+          )}
           <SupportLink>Get access help</SupportLink>
         </motion.div>
       </motion.div>

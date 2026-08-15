@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import {
   type RoleCheckResult,
@@ -35,9 +36,22 @@ export function authorizationErrorResponse(error: unknown): NextResponse {
   return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 }
 
-/** Lets pages redirect denied visitors without masking a temporary 503 outage. */
-export function rethrowTemporaryAuthorizationError(error: unknown): never | null {
-  if (error instanceof AuthorizationError && error.status === 503) throw error;
+/**
+ * Called by every dashboard page's `.catch(...)`. When Discord membership
+ * verification is temporarily unavailable (503), sending an uncaught error up
+ * to Next.js produces an unstyled 500 that Chrome displays as its own "server
+ * error occurred" screen — which reads to the user as "the whole site is
+ * down." Instead we redirect to the login page with an `?error=` query so the
+ * CrackedGate surface explains what happened; middleware skips its auto-
+ * `/` → `/dashboard` bounce when `error` is present, so no redirect loop.
+ *
+ * Returns null for non-temporary errors so the caller's own `redirect("/")`
+ * (401/403) still runs.
+ */
+export function rethrowTemporaryAuthorizationError(error: unknown): null {
+  if (error instanceof AuthorizationError && error.status === 503) {
+    redirect("/?error=Verification");
+  }
   return null;
 }
 

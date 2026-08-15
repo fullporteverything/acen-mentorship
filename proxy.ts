@@ -106,8 +106,15 @@ export default auth((req) => {
     }
   }
 
-  // Redirect logged-in users away from the login page
-  if (pathname === "/" && isLoggedIn) {
+  // Redirect logged-in users away from the login page — unless an `error`
+  // query is present. Dashboard pages redirect here with ?error=... when
+  // membership verification is temporarily unavailable; without this guard,
+  // that redirect loops right back to the failing dashboard.
+  if (
+    pathname === "/" &&
+    isLoggedIn &&
+    !req.nextUrl.searchParams.has("error")
+  ) {
     return withSecurityHeaders(NextResponse.redirect(new URL("/dashboard", req.url)), nonce);
   }
 

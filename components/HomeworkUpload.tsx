@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 
 interface HomeworkUploadProps {
   lessonId: string;
@@ -13,6 +13,10 @@ const MAX_BYTES = 20 * 1024 * 1024; // 20MB
  * Homework PDF uploader. Posts multipart FormData to
  * `/api/lessons/submit-homework`, then refreshes the server component so the
  * new submission + (possibly auto-approved) unlock state render.
+ *
+ * The refresh runs inside a transition so the button stays disabled — and the
+ * label stays on "Submitting…" — until the fresh server render lands. A second
+ * click during that window would file a duplicate version.
  */
 export default function HomeworkUpload({ lessonId }: HomeworkUploadProps) {
   const router = useRouter();
@@ -20,6 +24,8 @@ export default function HomeworkUpload({ lessonId }: HomeworkUploadProps) {
   const [fileName, setFileName] = useState<string>("");
   const [status, setStatus] = useState<"idle" | "uploading">("idle");
   const [error, setError] = useState<string>("");
+  const [submitted, setSubmitted] = useState(false);
+  const [refreshing, startTransition] = useTransition();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,94 +66,123 @@ export default function HomeworkUpload({ lessonId }: HomeworkUploadProps) {
       // Reset and refresh to pick up the new submission / unlock state.
       setFileName("");
       if (inputRef.current) inputRef.current.value = "";
-      router.refresh();
+      setSubmitted(true);
+      // Post-await state updates aren't automatically part of a transition, so
+      // the refresh is wrapped explicitly — `refreshing` stays true until the
+      // server components have re-rendered.
+      startTransition(() => {
+        setStatus("idle");
+        router.refresh();
+      });
     } catch {
       setError("Upload failed. Please try again.");
-    } finally {
       setStatus("idle");
     }
   }
 
-  const uploading = status === "uploading";
+  const uploading = status === "uploading" || refreshing;
 
   return (
-    <form onSubmit={handleSubmit} style={{ maxWidth: "520px" }}>
-      <p
-        style={{
-          fontSize: "12px",
-          letterSpacing: "2px",
-          color: "rgba(245,240,240,0.6)",
-          textTransform: "uppercase",
-          fontFamily: "Georgia, serif",
-          marginBottom: "12px",
-        }}
-      >
-        Upload your homework (PDF)
-      </p>
+    <>
+      {/* Live region stays mounted so the confirmation is announced the moment
+          it lands, and stays put until the refreshed status box takes over. */}
+      <div aria-live="polite" style={{ maxWidth: "520px" }}>
+        {submitted && (
+          <p
+            style={{
+              border: "1px solid rgba(232,160,160,0.45)",
+              background: "rgba(232,160,160,0.05)",
+              padding: "12px 16px",
+              marginBottom: "20px",
+              fontSize: "12px",
+              letterSpacing: "1px",
+              color: "#E8A0A0",
+              fontFamily: "Georgia, serif",
+            }}
+          >
+            Submitted — awaiting mentor review
+          </p>
+        )}
+      </div>
 
-      <label
-        style={{
-          display: "block",
-          border: "1px dashed rgba(232,160,160,0.3)",
-          background: "rgba(232,160,160,0.03)",
-          padding: "18px 20px",
-          cursor: "pointer",
-          fontFamily: "Georgia, serif",
-          marginBottom: "10px",
-        }}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,application/pdf"
-          onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")}
-          disabled={uploading}
-          style={{ display: "none" }}
-        />
-        <span
-          style={{
-            fontSize: "13px",
-            color: fileName ? "#F5F0F0" : "rgba(245,240,240,0.5)",
-          }}
-        >
-          {fileName || "Choose a PDF file…"}
-        </span>
-      </label>
-
-      <p
-        style={{
-          fontSize: "10px",
-          color: "rgba(245,240,240,0.35)",
-          fontFamily: "Georgia, serif",
-          letterSpacing: "1px",
-          marginBottom: "18px",
-        }}
-      >
-        PDF files only. Max 20MB.
-      </p>
-
-      {error && (
+      <form onSubmit={handleSubmit} style={{ maxWidth: "520px" }}>
         <p
           style={{
             fontSize: "12px",
-            color: "#E8807A",
+            letterSpacing: "2px",
+            color: "rgba(245,240,240,0.6)",
+            textTransform: "uppercase",
             fontFamily: "Georgia, serif",
-            fontStyle: "italic",
-            marginBottom: "16px",
+            marginBottom: "12px",
           }}
         >
-          {error}
+          Upload your homework (PDF)
         </p>
-      )}
 
-      <button
-        type="submit"
-        disabled={uploading}
-        className="btn-discord"
-        style={{ opacity: uploading ? 0.6 : 1 }}
-      >
-        {uploading ? "Submitting…" : "Submit Homework"}
-      </button>
-    </form>
+        <label
+          style={{
+            display: "block",
+            border: "1px dashed rgba(232,160,160,0.3)",
+            background: "rgba(232,160,160,0.03)",
+            padding: "18px 20px",
+            cursor: "pointer",
+            fontFamily: "Georgia, serif",
+            marginBottom: "10px",
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")}
+            disabled={uploading}
+            style={{ display: "none" }}
+          />
+          <span
+            style={{
+              fontSize: "13px",
+              color: fileName ? "#F5F0F0" : "rgba(245,240,240,0.5)",
+            }}
+          >
+            {fileName || "Choose a PDF file…"}
+          </span>
+        </label>
+
+        <p
+          style={{
+            fontSize: "10px",
+            color: "rgba(245,240,240,0.35)",
+            fontFamily: "Georgia, serif",
+            letterSpacing: "1px",
+            marginBottom: "18px",
+          }}
+        >
+          PDF files only. Max 20MB.
+        </p>
+
+        {error && (
+          <p
+            style={{
+              fontSize: "12px",
+              color: "#E8807A",
+              fontFamily: "Georgia, serif",
+              fontStyle: "italic",
+              marginBottom: "16px",
+            }}
+          >
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={uploading}
+          className="btn-discord"
+          style={{ opacity: uploading ? 0.6 : 1 }}
+        >
+          {uploading ? "Submitting…" : "Submit Homework"}
+        </button>
+      </form>
+    </>
   );
 }

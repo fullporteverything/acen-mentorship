@@ -12,16 +12,33 @@ type TradeTag = (typeof TRADE_TAGS)[number];
 
 type Preview = { file: File; url: string };
 
+/** What the journal page's `createEntry` server action reports back. */
+export type JournalCreateResult = {
+  ok: boolean;
+  reason?: "rate_limited" | "empty" | "unauthorized";
+  failedImages: number;
+};
+
+const FAILURE_MESSAGES: Record<
+  NonNullable<JournalCreateResult["reason"]>,
+  string
+> = {
+  rate_limited: "Too many entries this hour — your draft is saved on this device.",
+  empty: "Write something first.",
+  unauthorized: "Your session expired — sign in again to post.",
+};
+
 /**
  * Composer for a new Journal entry — client component so the "n / 5000" char
  * counter + image previews stay live. Sends body text and up to 4 trade
- * screenshots as multipart FormData to the server action, then clears itself.
+ * screenshots as multipart FormData to the server action, then clears itself
+ * only once the action confirms the entry actually landed.
  */
 export default function JournalComposer({
   action,
   draftKey,
 }: {
-  action: (formData: FormData) => Promise<{ failedImages: number }>;
+  action: (formData: FormData) => Promise<JournalCreateResult>;
   draftKey: string;
 }) {
   const [value, setValue] = useState("");
@@ -99,13 +116,22 @@ export default function JournalComposer({
     setWarning("");
     startTransition(async () => {
       const result = await action(fd);
+      if (!result?.ok) {
+        // The entry never landed — keep the text, tag and previews exactly
+        // where they are so nothing the member wrote is lost.
+        setError(
+          FAILURE_MESSAGES[result?.reason ?? "empty"] ??
+            "Could not post that entry — try again."
+        );
+        return;
+      }
       previews.forEach((p) => URL.revokeObjectURL(p.url));
       setPreviews([]);
       setValue("");
       setSelectedTag(null);
       window.localStorage.removeItem(draftKey);
       setError("");
-      const failed = result?.failedImages ?? 0;
+      const failed = result.failedImages ?? 0;
       setWarning(
         failed > 0
           ? `${failed} screenshot${failed === 1 ? "" : "s"} failed to upload — the entry was posted without them.`

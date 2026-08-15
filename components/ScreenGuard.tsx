@@ -13,9 +13,9 @@ interface ScreenGuardProps {
 
 const COPY = {
   1: {
-    title: "I can see you…",
-    line1: "Screen sharing or recording was detected.",
-    line2: "Don’t make that mistake again.",
+    title: "Hold there.",
+    line1: "Screen capture was blocked.",
+    line2: "Recording lesson material ends membership.",
   },
   2: {
     title: "Last chance.",
@@ -51,7 +51,18 @@ export default function ScreenGuard({
     if (isAdmin || !navigator.mediaDevices?.getDisplayMedia) return;
     const md = navigator.mediaDevices;
     const original = md.getDisplayMedia;
-    const patched = async (): Promise<MediaStream> => {
+    const patched = async (
+      ...args: Parameters<typeof original>
+    ): Promise<MediaStream> => {
+      // Let the browser raise its own picker first. Opening the picker is not
+      // an attempt — a member who hits Cancel gets that rejection passed
+      // straight back and is never struck for it. Only a RESOLVED promise
+      // means a capture actually started, and that is what we punish.
+      const stream = await original.call(md, ...args);
+      // Capture started: kill every track this instant so not one frame of
+      // lesson material is ever readable, then record the strike.
+      for (const track of stream.getTracks()) track.stop();
+
       const provisional = Math.min(3, strikes + 1) as 1 | 2 | 3;
       setStrikes(provisional);
       setWarning(provisional);
@@ -80,10 +91,17 @@ export default function ScreenGuard({
     if (!acknowledged || warning === 3) return;
     setSaving(true);
     try {
-      const response = await fetch("/api/security/acknowledge", { method: "POST" });
-      if (response.ok) setWarning(0);
+      await fetch("/api/security/acknowledge", { method: "POST" });
+    } catch {
+      // Swallowed deliberately — see below.
     } finally {
       setSaving(false);
+      // Dismiss whether or not the POST landed. The strike itself is already
+      // recorded server-side, and the next page load re-reads the real
+      // acknowledged count — so a dropped request costs us nothing, while
+      // holding the overlay open would trap the member behind a z-99999
+      // dialog with no way out but a hard reload.
+      setWarning(0);
     }
   }
 
@@ -113,13 +131,19 @@ export default function ScreenGuard({
                 />
                 <span>I acknowledge this warning</span>
               </label>
-              <button
-                type="button"
-                disabled={!acknowledged || saving}
-                onClick={continueAfterWarning}
-              >
-                {saving ? "Saving…" : "Continue"}
-              </button>
+              {/* Phone stacking for this row lives in globals.css (≤760px). */}
+              <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                <button
+                  type="button"
+                  disabled={!acknowledged || saving}
+                  onClick={continueAfterWarning}
+                >
+                  {saving ? "Saving…" : "Continue"}
+                </button>
+                {/* Detection can only see that a capture started, never who
+                    started it. Give a wrongly-struck member a way to say so. */}
+                <SupportLink>This wasn’t me — get help</SupportLink>
+              </div>
             </div>
           ) : (
             <p className="security-strike-support">

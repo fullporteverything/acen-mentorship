@@ -1,13 +1,7 @@
 import Link from "next/link";
 
 import type { HomeworkArchiveItem } from "@/lib/homework-archive";
-
-const STATUS_LABELS: Record<HomeworkArchiveItem["status"], string> = {
-  pending: "Pending review",
-  approved: "Approved",
-  rejected: "Needs revision",
-  revision_requested: "Needs revision",
-};
+import { STATUS_LABELS } from "@/lib/status-labels";
 
 export default function HomeworkArchive({
   items,
@@ -68,7 +62,8 @@ export default function HomeworkArchive({
         <div className="homework-archive-groups">
           {[...groups.entries()].map(([lessonId, group]) => (
             <section className="homework-archive-group" key={lessonId}>
-              <h2>{group.title}</h2>
+              {/* Heading doubles as the way back to the lesson this homework came from. */}
+              <h2><Link href={`/dashboard/lessons/${lessonId}`}>{group.title}</Link></h2>
               <div className="homework-archive-list">
                 {group.items.map((item) => (
                   <article className="homework-archive-row homework-archive-row-full" key={item.id}>

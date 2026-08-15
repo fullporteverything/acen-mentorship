@@ -1,13 +1,23 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as tus from "tus-js-client";
+import {
+  announceVideoUploaded,
+  assignVideoToLesson,
+  hasProcessingVideo,
+  loadVideoLibrary,
+  PROCESSING_POLL_MS,
+  type VideoLibraryData,
+} from "@/lib/video-library-client";
 
 /**
  * Kinescope direct uploader (admin only).
  *
  * Flow: ask our server for a one-time tus endpoint, then push the file directly
- * to Kinescope. On success the returned video ID stays copyable for assignment.
+ * to Kinescope. On success the returned video ID stays copyable for assignment,
+ * and the same box carries the new row's live state plus the lesson picker — so
+ * an upload can be bound to a lesson without scrolling down to the library.
  */
 export default function VideoUpload() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -18,6 +28,36 @@ export default function VideoUpload() {
   const [uid, setUid] = useState("");
   const [copied, setCopied] = useState(false);
   const [captionState, setCaptionState] = useState<"idle" | "requesting" | "queued" | "failed">("idle");
+  // Library snapshot taken after the upload — supplies the row state shown in
+  // the result box and the lessons offered by the picker below it.
+  const [library, setLibrary] = useState<VideoLibraryData | null>(null);
+  const [lessonId, setLessonId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignMessage, setAssignMessage] = useState("");
+
+  const row = library?.videos.find((video) => video.id === uid) ?? null;
+  const lessons = library?.lessons ?? [];
+  // Keep re-reading while the row is mid-transcode — and also while we have an
+  // upload but no row yet, which covers a failed fetch or a list that hasn't
+  // caught up. Once the row settles the polling stops on its own.
+  const processing = uid !== "" && (row === null || hasProcessingVideo([row]));
+
+  const refreshLibrary = useCallback(async () => {
+    try {
+      setLibrary(await loadVideoLibrary());
+    } catch {
+      // The ID above stays copyable, and the Video Library section below
+      // carries its own retry — a failed status read is not worth an alarm.
+    }
+  }, []);
+
+  // Transcoding finishes on Kinescope's clock, so re-read the row until it
+  // settles rather than making the admin reload to find out.
+  useEffect(() => {
+    if (!processing) return;
+    const timer = setInterval(() => void refreshLibrary(), PROCESSING_POLL_MS);
+    return () => clearInterval(timer);
+  }, [processing, refreshLibrary]);
 
   /**
    * tus errors stringify into a wall of request/response detail. Keep the first
@@ -39,6 +79,9 @@ export default function VideoUpload() {
     setUid("");
     setCopied(false);
     setCaptionState("idle");
+    setLibrary(null);
+    setLessonId("");
+    setAssignMessage("");
 
     const file = inputRef.current?.files?.[0];
     if (!file) {
@@ -100,6 +143,10 @@ export default function VideoUpload() {
       setProgress(100);
       setFileName("");
       if (inputRef.current) inputRef.current.value = "";
+      // Pull the row in for the panel below, and tell any library list on the
+      // page to refetch so the new video shows up without a reload.
+      void refreshLibrary();
+      announceVideoUploaded(newUid);
       setCaptionState("requesting");
       fetch("/api/admin/video-captions", {
         method: "POST",
@@ -124,7 +171,38 @@ export default function VideoUpload() {
     }
   }
 
+  /**
+   * Same lesson-overrides write the library rows use. Assigning is allowed while
+   * the video is still transcoding — the lesson simply stays "coming soon" until
+   * Kinescope reports it playable, which saves a second trip to this page.
+   */
+  async function assign() {
+    const lesson = lessons.find((item) => item.id === lessonId);
+    if (!lesson) return;
+    setAssigning(true);
+    setAssignMessage("");
+    try {
+      setLibrary(await assignVideoToLesson(uid, lessonId));
+      setAssignMessage(`Assigned to ${lesson.title}.`);
+      // Same refetch signal — the library's copy of this row just changed too.
+      announceVideoUploaded(uid);
+    } catch (err) {
+      setAssignMessage(
+        err instanceof Error ? err.message : "Assignment failed — retry."
+      );
+    } finally {
+      setAssigning(false);
+    }
+  }
+
   const uploading = status === "uploading";
+  const rowState = !row
+    ? "Reading status…"
+    : row.error
+      ? "Processing failed"
+      : row.ready
+        ? "Ready to assign"
+        : `Processing${row.progress !== null ? ` · ${Math.round(row.progress)}%` : ""}`;
 
   return (
     <section style={cardStyle}>
@@ -276,19 +354,21 @@ export default function VideoUpload() {
                 {copied ? "Copied" : "Copy"}
               </button>
             </div>
-            <p
-              style={{
-                fontSize: "11px",
-                color: "rgba(245,240,240,0.45)",
-                fontFamily: "Georgia, serif",
-                fontStyle: "italic",
-                marginTop: "10px",
-                lineHeight: 1.7,
-              }}
-            >
-              Upload complete. Kinescope is processing the video now; it will
-              appear as ready in the library when playback is available.
+            <p style={{ marginTop: "12px" }}>
+              <span style={tinyLabel}>State</span>
+              <span
+                className={`video-state ${
+                  row?.error ? "error" : row?.ready ? "ready" : "processing"
+                }`}
+              >
+                {rowState}
+              </span>
             </p>
+            {processing && (
+              <p style={{ ...uploadNote, marginTop: "8px" }}>
+                Processing — refreshes automatically
+              </p>
+            )}
             <p
               style={{
                 fontSize: "10px",
@@ -305,6 +385,66 @@ export default function VideoUpload() {
                   ? "Video is safe; captions could not be queued yet. Retry from Kinescope."
                   : "Requesting automatic English captions…"}
             </p>
+
+            {/* Assign right here — no need to scroll to the library below. */}
+            <div
+              style={{
+                marginTop: "16px",
+                paddingTop: "16px",
+                borderTop: "1px solid rgba(232,160,160,0.15)",
+              }}
+            >
+              <p style={{ ...tinyLabel, display: "block", marginBottom: "10px" }}>
+                Assign to lesson
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <select
+                  value={lessonId}
+                  onChange={(event) => setLessonId(event.target.value)}
+                  disabled={!library || assigning}
+                  aria-label="Assign the uploaded video to a lesson"
+                  style={{
+                    minWidth: "220px",
+                    padding: "8px 10px",
+                    background: "#080606",
+                    color: "#F5F0F0",
+                    border: "1px solid rgba(232,160,160,0.25)",
+                    fontFamily: "Georgia, serif",
+                  }}
+                >
+                  <option value="">
+                    {library ? "Choose lesson…" : "Loading lessons…"}
+                  </option>
+                  {lessons.map((lesson) => (
+                    <option key={lesson.id} value={lesson.id}>
+                      {lesson.title}
+                      {lesson.videoId ? " · has video" : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={assign}
+                  disabled={!lessonId || assigning}
+                  style={{
+                    ...secondaryButton,
+                    opacity: !lessonId || assigning ? 0.45 : 1,
+                  }}
+                >
+                  {assigning ? "Assigning…" : "Assign to lesson"}
+                </button>
+              </div>
+              {assignMessage && (
+                <p style={{ ...uploadNote, marginTop: "9px" }}>{assignMessage}</p>
+              )}
+            </div>
           </div>
         )}
 
@@ -338,6 +478,34 @@ const sectionLabel: React.CSSProperties = {
   textTransform: "uppercase",
   fontFamily: "Georgia, serif",
   marginBottom: "18px",
+};
+
+const tinyLabel: React.CSSProperties = {
+  fontSize: "10px",
+  letterSpacing: "3px",
+  color: "rgba(232,160,160,0.7)",
+  textTransform: "uppercase",
+  fontFamily: "Georgia, serif",
+};
+
+const uploadNote: React.CSSProperties = {
+  fontSize: "11px",
+  color: "rgba(245,240,240,0.5)",
+  fontFamily: "Georgia, serif",
+  fontStyle: "italic",
+};
+
+/** Matches the quiet action buttons on the library rows below. */
+const secondaryButton: React.CSSProperties = {
+  padding: "8px 12px",
+  background: "transparent",
+  color: "#E8A0A0",
+  border: "1px solid rgba(232,160,160,0.35)",
+  fontFamily: "Georgia, serif",
+  fontSize: "9px",
+  letterSpacing: "1px",
+  textTransform: "uppercase",
+  cursor: "pointer",
 };
 
 const cardStyle: React.CSSProperties = {

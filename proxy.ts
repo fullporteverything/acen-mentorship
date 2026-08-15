@@ -46,7 +46,11 @@ export default auth((req) => {
 
   // Skip browser check for API routes and static assets
   const isApi = pathname.startsWith("/api");
-  if (!isApi && !isChrome(req)) {
+  // …and for the help desk. A blocked visitor has to be able to reach the one
+  // page that explains how to get unblocked — without this the "Get help" link
+  // on the 403 card below would itself 403.
+  const isSupport = pathname === "/support" || pathname.startsWith("/support/");
+  if (!isApi && !isSupport && !isChrome(req)) {
     return withSecurityHeaders(new NextResponse(
       `<!DOCTYPE html>
 <html lang="en">
@@ -77,6 +81,7 @@ export default auth((req) => {
     p { font-size: 13px; color: rgba(245,240,240,0.55); line-height: 1.8; font-style: italic; }
     .rule { width: 40px; height: 1px; background: linear-gradient(90deg, transparent, #E8A0A0, transparent); margin: 24px auto; }
     a { color: #E8A0A0; text-decoration: none; font-style: normal; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }
+    .links { display: flex; gap: 24px; align-items: center; justify-content: center; flex-wrap: wrap; }
   </style>
 </head>
 <body>
@@ -86,7 +91,10 @@ export default auth((req) => {
     <div class="rule"></div>
     <p>This platform requires Google Chrome.<br />Please open it in Chrome to continue.</p>
     <div class="rule"></div>
-    <a href="https://www.google.com/chrome/" target="_blank">Download Chrome</a>
+    <div class="links">
+      <a href="https://www.google.com/chrome/" target="_blank">Download Chrome</a>
+      <a href="/support">Get help</a>
+    </div>
   </div>
 </body>
 </html>`,

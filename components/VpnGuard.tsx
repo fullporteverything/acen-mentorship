@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import SupportLink from "@/components/SupportLink";
 
 interface VpnGuardProps {
   children: React.ReactNode;
 }
+
+const CACHE_KEY = "dojo:vpnCheck";
+const CACHE_TTL = 30 * 60 * 1000; // re-check at most once every 30 min per browser
 
 /**
  * Blocks access when the request appears to originate from a VPN / proxy /
@@ -13,48 +17,72 @@ interface VpnGuardProps {
  */
 export default function VpnGuard({ children }: VpnGuardProps) {
   const [blocked, setBlocked] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
+  const live = useRef(true);
 
   useEffect(() => {
-    const KEY = "dojo:vpnCheck";
-    const TTL = 30 * 60 * 1000; // re-check at most once every 30 min per browser
-
-    // Reuse a recent result so we don't hit the endpoint on every navigation.
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const c = JSON.parse(raw) as { blocked: boolean; at: number };
-        if (c && typeof c.at === "number" && Date.now() - c.at < TTL) {
-          setBlocked(c.blocked === true);
-          if (!c.blocked) return;
-        }
-      }
-    } catch {
-      // ignore malformed cache
-    }
-
-    let cancelled = false;
-    fetch("/api/security/check-ip")
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        // The server-authenticated admin override is explicit and clears any
-        // stale client-side block cache; it never creates a capture strike.
-        const b = data?.state === "overridden" ? false : data?.blocked === true;
-        setBlocked(b);
-        try {
-          localStorage.setItem(KEY, JSON.stringify({ blocked: b, at: Date.now() }));
-        } catch {
-          // ignore
-        }
-      })
-      .catch(() => {
-        // Fail open — never lock out a legitimate member on a network error.
-        if (!cancelled) setBlocked(false);
-      });
+    live.current = true;
     return () => {
-      cancelled = true;
+      live.current = false;
     };
   }, []);
+
+  const runCheck = useCallback(async (ignoreCache: boolean) => {
+    if (ignoreCache) {
+      // "Check again" means exactly that — a stale block must not answer for
+      // the network the member just switched off.
+      try {
+        localStorage.removeItem(CACHE_KEY);
+      } catch {
+        // ignore
+      }
+    } else {
+      // Reuse a recent result so we don't hit the endpoint on every navigation.
+      try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (raw) {
+          const c = JSON.parse(raw) as { blocked: boolean; at: number };
+          if (c && typeof c.at === "number" && Date.now() - c.at < CACHE_TTL) {
+            if (live.current) setBlocked(c.blocked === true);
+            if (!c.blocked) return;
+          }
+        }
+      } catch {
+        // ignore malformed cache
+      }
+    }
+
+    try {
+      const res = await fetch("/api/security/check-ip", { cache: "no-store" });
+      const data = await res.json();
+      if (!live.current) return;
+      // The server-authenticated admin override is explicit and clears any
+      // stale client-side block cache; it never creates a capture strike.
+      const b = data?.state === "overridden" ? false : data?.blocked === true;
+      setBlocked(b);
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ blocked: b, at: Date.now() }));
+      } catch {
+        // ignore
+      }
+    } catch {
+      // Fail open — never lock out a legitimate member on a network error.
+      if (live.current) setBlocked(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void runCheck(false);
+  }, [runCheck]);
+
+  async function recheck() {
+    setRechecking(true);
+    try {
+      await runCheck(true);
+    } finally {
+      if (live.current) setRechecking(false);
+    }
+  }
 
   if (blocked) {
     return (
@@ -84,7 +112,7 @@ export default function VpnGuard({ children }: VpnGuardProps) {
             marginBottom: "20px",
           }}
         >
-          Access Denied
+          Network Blocked
         </h1>
         <div
           style={{
@@ -107,6 +135,45 @@ export default function VpnGuard({ children }: VpnGuardProps) {
           }}
         >
           VPN or proxy detected. Disable your VPN to continue.
+        </p>
+        {/* The lookup can't tell a VPN from a relay or a mobile gateway, so
+            say so rather than letting an honest member think they're accused
+            of hiding something. */}
+        <p
+          style={{
+            marginTop: "14px",
+            fontFamily: "Georgia, serif",
+            color: "rgba(245,240,240,0.34)",
+            fontStyle: "italic",
+            fontSize: "12px",
+            maxWidth: "380px",
+            lineHeight: 1.7,
+          }}
+        >
+          iCloud Private Relay and some carrier networks can trigger this too.
+        </p>
+        <button
+          type="button"
+          onClick={recheck}
+          disabled={rechecking}
+          style={{
+            marginTop: "26px",
+            padding: "11px 22px",
+            background: "transparent",
+            border: "1px solid rgba(232,160,160,0.45)",
+            color: "#E8A0A0",
+            fontFamily: "Georgia, serif",
+            fontSize: "10px",
+            letterSpacing: "2px",
+            textTransform: "uppercase",
+            cursor: rechecking ? "default" : "pointer",
+            opacity: rechecking ? 0.4 : 1,
+          }}
+        >
+          {rechecking ? "Checking…" : "Check again"}
+        </button>
+        <p style={{ marginTop: "20px" }}>
+          <SupportLink>Not using a VPN? Get help</SupportLink>
         </p>
       </div>
     );

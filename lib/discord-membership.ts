@@ -4,6 +4,14 @@ export interface RoleCheckResult {
   member: boolean;
   /** True only when Discord could not provide an authoritative answer. */
   unavailable: boolean;
+  /**
+   * Why a non-member was refused, when Discord told us enough to say. Purely
+   * additive — `member` / `unavailable` keep their existing meaning, and
+   * callers that don't care (authz.ts) can ignore this entirely. Used by the
+   * sign-in callback to send the visitor to a denial page that names the
+   * actual problem instead of a flat "access denied".
+   */
+  reason?: "not_in_server" | "role_missing" | "unavailable";
 }
 
 const DISCORD_API_TIMEOUT_MS = 5_000;
@@ -21,7 +29,7 @@ export async function verifyDiscordMembership(
   const botToken = process.env.DISCORD_BOT_TOKEN;
 
   if (!guildId || !requiredRoleId || (!accessToken && !botToken)) {
-    return { member: false, unavailable: true };
+    return { member: false, unavailable: true, reason: "unavailable" };
   }
 
   const usingMemberToken = Boolean(accessToken);
@@ -39,7 +47,7 @@ export async function verifyDiscordMembership(
     });
 
     if (response.status === 429 || response.status >= 500) {
-      return { member: false, unavailable: true };
+      return { member: false, unavailable: true, reason: "unavailable" };
     }
     if (!response.ok) {
       // Bot-token mode: 401 (token invalid/rotated) and 403 (bot kicked from
@@ -49,18 +57,28 @@ export async function verifyDiscordMembership(
       // locked out members who hold the role). Only 404 — user genuinely not
       // in the guild — is authoritative here.
       if (!usingMemberToken && response.status !== 404) {
-        return { member: false, unavailable: true };
+        return { member: false, unavailable: true, reason: "unavailable" };
       }
-      return { member: false, unavailable: false };
+      // Authoritative "this Discord account is not in the guild" — on the
+      // Bearer path any non-ok that got here means the member endpoint found
+      // no guild membership for the token's owner.
+      return { member: false, unavailable: false, reason: "not_in_server" };
     }
 
     const member = (await response.json()) as { roles?: unknown };
+    const roles = Array.isArray(member.roles) ? member.roles : null;
+    if (roles?.includes(requiredRoleId)) {
+      return { member: true, unavailable: false };
+    }
     return {
-      member:
-        Array.isArray(member.roles) && member.roles.includes(requiredRoleId),
+      member: false,
       unavailable: false,
+      // They ARE in the guild (Discord returned a member object) — the
+      // required role just isn't on the account. A malformed payload with no
+      // roles array stays reasonless so callers fall back to generic copy.
+      ...(roles ? { reason: "role_missing" as const } : {}),
     };
   } catch {
-    return { member: false, unavailable: true };
+    return { member: false, unavailable: true, reason: "unavailable" };
   }
 }

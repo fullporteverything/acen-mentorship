@@ -17,6 +17,7 @@ import { buildEffectiveLessons } from "@/lib/lessons-config";
 import {
   buildCoreLearningSummary,
   buildOverviewStats,
+  countPendingHomework,
 } from "@/lib/overview-stats";
 import SupportLink from "@/components/SupportLink";
 import MyHomeworkCard from "@/components/MyHomeworkCard";
@@ -26,6 +27,13 @@ export const dynamic = "force-dynamic";
 
 // Subtle kanji used as decorative corner/accent elements
 const KANJI_ACCENTS = ["道", "剣", "心", "武", "礼", "修", "練", "気"];
+
+// Where each overview stat card sends you when tapped.
+const STAT_CARD_HREFS: Record<string, string> = {
+  Lectures: "/dashboard/lessons",
+  Journal: "/dashboard/journal",
+  Homework: "/dashboard/homework",
+};
 
 export default async function DashboardPage() {
   const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error) ?? redirect("/"));
@@ -57,6 +65,7 @@ export default async function DashboardPage() {
     totalLessons: coreProgress.totalLessons,
     completedLessons: coreProgress.completedLessons,
     journalEntries: journal.length,
+    pendingHomework: countPendingHomework(progress.submissions),
   });
 
   return (
@@ -137,12 +146,7 @@ export default async function DashboardPage() {
         {/* Stats cards */}
         <div className="overview-stats-grid">
           {overviewStats.map((card) => {
-            const href =
-              card.label === "Lectures"
-                ? "/dashboard/lessons"
-                : card.label === "Journal"
-                  ? "/dashboard/journal"
-                  : "/dashboard";
+            const href = STAT_CARD_HREFS[card.label] ?? "/dashboard";
             return (
             <Link
               key={card.label}

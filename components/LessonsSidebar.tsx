@@ -129,10 +129,18 @@ export default function LessonsSidebar({
     if (isSaving || !active || active.group !== groupName) return;
     if (active.id === targetId) return;
 
+    // Both indexes come from the ORIGINAL order — comparing them is what tells
+    // us the drag direction. Mixing an original index into the already-filtered
+    // array is what used to land downward drags one slot past the drop line.
+    const sourceIndex = sectionIds.indexOf(active.id);
     const targetIndex = sectionIds.indexOf(targetId);
-    if (targetIndex < 0 || !sectionIds.includes(active.id)) return;
+    if (sourceIndex < 0 || targetIndex < 0) return;
+
     const next = sectionIds.filter((id) => id !== active.id);
-    next.splice(targetIndex, 0, active.id);
+    // Dragging down lands below the highlighted row, dragging up lands above
+    // it — matching the edge the insertion line is drawn on.
+    const anchor = next.indexOf(targetId);
+    next.splice(sourceIndex < targetIndex ? anchor + 1 : anchor, 0, active.id);
     saveOrder(groupName, next);
   }
 
@@ -307,6 +315,13 @@ export default function LessonsSidebar({
                   dragging !== null &&
                   dragging.group === group.group &&
                   dragging.id !== s.lesson.id;
+                // The line marks where the row will actually land: below the
+                // target when dragging down, above it when dragging up.
+                const dropsBelow =
+                  isDropTarget &&
+                  dragging !== null &&
+                  sectionIds.indexOf(dragging.id) <
+                    sectionIds.indexOf(s.lesson.id);
 
                 return (
                   <div
@@ -358,7 +373,9 @@ export default function LessonsSidebar({
                         : "2px solid transparent",
                       // Insertion line is an inset shadow so nothing reflows.
                       boxShadow: isDropTarget
-                        ? "inset 0 2px 0 #E8A0A0"
+                        ? dropsBelow
+                          ? "inset 0 -2px 0 #E8A0A0"
+                          : "inset 0 2px 0 #E8A0A0"
                         : undefined,
                       opacity: isDragged ? 0.4 : isSaving && isAdmin ? 0.6 : 1,
                       transition: "opacity 0.15s ease",

@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { requireMemberOrResponse } from "@/lib/authz";
 import { allowMutation } from "@/lib/mutation-security";
 import {
+  getAddedLessons,
   getAnnouncements,
+  getLessonOverrides,
   getSeenNotifications,
   getViewerProgress,
   markNotificationsSeen,
 } from "@/lib/lesson-store";
+import { buildEffectiveLessons } from "@/lib/lessons-config";
 import { getJournal } from "@/lib/journal-store";
 import { getSecurityMembers } from "@/lib/security-store";
 
@@ -24,14 +27,30 @@ export async function GET() {
   const identity = await requireMemberOrResponse();
   if (identity instanceof Response) return identity;
   const { discordId } = identity;
-  const [announcements, progress, journal, securityMembers, seen] =
-    await Promise.all([
-      getAnnouncements(),
-      getViewerProgress(discordId),
-      getJournal(discordId),
-      getSecurityMembers(),
-      getSeenNotifications(discordId),
-    ]);
+  const [
+    announcements,
+    progress,
+    journal,
+    securityMembers,
+    seen,
+    addedLessons,
+    overrides,
+  ] = await Promise.all([
+    getAnnouncements(),
+    getViewerProgress(discordId),
+    getJournal(discordId),
+    getSecurityMembers(),
+    getSeenNotifications(discordId),
+    getAddedLessons(),
+    getLessonOverrides(),
+  ]);
+  // Members know their lessons by title — "lesson-7" means nothing to them.
+  const lessonTitles = new Map(
+    buildEffectiveLessons(addedLessons, overrides).map((lesson) => [
+      lesson.id,
+      lesson.title,
+    ])
+  );
   const items: NotificationItem[] = announcements.map((announcement) => ({
     id: `announcement:${announcement.id}`,
     type: "announcement",
@@ -41,11 +60,18 @@ export async function GET() {
   }));
   for (const [lessonId, submission] of Object.entries(progress.submissions)) {
     if (submission.status === "pending") continue;
+    const lessonTitle = lessonTitles.get(lessonId) ?? lessonId;
+    const decision =
+      submission.status === "approved" ? "approved" : "needs revision";
     items.push({
       id: `homework:${lessonId}:${submission.reviewedAt || submission.submittedAt}:${submission.status}`,
       type: "homework",
-      title: `Homework ${submission.status}`,
-      body: submission.feedback || `${lessonId} has been ${submission.status}.`,
+      title: `Homework ${decision}`,
+      body:
+        submission.feedback ||
+        (submission.status === "approved"
+          ? `${lessonTitle} has been approved.`
+          : `${lessonTitle} needs revision.`),
       createdAt: submission.reviewedAt || submission.submittedAt,
     });
   }

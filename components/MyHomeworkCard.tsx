@@ -1,13 +1,7 @@
 import Link from "next/link";
 
 import type { HomeworkArchiveItem } from "@/lib/homework-archive";
-
-const STATUS_LABELS: Record<HomeworkArchiveItem["status"], string> = {
-  pending: "Pending review",
-  approved: "Approved",
-  rejected: "Needs revision",
-  revision_requested: "Needs revision",
-};
+import { STATUS_LABELS } from "@/lib/status-labels";
 
 export default function MyHomeworkCard({ items, error = false }: { items: HomeworkArchiveItem[]; error?: boolean }) {
   return (
@@ -34,7 +28,7 @@ export default function MyHomeworkCard({ items, error = false }: { items: Homewo
           {items.slice(0, 3).map((item) => (
             <article className="homework-archive-row" key={item.id}>
               <div className="homework-archive-row-copy">
-                <h3>{item.lessonTitle}</h3>
+                <h3><Link href={`/dashboard/lessons/${item.lessonId}`}>{item.lessonTitle}</Link></h3>
                 <p>
                   Version {item.version} · {new Date(item.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
                 </p>

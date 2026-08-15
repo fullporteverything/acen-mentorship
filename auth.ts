@@ -29,7 +29,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         discordId,
         account.access_token
       );
-      return roleCheck.member;
+      if (roleCheck.member) return true;
+
+      // A bare `false` collapses every refusal into NextAuth's generic
+      // AccessDenied, which told the visitor nothing. Auth.js v5 lets this
+      // callback return a redirect URL instead — so the login page can say
+      // whether they need to JOIN the server or just wait on the role.
+      switch (roleCheck.reason) {
+        case "not_in_server":
+          return "/?error=NotInServer";
+        case "role_missing":
+          return "/?error=RoleMissing";
+        case "unavailable":
+          return "/?error=Verification";
+        default:
+          return "/?error=AccessDenied";
+      }
     },
     async session({ session, token }) {
       if (token?.sub) {

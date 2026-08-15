@@ -28,6 +28,7 @@ import { isKinescopeVideoId } from "@/lib/video-id";
 import { getVideoPlayback } from "@/lib/video-status";
 import { autoPassedLessonIds } from "@/lib/progress-link";
 import { getWatchProgressByLesson } from "@/lib/watch-progress-store";
+import { STATUS_LABELS } from "@/lib/status-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,23 @@ const STATUS_COLORS: Record<SubmissionStatus, string> = {
   approved: "#8FD19E", // green
   rejected: "#E8807A", // red
 };
+
+/**
+ * Day-granularity "how long has this been sitting there" stamp for the pending
+ * wait line. Computed on the server so it doesn't flicker on hydration.
+ */
+function relativeDay(iso: string): string {
+  const submitted = new Date(iso);
+  if (Number.isNaN(submitted.getTime())) return "recently";
+  const midnight = (date: Date) =>
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const days = Math.round(
+    (midnight(new Date()) - midnight(submitted)) / 86_400_000
+  );
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days} days ago`;
+}
 
 /**
  * Href for a stored homework PDF. New submissions store a blob PATHNAME served
@@ -372,7 +390,7 @@ export default async function LessonPage({
                           letterSpacing: "2px",
                         }}
                       >
-                        {submission.status}
+                        {STATUS_LABELS[submission.status]}
                       </span>
                     </p>
                     {submission.feedback && (
@@ -389,6 +407,25 @@ export default async function LessonPage({
                       </p>
                     )}
                   </div>
+                )}
+
+                {/* Pending wait — says who is holding the ball and how the
+                    decision comes back, so silence doesn't read as a bug. */}
+                {submission?.status === "pending" && (
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "rgba(245,240,240,0.55)",
+                      fontFamily: "Georgia, serif",
+                      fontStyle: "italic",
+                      lineHeight: 1.7,
+                      marginTop: "-16px",
+                      marginBottom: "28px",
+                    }}
+                  >
+                    Submitted {relativeDay(submission.submittedAt)} — your mentor
+                    reviews it here. You’ll get a Notice when it’s decided.
+                  </p>
                 )}
 
                 {/* Approved banner */}

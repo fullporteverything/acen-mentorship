@@ -3,6 +3,7 @@ import {
   buildCoreLearningSummary,
   buildOverviewStats,
   countCoreLessonProgress,
+  countPendingHomework,
 } from "./overview-stats";
 
 describe("buildOverviewStats", () => {
@@ -64,17 +65,18 @@ describe("buildOverviewStats", () => {
     ).toEqual({ totalLessons: 1, completedLessons: 1 });
   });
 
-  it("reports real lecture totals, completed lectures, and journal entries", () => {
+  it("reports real lecture totals, completed lectures, journal entries, and pending homework", () => {
     expect(
       buildOverviewStats({
         totalLessons: 12,
         completedLessons: 4,
         journalEntries: 3,
+        pendingHomework: 2,
       })
     ).toEqual([
       { label: "Lectures", value: "12", sub: "4 completed", kanji: "修" },
       { label: "Journal", value: "3", sub: "entries", kanji: "念" },
-      { label: "Access", value: "Active", sub: "Private member", kanji: "礼" },
+      { label: "Homework", value: "2", sub: "awaiting review", kanji: "文" },
     ]);
   });
 
@@ -84,11 +86,40 @@ describe("buildOverviewStats", () => {
         totalLessons: 2,
         completedLessons: 9,
         journalEntries: 1,
+        pendingHomework: -3,
       })
     ).toEqual([
       { label: "Lectures", value: "2", sub: "2 completed", kanji: "修" },
       { label: "Journal", value: "1", sub: "entry", kanji: "念" },
-      { label: "Access", value: "Active", sub: "Private member", kanji: "礼" },
+      { label: "Homework", value: "0", sub: "all reviewed", kanji: "文" },
     ]);
+  });
+
+  it("reads the homework card as all reviewed when nothing is pending", () => {
+    expect(
+      buildOverviewStats({
+        totalLessons: 1,
+        completedLessons: 1,
+        journalEntries: 0,
+        pendingHomework: 0,
+      }).at(-1)
+    ).toEqual({ label: "Homework", value: "0", sub: "all reviewed", kanji: "文" });
+  });
+});
+
+describe("countPendingHomework", () => {
+  it("counts only submissions still awaiting a mentor decision", () => {
+    expect(
+      countPendingHomework({
+        "lesson-1": { status: "approved" },
+        "lesson-2": { status: "pending" },
+        "lesson-3": { status: "rejected" },
+        "lesson-4": { status: "pending" },
+      })
+    ).toBe(2);
+  });
+
+  it("returns zero for a member with no submissions", () => {
+    expect(countPendingHomework({})).toBe(0);
   });
 });

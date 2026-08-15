@@ -31,11 +31,13 @@ body {
   line-height: 1.5;
 }
 
-/* Scrollable pages (dashboard) */
+/* Scrollable pages (dashboard). `dvh` tracks mobile browser chrome as it
+   collapses; the `vh` line above it is the fallback for engines without it. */
 .scrollable {
   overflow-y: auto;
   overflow-x: hidden;
   height: 100vh;
+  height: 100dvh;
 }
 
 /* Burgundy text utility */
@@ -134,6 +136,34 @@ body {
   width: 100%;
 }
 
+/* Phone tier: the 64/56 gutters clip a 375px screen, and a short viewport
+   (landscape, or a keyboard shoved up) leaves the card with nowhere to go.
+
+   The login <main> belongs to app/page.tsx, which sets `height: 100vh;
+   overflow: hidden` inline and carries no class of its own — so it's reached
+   here through the card it wraps. `main` keeps a viewport-height box and
+   becomes the scroller itself, which leaves <body>'s own overflow lock (and
+   the fixed sakura canvas behind it) untouched. `margin: auto 0` on the card
+   centres it without the flex-centring overflow trap that would put the top
+   of a too-tall card out of scroll reach.
+
+   REVIEWER: app/page.tsx change needed if you'd rather not lean on `:has()` —
+   give that <main> a class (e.g. `login-page`) and swap the selector below;
+   the inline height/overflow would then no longer need `!important`. */
+@media (max-width: 560px) {
+  .login-card {
+    padding: 40px 24px;
+    max-width: calc(100vw - 32px);
+    margin: auto 0;
+  }
+  main:has(> .login-card) {
+    height: 100dvh !important;
+    overflow-y: auto !important;
+    align-items: flex-start !important;
+    padding: 20px 0;
+  }
+}
+
 /* Dashboard top navigation — height + gutter reserved by .topnav-page */
 .topnav {
   height: 76px;
@@ -227,24 +257,78 @@ body {
   50% { opacity: 1; }
 }
 
-/* Phone tier: tuck the brand subtitle, tighten the nav, and pull dashboard
-   content padding in. `.dash-main` overrides the pages' inline side padding. */
+/* Phone tier: the single row can't hold a 52px mark, a wordmark, four links
+   and the action cluster — below 560px it was squeezing the links into a ~30px
+   invisible scroller. So the bar reflows into two rows *inside the same 76px
+   height* (pages hard-code `marginTop: 76px`, so the height must not move):
+
+     row 1  [ Φ ]                    [ notice · avatar · sign out ]
+     row 2  [ Overview  Lessons  Journal  Homework                ]
+
+   The wordmark and username drop out, the mark shrinks, and the links get the
+   full width — four of them clear 360px with room to spare. Dashboard content
+   padding pulls in too; `.dash-main` overrides the pages' inline side padding. */
 @media (max-width: 560px) {
   .dash-main {
     padding-left: 16px !important;
     padding-right: 16px !important;
   }
   .topnav {
-    padding: 0 14px;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: 44px 1fr;
+    align-items: center;
+    gap: 0 10px;
+    padding: 0 12px;
   }
-  .topnav-brand-sub {
+  .topnav-brand {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .topnav-actions {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 10px !important;
+    justify-self: end;
+  }
+  .topnav-links {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+    gap: 2px;
+  }
+  /* PhiLogo's box is a numeric prop, so clamp the wrapper and scale the mark
+     inside it — 52 → 34. `overflow: visible` keeps the halo bloom intact. */
+  .topnav-logo {
+    width: 34px;
+    height: 34px;
+    overflow: visible;
+  }
+  .topnav-logo > * {
+    transform: scale(0.654);
+    transform-origin: top left;
+  }
+  /* Hides the "Dojo / Mentorship" column whole — the `.topnav-brand-sub`
+     tuck that used to live here is subsumed by it. */
+  .topnav-brand-text {
     display: none;
   }
   .topnav-link {
-    padding: 10px 10px;
+    padding: 6px 8px;
     letter-spacing: 1px;
     font-size: 10px;
+  }
+  .topnav-link::after {
+    left: 8px;
+    right: 8px;
+    bottom: 1px;
+  }
+  .topnav-notice-trigger {
+    padding: 7px 8px !important;
+  }
+  .topnav-signout {
+    padding: 7px 9px !important;
+    letter-spacing: 2px !important;
   }
 }
 
@@ -828,6 +912,134 @@ body {
   .homework-archive-page main { width: min(100% - 32px, 1080px); padding-top: 112px; }
 }
 
+/* First-visit tour (components/OnboardingTour.tsx). Sits at z-index 80 —
+   above the page and the 40-level topnav, level with the notification panel
+   and below the kebab popovers, which is fine: the tour only shows once and
+   nothing else is meant to be open behind it. */
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: rgba(0, 0, 0, 0.6);
+  font-family: Georgia, serif;
+}
+/* Step 2 — instead of a real spotlight cut-out, wash the nav strip in
+   burgundy and drop the card just beneath it. */
+.tour-nav-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 76px;
+  border-bottom: 1px solid rgba(232, 160, 160, 0.55);
+  background: rgba(232, 160, 160, 0.07);
+  box-shadow: inset 0 0 40px rgba(232, 160, 160, 0.16);
+  pointer-events: none;
+}
+.tour-card {
+  position: relative;
+  width: min(400px, 100%);
+  padding: 32px 30px 26px;
+  border: 1px solid rgba(232, 160, 160, 0.35);
+  background: #000;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.75);
+}
+/* 68px + the overlay's 24px top padding lands the card 92px down — clear of
+   the 76px nav strip it's pointing at. */
+.tour-card-nav {
+  align-self: start;
+  margin-top: 68px;
+}
+.tour-count {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  color: rgba(232, 160, 160, 0.45);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+}
+.tour-kicker {
+  margin-bottom: 14px;
+  color: #e8a0a0;
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+.tour-card h2 {
+  color: #f5f0f0;
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: 1px;
+}
+.tour-rule {
+  width: 48px;
+  height: 1px;
+  margin: 18px 0;
+  background: linear-gradient(90deg, var(--burgundy), transparent);
+}
+.tour-body {
+  color: rgba(245, 240, 240, 0.62);
+  font-size: 13px;
+  line-height: 1.75;
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 28px;
+}
+.tour-skip,
+.tour-next {
+  background: none;
+  cursor: pointer;
+  font-family: Georgia, serif;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.tour-skip {
+  border: 0;
+  padding: 10px 2px;
+  color: rgba(245, 240, 240, 0.35);
+}
+.tour-skip:hover {
+  color: rgba(245, 240, 240, 0.6);
+}
+.tour-next {
+  padding: 10px 20px;
+  border: 1px solid rgba(232, 160, 160, 0.4);
+  color: #e8a0a0;
+}
+.tour-next:hover {
+  border-color: rgba(232, 160, 160, 0.7);
+  color: #f0b0b0;
+}
+
+@media (max-width: 560px) {
+  .tour-card {
+    padding: 28px 22px 22px;
+  }
+  .tour-card h2 {
+    font-size: 20px;
+  }
+}
+
+/* iOS zooms the page in when a control smaller than 16px takes focus. Holding
+   text controls at 16px on phone widths keeps the viewport put. */
+@media (max-width: 760px) {
+  textarea,
+  select,
+  input[type="text"] {
+    font-size: 16px;
+  }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 4px;
@@ -854,4 +1066,20 @@ body {
 }
 .lesson-row-draggable[draggable="false"] {
   cursor: default;
+}
+
+/* Reviewer merge — rules requested by parallel workstreams via REVIEWER notes. */
+/* Touch devices have no hover: keep the journal entry delete faintly visible. */
+@media (hover: none) {
+  .journal-delete {
+    opacity: 0.5;
+  }
+}
+/* Strike-acknowledge row stacks on phones so Continue and the support link fit. */
+@media (max-width: 760px) {
+  .security-strike-ack > div {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
 }

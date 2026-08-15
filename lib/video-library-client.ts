@@ -21,6 +21,30 @@ export interface VideoLibraryData {
   lessons: AssignableLesson[];
 }
 
+/**
+ * Fired on `window` once an upload lands, so any library list already on screen
+ * refetches instead of showing a stale set of rows until the next page load.
+ */
+export const VIDEO_UPLOADED_EVENT = "dojo:video-uploaded";
+
+/** How often rows Kinescope is still transcoding are re-read from the API. */
+export const PROCESSING_POLL_MS = 10_000;
+
+export function announceVideoUploaded(videoId: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(VIDEO_UPLOADED_EVENT, { detail: { videoId } })
+  );
+}
+
+/**
+ * True while Kinescope is still working on at least one row. Everything that is
+ * neither playable nor failed is mid-flight, so its state will change on its own.
+ */
+export function hasProcessingVideo(videos: LibraryVideo[]): boolean {
+  return videos.some((video) => !video.ready && !video.error);
+}
+
 export async function loadVideoLibrary(): Promise<VideoLibraryData> {
   const response = await fetch("/api/admin/videos");
   if (!response.ok) throw new Error("Couldn't load the video library.");

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SupportTicket from "@/components/SupportTicket";
 
 export default function SupportPage() {
   return (
@@ -14,6 +15,9 @@ export default function SupportPage() {
           For a security appeal, explain what triggered the warning. Your saved
           lessons, homework, and progress remain attached to your Discord account.
         </p>
+        {/* Signed-in members can skip the "who do I DM?" step entirely. */}
+        <SupportTicket />
+
         <Link href="/" className="btn-discord support-return">
           Return to sign in
         </Link>

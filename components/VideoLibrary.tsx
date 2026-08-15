@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   assignVideoToLesson,
+  hasProcessingVideo,
   loadVideoLibrary,
+  PROCESSING_POLL_MS,
+  VIDEO_UPLOADED_EVENT,
   type AssignableLesson,
   type LibraryVideo,
   type VideoLibraryData,
@@ -37,9 +40,40 @@ export default function VideoLibrary() {
     }
   }, []);
 
+  /**
+   * Background re-read: no skeleton, and a failure leaves the last good rows in
+   * place rather than replacing the whole list with an error the admin didn't ask
+   * for. The next poll (or the retry button) recovers.
+   */
+  const refresh = useCallback(async () => {
+    try {
+      const data = await loadVideoLibrary();
+      setVideos(data.videos);
+      setLessons(data.lessons);
+    } catch {
+      // Keep showing what we have; the next tick tries again.
+    }
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  // An upload elsewhere on the page adds a row we don't know about yet.
+  useEffect(() => {
+    const onUploaded = () => void refresh();
+    window.addEventListener(VIDEO_UPLOADED_EVENT, onUploaded);
+    return () => window.removeEventListener(VIDEO_UPLOADED_EVENT, onUploaded);
+  }, [refresh]);
+
+  // Rows Kinescope is still transcoding change without us doing anything, so
+  // poll until every one of them has settled — then stop.
+  const processing = hasProcessingVideo(videos);
+  useEffect(() => {
+    if (!processing) return;
+    const timer = setInterval(() => void refresh(), PROCESSING_POLL_MS);
+    return () => clearInterval(timer);
+  }, [processing, refresh]);
 
   function reconcile(data: VideoLibraryData) {
     setVideos(data.videos);
@@ -88,6 +122,7 @@ function VideoRow({
   const [assigning, setAssigning] = useState(false);
   const [captioning, setCaptioning] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
+  const processing = hasProcessingVideo([video]);
   const stateLabel = video.error
     ? "Processing failed"
     : video.ready
@@ -178,6 +213,11 @@ function VideoRow({
           </span>
         ) : null}
       </p>
+      {processing && (
+        <p style={{ ...mutedItalic, fontSize: "11px", marginBottom: "10px" }}>
+          Processing — refreshes automatically
+        </p>
+      )}
       <div
         style={{
           display: "flex",

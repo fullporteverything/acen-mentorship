@@ -3,6 +3,7 @@ import PhiLogo from "@/components/PhiLogo";
 import JournalNavBadge from "@/components/JournalNavBadge";
 import ProfileTrigger from "@/components/ProfileTrigger";
 import NotificationCenter from "@/components/NotificationCenter";
+import OnboardingTour from "@/components/OnboardingTour";
 
 interface TopNavProps {
   /** href of the nav link that should render as active. */
@@ -13,6 +14,7 @@ const NAV_LINKS: { label: string; href: string }[] = [
   { label: "Overview", href: "/dashboard" },
   { label: "Lessons", href: "/dashboard/lessons" },
   { label: "Journal", href: "/dashboard/journal" },
+  { label: "Homework", href: "/dashboard/homework" },
 ];
 
 /**
@@ -20,6 +22,12 @@ const NAV_LINKS: { label: string; href: string }[] = [
  * conditionally surface the Admin link. Replaces the previous fixed left
  * sidebar; every /dashboard page reserves vertical space for it via the
  * `.topnav` height in globals.css.
+ *
+ * Phone tier (≤560px): the bar keeps its 76px height — pages hard-code a
+ * matching 76px top margin — but reflows into two rows via CSS grid, brand +
+ * actions above, the nav links across the full width below. See the
+ * `.topnav-*` phone block in globals.css; every class hook the media query
+ * needs is attached here.
  */
 export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
   const session = await auth();
@@ -33,9 +41,11 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
   }
 
   return (
+    <>
     <header className="topnav">
       {/* Left cluster: Phi mark + wordmark — click returns to /dashboard */}
       <a
+        className="topnav-brand"
         href="/dashboard"
         aria-label="Return to overview"
         style={{
@@ -47,8 +57,16 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
           cursor: "pointer",
         }}
       >
-        <PhiLogo size={52} />
-        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
+        {/* PhiLogo takes a numeric size and this is a server component, so the
+           phone shrink happens in CSS: the wrapper clamps the box, the inner
+           mark is scaled to match. */}
+        <div className="topnav-logo">
+          <PhiLogo size={52} />
+        </div>
+        <div
+          className="topnav-brand-text"
+          style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}
+        >
           <span
             style={{
               fontSize: 12,
@@ -91,7 +109,10 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
       </nav>
 
       {/* Right cluster: user + sign out */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <div
+        className="topnav-actions"
+        style={{ display: "flex", alignItems: "center", gap: 14 }}
+      >
         <NotificationCenter />
         <ProfileTrigger
           discordId={session?.user?.discordId}
@@ -110,6 +131,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
         >
           <button
             type="submit"
+            className="topnav-signout"
             style={{
               fontSize: 9,
               letterSpacing: 3,
@@ -128,5 +150,11 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
         </form>
       </div>
     </header>
+
+    {/* First-visit tour. Lives outside <header> on purpose: the topnav's
+       backdrop-filter makes it a containing block, which would trap the
+       overlay's fixed positioning inside the 76px strip. */}
+    <OnboardingTour />
+    </>
   );
 }

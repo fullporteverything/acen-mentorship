@@ -2,6 +2,8 @@ export interface OverviewStatsInput {
   totalLessons: number;
   completedLessons: number;
   journalEntries: number;
+  /** Homework submissions still sitting in the mentor's queue. */
+  pendingHomework: number;
 }
 
 export interface OverviewStatCard {
@@ -63,14 +65,25 @@ export function countCoreLessonProgress(
   };
 }
 
+/** Homework submissions awaiting a mentor decision, from a progress record. */
+export function countPendingHomework(submissions: {
+  [lessonId: string]: { status: string };
+}): number {
+  return Object.values(submissions).filter(
+    (submission) => submission.status === "pending"
+  ).length;
+}
+
 export function buildOverviewStats({
   totalLessons,
   completedLessons,
   journalEntries,
+  pendingHomework,
 }: OverviewStatsInput): OverviewStatCard[] {
   const total = Math.max(0, totalLessons);
   const completed = Math.min(total, Math.max(0, completedLessons));
   const entries = Math.max(0, journalEntries);
+  const pending = Math.max(0, pendingHomework);
 
   return [
     {
@@ -86,10 +99,10 @@ export function buildOverviewStats({
       kanji: "念",
     },
     {
-      label: "Access",
-      value: "Active",
-      sub: "Private member",
-      kanji: "礼",
+      label: "Homework",
+      value: String(pending),
+      sub: pending === 0 ? "all reviewed" : "awaiting review",
+      kanji: "文",
     },
   ];
 }

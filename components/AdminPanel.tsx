@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LESSONS } from "@/lib/lessons-config";
 import VideoUpload from "@/components/VideoUpload";
 import VideoLibrary from "@/components/VideoLibrary";
@@ -77,6 +78,117 @@ const smallBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const TABS = [
+  ["homework", "Homework"],
+  ["students", "Students"],
+  ["videos", "Videos"],
+  ["announcements", "Announcements"],
+  ["security", "Security"],
+] as const;
+
+type TabId = (typeof TABS)[number][0];
+
+const DEFAULT_TAB: TabId = "homework";
+
+const isTabId = (value: string | null): value is TabId =>
+  TABS.some(([id]) => id === value);
+
+/** Shared strip for a write that failed — mirrors the load-error states. */
+function WriteError({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="state-message state-message-error">
+      <p>{children}</p>
+    </div>
+  );
+}
+
+/**
+ * Inline two-step confirm, matching the lesson/section admin controls: the
+ * control is replaced by "delete? yes / no" and reverts itself if ignored.
+ */
+function ConfirmStrip({
+  label = "delete?",
+  busy = false,
+  onConfirm,
+  onCancel,
+}: {
+  label?: string;
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "8px",
+        flex: "0 0 auto",
+      }}
+    >
+      <span style={confirmTextStyle}>{label}</span>
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={busy}
+        style={{ ...confirmActionStyle, color: "#E8807A" }}
+      >
+        {busy ? "…" : "yes"}
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={busy}
+        style={{ ...confirmActionStyle, color: "rgba(245,240,240,0.5)" }}
+      >
+        no
+      </button>
+    </span>
+  );
+}
+
+/**
+ * Holds a pending confirmation for one key at a time and drops it after ~4s, so
+ * a half-finished "delete?" never sits armed on screen.
+ */
+function useConfirm() {
+  const [confirming, setConfirming] = useState("");
+  useEffect(() => {
+    if (!confirming) return;
+    const timer = setTimeout(() => setConfirming(""), 4000);
+    return () => clearTimeout(timer);
+  }, [confirming]);
+  return [confirming, setConfirming] as const;
+}
+
+const confirmTextStyle: React.CSSProperties = {
+  fontSize: "9px",
+  letterSpacing: "2px",
+  textTransform: "uppercase",
+  fontFamily: "Georgia, serif",
+  color: "rgba(245,240,240,0.65)",
+  whiteSpace: "nowrap",
+};
+
+/** Every property is set inline so row-level CSS can't restyle the confirm. */
+const confirmActionStyle: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
+  padding: 0,
+  fontFamily: "Georgia, serif",
+  fontSize: "9px",
+  letterSpacing: "2px",
+  textTransform: "uppercase",
+  cursor: "pointer",
+};
+
+const pendingBadgeStyle: React.CSSProperties = {
+  marginLeft: "4px",
+  fontSize: "8px",
+  letterSpacing: "1px",
+  fontFamily: "Georgia, serif",
+};
+
 const lessonTitle = (lessonId: string) =>
   LESSONS.find((l) => l.id === lessonId)?.title || lessonId;
 
@@ -104,14 +216,66 @@ function SkeletonBar({ width = "140px" }: { width?: string }) {
 }
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState<
-    "homework" | "students" | "videos" | "announcements" | "security"
-  >("homework");
+  // The tab lives in the URL, and reading search params suspends on a
+  // prerendered shell — so the panel carries its own boundary.
+  return (
+    <Suspense fallback={<SkeletonBar width="220px" />}>
+      <AdminPanelBody />
+    </Suspense>
+  );
+}
+
+function AdminPanelBody() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab: TabId = isTabId(tabParam) ? tabParam : DEFAULT_TAB;
+
   const [logs, setLogs] = useState<CaptureLogData[]>([]);
   const [securityMembers, setSecurityMembers] = useState<SecurityMemberData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [resettingMember, setResettingMember] = useState("");
+  const [unlockFailed, setUnlockFailed] = useState(false);
+  const [confirmingUnlock, setConfirmingUnlock] = useConfirm();
+  const [pendingCount, setPendingCount] = useState(0);
+  const countedPending = useRef(false);
+
+  /** Deep-linkable tab, so a refresh doesn't dump the admin back on Homework. */
+  function selectTab(id: TabId) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (id === DEFAULT_TAB) params.delete("tab");
+    else params.set("tab", id);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  // The Homework tab mounts the queue, which reports its own pending count for
+  // free. Landing anywhere else would leave the badge blank, so buy the count
+  // with exactly one extra request — never on every tab switch.
+  useEffect(() => {
+    if (countedPending.current) return;
+    countedPending.current = true;
+    if (activeTab === "homework") return;
+    let cancelled = false;
+    fetch("/api/admin/homework")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !Array.isArray(data?.submissions)) return;
+        setPendingCount(
+          (data.submissions as AdminSubmission[]).filter(
+            (s) => s.status === "pending"
+          ).length
+        );
+      })
+      .catch(() => {
+        // A missing badge is not worth an error strip of its own.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   const loadSecurity = useCallback(async () => {
     setLoading(true);
@@ -133,6 +297,8 @@ export default function AdminPanel() {
 
   async function handleUnlock(discordId: string) {
     setResettingMember(discordId);
+    setUnlockFailed(false);
+    setConfirmingUnlock("");
     try {
       const response = await fetch("/api/admin/unlock-all", {
         method: "POST",
@@ -143,9 +309,12 @@ export default function AdminPanel() {
         setSecurityMembers((members) =>
           members.filter((member) => member.discordId !== discordId)
         );
+      } else {
+        // Leave the row in place — the strikes are still there to clear.
+        setUnlockFailed(true);
       }
     } catch {
-      // ignore — still flip the client flag below
+      setUnlockFailed(true);
     }
     setResettingMember("");
   }
@@ -159,20 +328,19 @@ export default function AdminPanel() {
         aria-label="Admin sections"
         style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "24px" }}
       >
-        {(
-          [
-            ["homework", "Homework"],
-            ["students", "Students"],
-            ["videos", "Videos"],
-            ["announcements", "Announcements"],
-            ["security", "Security"],
-          ] as const
-        ).map(([id, label]) => (
+        {TABS.map(([id, label]) => (
           <button
             key={id}
             type="button"
-            onClick={() => setActiveTab(id)}
+            onClick={() => selectTab(id)}
             aria-pressed={activeTab === id}
+            // The superscript alone reads as a bare number, so spell the badge
+            // out for anyone not looking at it.
+            aria-label={
+              id === "homework" && pendingCount > 0
+                ? `${label} — ${pendingCount} pending`
+                : undefined
+            }
             style={{
               ...smallBtn,
               background: activeTab === id ? "#E8A0A0" : "transparent",
@@ -180,6 +348,16 @@ export default function AdminPanel() {
             }}
           >
             {label}
+            {id === "homework" && pendingCount > 0 && (
+              <sup
+                style={{
+                  ...pendingBadgeStyle,
+                  color: activeTab === id ? "#000" : "#F0B0B0",
+                }}
+              >
+                {pendingCount}
+              </sup>
+            )}
           </button>
         ))}
         <a href="/dashboard/lessons" style={{ ...smallBtn, textDecoration: "none" }}>
@@ -199,7 +377,7 @@ export default function AdminPanel() {
       <AutoApproveSection />
 
       {/* Homework Submissions Queue */}
-      <HomeworkQueueSection />
+      <HomeworkQueueSection onPendingCount={setPendingCount} />
       </>}
 
       {/* Student Progress — manually advance / reset a student's completions */}
@@ -221,23 +399,38 @@ export default function AdminPanel() {
         ) : securityMembers.length === 0 ? (
           <p style={mutedItalic}>No members currently have strikes.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {securityMembers.map((member) => (
-              <div key={member.discordId} className="security-member-row">
-                <div>
-                  <p>{member.discordUsername}</p>
-                  <span>{member.discordId} · {member.strikes}/3 strikes {member.locked ? "· Locked" : ""}</span>
+          <>
+            {unlockFailed && <WriteError>Could not save — try again.</WriteError>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {securityMembers.map((member) => (
+                <div key={member.discordId} className="security-member-row">
+                  <div>
+                    <p>{member.discordUsername}</p>
+                    <span>{member.discordId} · {member.strikes}/3 strikes {member.locked ? "· Locked" : ""}</span>
+                  </div>
+                  {confirmingUnlock === member.discordId ? (
+                    <ConfirmStrip
+                      label="reset strikes?"
+                      busy={resettingMember === member.discordId}
+                      onConfirm={() => handleUnlock(member.discordId)}
+                      onCancel={() => setConfirmingUnlock("")}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUnlockFailed(false);
+                        setConfirmingUnlock(member.discordId);
+                      }}
+                      disabled={resettingMember === member.discordId}
+                    >
+                      {resettingMember === member.discordId ? "Resetting…" : "Reset strikes"}
+                    </button>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleUnlock(member.discordId)}
-                  disabled={resettingMember === member.discordId}
-                >
-                  {resettingMember === member.discordId ? "Resetting…" : "Reset strikes"}
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </section>
 
@@ -297,6 +490,7 @@ function AutoApproveSection() {
   const [autoApprove, setAutoApprove] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -317,6 +511,7 @@ function AutoApproveSection() {
   async function toggle() {
     const next = !autoApprove;
     setSaving(true);
+    setSaveFailed(false);
     setAutoApprove(next); // optimistic
     try {
       const res = await fetch("/api/admin/settings", {
@@ -324,9 +519,14 @@ function AutoApproveSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ autoApprove: next }),
       });
-      if (!res.ok) setAutoApprove(!next); // revert on failure
+      if (!res.ok) {
+        // Reverting silently looked like a stuck switch — say so.
+        setAutoApprove(!next);
+        setSaveFailed(true);
+      }
     } catch {
       setAutoApprove(!next);
+      setSaveFailed(true);
     } finally {
       setSaving(false);
     }
@@ -335,6 +535,7 @@ function AutoApproveSection() {
   return (
     <section style={cardStyle}>
       <p style={sectionLabel}>Homework Auto-Approval</p>
+      {saveFailed && <WriteError>Could not save — try again.</WriteError>}
       <div
         style={{
           display: "flex",
@@ -400,10 +601,16 @@ function AutoApproveSection() {
 // Homework submissions queue
 // ---------------------------------------------------------------------------
 
-function HomeworkQueueSection() {
+function HomeworkQueueSection({
+  onPendingCount,
+}: {
+  /** Feeds the badge on the Homework tab from the fetch we already make. */
+  onPendingCount: (count: number) => void;
+}) {
   const [submissions, setSubmissions] = useState<AdminSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [reviewFailed, setReviewFailed] = useState(false);
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -414,16 +621,18 @@ function HomeworkQueueSection() {
       const res = await fetch("/api/admin/homework");
       if (!res.ok) throw new Error("bad status");
       const data = await res.json();
-      setSubmissions(
-        Array.isArray(data?.submissions) ? data.submissions : []
-      );
+      const list: AdminSubmission[] = Array.isArray(data?.submissions)
+        ? data.submissions
+        : [];
+      setSubmissions(list);
+      onPendingCount(list.filter((s) => s.status === "pending").length);
     } catch {
       setError(true);
       setSubmissions([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onPendingCount]);
 
   useEffect(() => {
     load();
@@ -437,8 +646,9 @@ function HomeworkQueueSection() {
   ) {
     const key = `${sub.discordId}:${sub.lessonId}`;
     setBusyKey(key);
+    setReviewFailed(false);
     try {
-      await fetch("/api/admin/homework", {
+      const res = await fetch("/api/admin/homework", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -448,9 +658,14 @@ function HomeworkQueueSection() {
           feedback: feedbacks[key] || "",
         }),
       });
+      if (!res.ok) {
+        // The row and its typed feedback stay put so the click can be repeated.
+        setReviewFailed(true);
+        return;
+      }
       await load();
     } catch {
-      // ignore
+      setReviewFailed(true);
     } finally {
       setBusyKey(null);
     }
@@ -470,6 +685,7 @@ function HomeworkQueueSection() {
         <div className="state-message"><p>No pending submissions.</p></div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {reviewFailed && <WriteError>Could not save — try again.</WriteError>}
           {pending.map((sub) => {
             const key = `${sub.discordId}:${sub.lessonId}`;
             const busy = busyKey === key;
@@ -579,6 +795,9 @@ function AnnouncementsSection() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
+  const [writeFailed, setWriteFailed] = useState(false);
+  const [removingId, setRemovingId] = useState("");
+  const [confirmingId, setConfirmingId] = useConfirm();
 
   const load = useCallback(async () => {
     setError(false);
@@ -605,6 +824,7 @@ function AnnouncementsSection() {
     e.preventDefault();
     if (!title.trim() || !body.trim()) return;
     setSaving(true);
+    setWriteFailed(false);
     try {
       const res = await fetch("/api/admin/announcements", {
         method: "POST",
@@ -615,30 +835,44 @@ function AnnouncementsSection() {
         setTitle("");
         setBody("");
         await load();
+      } else {
+        // Keep the typed draft — clearing it would lose the announcement.
+        setWriteFailed(true);
       }
     } catch {
-      // ignore
+      setWriteFailed(true);
     } finally {
       setSaving(false);
     }
   }
 
   async function remove(id: string) {
+    setRemovingId(id);
+    setWriteFailed(false);
     try {
-      await fetch("/api/admin/announcements", {
+      const res = await fetch("/api/admin/announcements", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
+      if (!res.ok) {
+        setWriteFailed(true);
+        return;
+      }
+      setConfirmingId("");
       await load();
     } catch {
-      // ignore
+      setWriteFailed(true);
+    } finally {
+      setRemovingId("");
     }
   }
 
   return (
     <section style={cardStyle}>
       <p style={sectionLabel}>Announcements</p>
+
+      {writeFailed && <WriteError>Could not save — try again.</WriteError>}
 
       {loading ? (
         <SkeletonBar width="160px" />
@@ -687,18 +921,29 @@ function AnnouncementsSection() {
                   {a.body}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => remove(a.id)}
-                style={{
-                  ...smallBtn,
-                  flex: "0 0 auto",
-                  borderColor: "rgba(232,128,122,0.5)",
-                  color: "#E8807A",
-                }}
-              >
-                Delete
-              </button>
+              {confirmingId === a.id ? (
+                <ConfirmStrip
+                  busy={removingId === a.id}
+                  onConfirm={() => remove(a.id)}
+                  onCancel={() => setConfirmingId("")}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWriteFailed(false);
+                    setConfirmingId(a.id);
+                  }}
+                  style={{
+                    ...smallBtn,
+                    flex: "0 0 auto",
+                    borderColor: "rgba(232,128,122,0.5)",
+                    color: "#E8807A",
+                  }}
+                >
+                  Delete
+                </button>
+              )}
             </div>
           ))}
         </div>

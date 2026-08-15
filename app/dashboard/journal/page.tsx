@@ -2,9 +2,10 @@ import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import TopNav from "@/components/TopNav";
-import JournalComposer from "@/components/JournalComposer";
+import JournalComposer, { type JournalCreateResult } from "@/components/JournalComposer";
 import MentorMode from "@/components/MentorMode";
-import MarkFeedbackSeen from "@/components/MarkFeedbackSeen";
+import MarkFeedbackSeen, { NewFeedbackChip } from "@/components/MarkFeedbackSeen";
+import JournalEntryDelete from "@/components/JournalEntryDelete";
 import JournalHeatmap from "@/components/JournalHeatmap";
 import StreakPill from "@/components/StreakPill";
 import {
@@ -39,13 +40,13 @@ export default async function JournalPage() {
   const isAdmin = identity.isAdmin;
   const entries = await getJournal(discordId);
 
-  async function createEntry(formData: FormData): Promise<{ failedImages: number }> {
+  async function createEntry(formData: FormData): Promise<JournalCreateResult> {
     "use server";
     const member = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error));
-    if (!member) return { failedImages: 0 };
+    if (!member) return { ok: false, reason: "unauthorized", failedImages: 0 };
     const uid = member.discordId;
     const rate = await consumeRateLimit(uid, "journal.create", { limit: 20, windowMs: 60 * 60 * 1000 });
-    if (!rate.allowed) return { failedImages: 0 };
+    if (!rate.allowed) return { ok: false, reason: "rate_limited", failedImages: 0 };
     await recordAuditEvent({ action: "journal.create.requested", resourceType: "journal_entry", actorDiscordId: uid, memberDiscordId: uid });
 
     const body = String(formData.get("body") ?? "").trim().slice(0, MAX_ENTRY);
@@ -78,7 +79,8 @@ export default async function JournalPage() {
       }
     }
 
-    if (!body && images.length === 0) return { failedImages: 0 };
+    // Nothing worth storing — say so instead of swallowing the composer's text.
+    if (!body && images.length === 0) return { ok: false, reason: "empty", failedImages };
 
     const entry: JournalEntry = {
       id,
@@ -95,7 +97,7 @@ export default async function JournalPage() {
     await saveJournal(uid, [entry, ...current]);
     await recordBlobAuditSafely({ action: "journal.create", resourceType: "journal_entry", resourceId: id, actorDiscordId: uid, memberDiscordId: uid, details: { imageCount: images.length } });
     revalidatePath("/dashboard/journal");
-    return { failedImages };
+    return { ok: true, failedImages };
   }
 
   async function deleteEntry(formData: FormData) {
@@ -283,6 +285,7 @@ function EntryCard({
           >
             {stamp}
           </span>
+          {entry.feedbackAt ? <NewFeedbackChip feedbackAt={entry.feedbackAt} /> : null}
           {entry.tags && entry.tags.length > 0 &&
             entry.tags.map((tag) => (
               <span
@@ -303,24 +306,7 @@ function EntryCard({
             ))}
         </div>
 
-        <form action={onDelete} className="journal-delete">
-          <input type="hidden" name="id" value={entry.id} />
-          <button
-            type="submit"
-            aria-label="Delete entry"
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "Georgia, serif",
-              fontSize: 8,
-              textTransform: "uppercase",
-              padding: 0,
-            }}
-          >
-            Delete
-          </button>
-        </form>
+        <JournalEntryDelete entryId={entry.id} onDelete={onDelete} />
       </header>
 
       {entry.body ? (

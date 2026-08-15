@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   markNotificationsSeen: vi.fn(),
   getJournal: vi.fn(),
   getSecurityMembers: vi.fn(),
+  getAddedLessons: vi.fn(),
+  getLessonOverrides: vi.fn(),
 }));
 
 vi.mock("@/lib/authz", () => ({ requireMemberOrResponse: mocks.requireMemberOrResponse }));
@@ -17,6 +19,8 @@ vi.mock("@/lib/lesson-store", () => ({
   getSeenNotifications: mocks.getSeenNotifications,
   getViewerProgress: mocks.getViewerProgress,
   markNotificationsSeen: mocks.markNotificationsSeen,
+  getAddedLessons: mocks.getAddedLessons,
+  getLessonOverrides: mocks.getLessonOverrides,
 }));
 vi.mock("@/lib/journal-store", () => ({ getJournal: mocks.getJournal }));
 vi.mock("@/lib/security-store", () => ({
@@ -36,6 +40,17 @@ describe("GET /api/notifications privacy", () => {
       submissions: {},
     });
     mocks.getJournal.mockResolvedValue([]);
+    mocks.getAddedLessons.mockResolvedValue([
+      {
+        id: "core-01",
+        title: "Risk First",
+        description: "",
+        videoId: "",
+        homeworkPrompt: "",
+        group: "CORE CONTENT",
+      },
+    ]);
+    mocks.getLessonOverrides.mockResolvedValue({});
   });
 
   it("loads only the authenticated member and hides zero-strike notices", async () => {
@@ -82,6 +97,29 @@ describe("GET /api/notifications privacy", () => {
     expect(data.items[0]).toMatchObject({
       id: "homework:core-01:2026-01-03T00:00:00.000Z:approved",
       createdAt: "2026-01-03T00:00:00.000Z",
+      title: "Homework approved",
+    });
+  });
+
+  it("names the lesson and says 'needs revision' instead of 'rejected'", async () => {
+    mocks.getSecurityMembers.mockResolvedValue([]);
+    mocks.getViewerProgress.mockResolvedValue({
+      completedLessons: [],
+      submissions: {
+        "core-01": {
+          status: "rejected",
+          submittedAt: "2026-01-01T00:00:00.000Z",
+          reviewedAt: "2026-01-04T00:00:00.000Z",
+          feedback: "",
+        },
+      },
+    });
+
+    const data = await (await GET()).json();
+
+    expect(data.items[0]).toMatchObject({
+      title: "Homework needs revision",
+      body: "Risk First needs revision.",
     });
   });
 

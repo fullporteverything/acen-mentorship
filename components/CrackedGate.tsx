@@ -21,6 +21,7 @@ export default function CrackedGate({
   /** Server action that signs out then lands on a clean login page. */
   signOutAction?: () => Promise<void>;
 }) {
+  const copy = gateCopy(code);
   return (
     <motion.div
       style={{
@@ -50,11 +51,14 @@ export default function CrackedGate({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.9, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
       >
-        <CrackedPhi size={220} />
+        {/* The fractured Φ is reserved for genuine "we don't know you"
+            failures. A member waiting on a role hasn't broken anything —
+            showing them a shattered gate reads as an accusation. */}
+        {copy.showArt && <CrackedPhi size={220} />}
 
         <motion.p
           style={{
-            marginTop: 44,
+            marginTop: copy.showArt ? 44 : 0,
             fontSize: 11,
             letterSpacing: 5,
             color: "rgba(232,160,160,0.55)",
@@ -65,7 +69,7 @@ export default function CrackedGate({
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.7 }}
         >
-          The Gate Refused You
+          {copy.label}
         </motion.p>
 
         <motion.h1
@@ -83,8 +87,26 @@ export default function CrackedGate({
           animate={{ opacity: 1 }}
           transition={{ duration: 0.9, delay: 0.9 }}
         >
-          You&rsquo;re not supposed to be here&hellip;
+          {copy.headline}
         </motion.h1>
+
+        {copy.subline && (
+          <motion.p
+            style={{
+              marginTop: 18,
+              maxWidth: 440,
+              fontFamily: "Georgia, serif",
+              fontSize: 14,
+              lineHeight: 1.8,
+              color: "rgba(245,240,240,0.62)",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 1.05 }}
+          >
+            {copy.subline}
+          </motion.p>
+        )}
 
         {code && (
           <motion.p
@@ -232,10 +254,58 @@ function CrackedPhi({ size = 220 }: { size?: number }) {
   );
 }
 
+interface GateCopy {
+  /** Small-caps kicker above the headline. */
+  label: string;
+  headline: string;
+  /** Plain-language explanation — only for refusals we can actually explain. */
+  subline?: string;
+  showArt: boolean;
+}
+
+/**
+ * The sign-in callback redirects here with a code that names the real reason
+ * (see auth.ts). Two of them are recoverable situations, not intrusions, so
+ * they get their own reassuring copy instead of the cracked gate.
+ */
+function gateCopy(code?: string): GateCopy {
+  switch (code) {
+    case "NotInServer":
+      return {
+        label: "The Gate Refused You",
+        headline: "The dojo doesn’t know you yet.",
+        subline:
+          "This Discord account isn’t in the server yet — join first, then sign in again.",
+        showArt: false,
+      };
+    case "RoleMissing":
+    // A plain AccessDenied is almost always this same case arriving without a
+    // reason code, so it gets the same benefit of the doubt.
+    case "AccessDenied":
+      return {
+        label: "The gate hasn’t opened yet",
+        headline: "Almost through.",
+        subline:
+          "You’re signed in, but the mentorship role isn’t on your Discord account yet. Ping the admin — you’ll be let in.",
+        showArt: false,
+      };
+    default:
+      return {
+        label: "The Gate Refused You",
+        headline: "You’re not supposed to be here…",
+        showArt: true,
+      };
+  }
+}
+
 function friendlyCode(code: string): string {
   switch (code) {
+    case "NotInServer":
+      return "Not a member of the Discord server";
+    case "RoleMissing":
+      return "Mentorship role not assigned yet";
     case "AccessDenied":
-      return "Access denied — role required";
+      return "Mentorship role required";
     case "Configuration":
       return "Configuration error";
     case "Verification":

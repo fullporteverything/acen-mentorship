@@ -37,22 +37,33 @@ export function authorizationErrorResponse(error: unknown): NextResponse {
 }
 
 /**
- * Called by every dashboard page's `.catch(...)`. When Discord membership
- * verification is temporarily unavailable (503), sending an uncaught error up
- * to Next.js produces an unstyled 500 that Chrome displays as its own "server
- * error occurred" screen — which reads to the user as "the whole site is
- * down." Instead we redirect to the login page with an `?error=` query so the
- * CrackedGate surface explains what happened; middleware skips its auto-
- * `/` → `/dashboard` bounce when `error` is present, so no redirect loop.
+ * Called by every dashboard page's `.catch(...)`. ANY auth failure here would
+ * otherwise crash the server component render → Next returns a 500 → Chrome
+ * shows its native "server error occurred" screen (bypassing the app's
+ * error.tsx) → reads to the user as "the whole website isn't working."
  *
- * Returns null for non-temporary errors so the caller's own `redirect("/")`
- * (401/403) still runs.
+ * Instead we always redirect to the login page with an `?error=` query so
+ * CrackedGate can explain what happened. The middleware skips its auto-
+ * `/` → `/dashboard` bounce whenever `error` is present, so the redirect
+ * doesn't loop back into the failing dashboard.
+ *
+ * Never returns — always throws NEXT_REDIRECT via `redirect()`. Signature
+ * kept as `never` so existing callers' `?? redirect("/")` still compiles as
+ * unreachable dead code.
  */
-export function rethrowTemporaryAuthorizationError(error: unknown): null {
-  if (error instanceof AuthorizationError && error.status === 503) {
-    redirect("/?error=Verification");
+export function rethrowTemporaryAuthorizationError(error: unknown): never {
+  if (error instanceof AuthorizationError) {
+    if (error.status === 503) redirect("/?error=Verification");
+    if (error.status === 403) redirect("/?error=AccessDenied");
+    // 401 — no valid session. Middleware won't bounce an unauth user back
+    // to /dashboard, so plain `/` is safe (and shows the login page cleanly).
+    redirect("/");
   }
-  return null;
+  // Non-authorization failures (Blob/Neon/Discord fetch timeout that
+  // bubbled up unwrapped) — send to login with a generic error code so
+  // middleware still skips the bounce, and CrackedGate falls through to
+  // its default "Discord sign-in could not be completed" copy.
+  redirect("/?error=Unavailable");
 }
 
 export async function requireMemberOrResponse(): Promise<MemberIdentity | NextResponse> {

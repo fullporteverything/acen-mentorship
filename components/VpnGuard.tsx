@@ -25,7 +25,7 @@ export default function VpnGuard({ children }: VpnGuardProps) {
         const c = JSON.parse(raw) as { blocked: boolean; at: number };
         if (c && typeof c.at === "number" && Date.now() - c.at < TTL) {
           setBlocked(c.blocked === true);
-          return;
+          if (!c.blocked) return;
         }
       }
     } catch {
@@ -37,7 +37,9 @@ export default function VpnGuard({ children }: VpnGuardProps) {
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
-        const b = data?.blocked === true;
+        // The server-authenticated admin override is explicit and clears any
+        // stale client-side block cache; it never creates a capture strike.
+        const b = data?.state === "overridden" ? false : data?.blocked === true;
         setBlocked(b);
         try {
           localStorage.setItem(KEY, JSON.stringify({ blocked: b, at: Date.now() }));

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAdminOrResponse, requireMemberOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
 import {
   getAddedLessons,
   getLessonOverrides,
@@ -32,6 +33,7 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.lesson.overrides", req); if (denied) return denied;
 
   let body: { lessonId?: string; field?: string; value?: string };
   try {

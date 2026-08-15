@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
 import { resetSecurityMember } from "@/lib/security-store";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const admin = await requireAdminOrResponse();
   if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.unlock_all", request); if (denied) return denied;
 
   const body = await request.json().catch(() => null);
   const discordId = typeof body?.discordId === "string" ? body.discordId.trim() : "";

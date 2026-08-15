@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { Lesson } from "@/lib/lessons-config";
+import { minimalPdf } from "@/test/fixtures/pdf";
 
 const mocks = vi.hoisted(() => ({
   requireMemberOrResponse: vi.fn(),
@@ -10,6 +11,14 @@ const mocks = vi.hoisted(() => ({
   getUserProgress: vi.fn(),
   saveUserProgress: vi.fn(),
   uploadHomework: vi.fn(),
+  consumeRateLimit: vi.fn(),
+  recordAuditEvent: vi.fn(),
+  recordAuditIntent: vi.fn(),
+  scanUpload: vi.fn(),
+  recordUploadMetadata: vi.fn(),
+  recordOrphanedUpload: vi.fn(),
+  archiveHomeworkSubmission: vi.fn(),
+  reviewArchivedHomework: vi.fn(),
 }));
 
 vi.mock("@/lib/authz", () => ({ requireMemberOrResponse: mocks.requireMemberOrResponse }));
@@ -21,6 +30,14 @@ vi.mock("@/lib/lesson-store", () => ({
   saveUserProgress: mocks.saveUserProgress,
   uploadHomework: mocks.uploadHomework,
 }));
+vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
+vi.mock("@/lib/audit", () => ({
+  recordBlobAuditSafely: mocks.recordAuditEvent,
+  recordAuditEvent: mocks.recordAuditIntent,
+}));
+vi.mock("@/lib/malware-scan", () => ({ scanUpload: mocks.scanUpload }));
+vi.mock("@/lib/upload-tracking", () => ({ recordUploadMetadata: mocks.recordUploadMetadata, recordOrphanedUpload: mocks.recordOrphanedUpload }));
+vi.mock("@/lib/homework-archive", () => ({ archiveHomeworkSubmission: mocks.archiveHomeworkSubmission, reviewArchivedHomework: mocks.reviewArchivedHomework }));
 
 import { POST } from "./route";
 
@@ -57,7 +74,7 @@ function requestFor(lessonId: string): NextRequest {
   form.set("lessonId", lessonId);
   form.set(
     "file",
-    new File(["homework"], "homework.pdf", { type: "application/pdf" })
+    new File([minimalPdf()], "homework.pdf", { type: "application/pdf" })
   );
   return new NextRequest("http://localhost/api/lessons/submit-homework", {
     method: "POST",
@@ -77,6 +94,14 @@ describe("POST /api/lessons/submit-homework curriculum authorization", () => {
     mocks.getSettings.mockResolvedValue({ autoApprove: false });
     mocks.uploadHomework.mockResolvedValue("homework/student-1/file.pdf");
     mocks.saveUserProgress.mockResolvedValue(undefined);
+    mocks.consumeRateLimit.mockResolvedValue({ allowed: true, remaining: 9, resetAt: new Date(Date.now() + 60_000) });
+    mocks.recordAuditEvent.mockResolvedValue(undefined);
+    mocks.recordAuditIntent.mockResolvedValue(undefined);
+    mocks.scanUpload.mockResolvedValue({ state: "unconfigured" });
+    mocks.recordUploadMetadata.mockResolvedValue(undefined);
+    mocks.recordOrphanedUpload.mockResolvedValue(undefined);
+    mocks.archiveHomeworkSubmission.mockResolvedValue({ id: "archive-1", version: 1 });
+    mocks.reviewArchivedHomework.mockResolvedValue(true);
   });
 
   it("rejects a locked CORE lesson before upload or progress mutation", async () => {
@@ -110,6 +135,13 @@ describe("POST /api/lessons/submit-homework curriculum authorization", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.uploadHomework).toHaveBeenCalledOnce();
+    expect(mocks.archiveHomeworkSubmission).toHaveBeenCalledWith(expect.objectContaining({
+      discordId: "student-1",
+      lessonId: "weekly-1",
+      lessonTitle: "Weekly Breakdown",
+      storageKey: "homework/student-1/file.pdf",
+      fileName: "homework.pdf",
+    }));
     expect(mocks.saveUserProgress).toHaveBeenCalledOnce();
   });
 
@@ -124,5 +156,31 @@ describe("POST /api/lessons/submit-homework curriculum authorization", () => {
     expect(response.status).toBe(200);
     expect(mocks.uploadHomework).toHaveBeenCalledOnce();
     expect(mocks.saveUserProgress).toHaveBeenCalledOnce();
+  });
+
+  it("creates an auto-approved submission and its initial review in one archive operation", async () => {
+    mocks.getUserProgress.mockResolvedValue(progress(["lesson-1", "lesson-2", "lesson-3", "lesson-4"]));
+    mocks.getSettings.mockResolvedValue({ autoApprove: true });
+    const response = await POST(requestFor("weekly-1"));
+    expect(response.status).toBe(200);
+    expect(mocks.archiveHomeworkSubmission).toHaveBeenCalledWith(expect.objectContaining({
+      initialDecision: "approved",
+      initialFeedback: "Automatically approved",
+    }));
+    expect(mocks.reviewArchivedHomework).not.toHaveBeenCalled();
+  });
+
+  it("records a durable intent before uploading homework", async () => {
+    mocks.getUserProgress.mockResolvedValue(progress(["lesson-1", "lesson-2", "lesson-3", "lesson-4"]));
+    await POST(requestFor("weekly-1"));
+    expect(mocks.recordAuditIntent).toHaveBeenCalledWith(expect.objectContaining({ action: "homework.submit.requested" }));
+    expect(mocks.recordAuditIntent.mock.invocationCallOrder[0]).toBeLessThan(mocks.uploadHomework.mock.invocationCallOrder[0]);
+  });
+
+  it("rejects a rate-limited submission before it reads or uploads content", async () => {
+    mocks.consumeRateLimit.mockResolvedValue({ allowed: false, remaining: 0, resetAt: new Date(Date.now() + 60_000) });
+    const response = await POST(requestFor("weekly-1"));
+    expect(response.status).toBe(429);
+    expect(mocks.uploadHomework).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAdminOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
+import { reviewArchivedHomework } from "@/lib/homework-archive";
+import { progressViewerIds } from "@/lib/progress-link";
 import {
   getAllSubmissions,
   getUserProgress,
@@ -21,6 +24,7 @@ export async function GET() {
 /** POST: approve or reject a specific user's submission. */
 export async function POST(req: NextRequest) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.homework.review", req); if (denied) return denied;
 
   let body: {
     discordId?: string;
@@ -59,6 +63,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Submission not found" }, { status: 404 });
   }
 
+  await reviewArchivedHomework({
+    storageKey: submission.blobUrl,
+    targetDiscordIds: progressViewerIds(discordId),
+    reviewerDiscordId: admin.discordId,
+    reviewerName: admin.name ?? undefined,
+    decision: action === "approve" ? "approved" : "rejected",
+    feedback,
+  });
+
   submission.status = action === "approve" ? "approved" : "rejected";
   submission.feedback = feedback;
   submission.reviewedAt = new Date().toISOString();
@@ -74,6 +87,5 @@ export async function POST(req: NextRequest) {
   }
 
   await saveUserProgress(discordId, progress);
-
   return NextResponse.json({ ok: true, status: submission.status });
 }

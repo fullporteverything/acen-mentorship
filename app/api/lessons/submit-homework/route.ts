@@ -15,6 +15,12 @@ import {
   uploadHomework,
 } from "@/lib/lesson-store";
 import { autoPassedLessonIds } from "@/lib/progress-link";
+import { validatePdf } from "@/lib/upload-validation";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { recordAuditEvent, recordBlobAuditSafely } from "@/lib/audit";
+import { scanUpload } from "@/lib/malware-scan";
+import { recordOrphanedUpload, recordUploadMetadata } from "@/lib/upload-tracking";
+import { archiveHomeworkSubmission } from "@/lib/homework-archive";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +31,18 @@ export async function POST(req: NextRequest) {
   const identity = await requireMemberOrResponse();
   if (identity instanceof Response) return identity;
   const discordId = identity.discordId;
+  const rate = await consumeRateLimit(discordId, "homework.submit", { limit: 10, windowMs: 60 * 60 * 1000 });
+  if (!rate.allowed) {
+    return NextResponse.json({ error: "Too many homework submissions. Try again later." }, {
+      status: 429,
+      headers: { "Retry-After": String(Math.max(1, Math.ceil((rate.resetAt.getTime() - Date.now()) / 1000))) },
+    });
+  }
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim();
+  await recordAuditEvent({
+    action: "homework.submit.requested", resourceType: "homework_submission",
+    actorDiscordId: discordId, memberDiscordId: discordId, ip,
+  });
 
   let form: FormData;
   try {
@@ -86,6 +104,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const pdf = await validatePdf(file);
+  if (!pdf.valid) {
+    return NextResponse.json({ error: "Uploaded file is not a valid PDF" }, { status: 400 });
+  }
+
   // Upload the PDF to (private) blob storage. Returns the pathname, which is
   // stored on the submission and rendered through the /api/blob proxy.
   const blobPathname = await uploadHomework(
@@ -94,12 +117,34 @@ export async function POST(req: NextRequest) {
     file.name || "homework.pdf",
     file
   );
+  const scan = await scanUpload(blobPathname);
+  try {
+    await recordUploadMetadata(discordId, blobPathname, file, scan);
+  } catch {
+    await recordOrphanedUpload(discordId, blobPathname, file, "upload_metadata_failed").catch(() => undefined);
+    return NextResponse.json({ error: "Upload metadata could not be saved; the file was quarantined for review." }, { status: 503 });
+  }
+  const settings = await getSettings();
+  const status = settings.autoApprove ? "approved" : "pending";
+  try {
+    await archiveHomeworkSubmission({
+      discordId,
+      displayName: identity.name ?? undefined,
+      lessonId,
+      lessonTitle: lesson.title,
+      lessonPosition: lessons.findIndex((item) => item.id === lessonId) + 1,
+      storageKey: blobPathname,
+      fileName: file.name || "homework.pdf",
+      initialDecision: settings.autoApprove ? "approved" : undefined,
+      initialFeedback: settings.autoApprove ? "Automatically approved" : undefined,
+    });
+  } catch {
+    await recordOrphanedUpload(discordId, blobPathname, file, "homework_archive_failed").catch(() => undefined);
+    return NextResponse.json({ error: "Your homework could not be archived. Please retry." }, { status: 503 });
+  }
 
   // Record the submission on the user's progress.
   progress.discordUsername = identity.name || progress.discordUsername;
-
-  const settings = await getSettings();
-  const status = settings.autoApprove ? "approved" : "pending";
 
   progress.submissions[lessonId] = {
     blobUrl: blobPathname,
@@ -120,7 +165,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await saveUserProgress(discordId, progress);
+  try {
+    await saveUserProgress(discordId, progress);
+  } catch {
+    await recordOrphanedUpload(discordId, blobPathname, file, "submission_metadata_failed").catch(() => undefined);
+    throw new Error("Submission metadata failed after upload");
+  }
+  await recordBlobAuditSafely({ action: "homework.submit", resourceType: "lesson", resourceId: lessonId, actorDiscordId: discordId, memberDiscordId: discordId, ip, details: { blobPathname } });
 
   return NextResponse.json({ ok: true, status }, { status: 200 });
 }

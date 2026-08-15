@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireMemberOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
 import {
   getAnnouncements,
   getSeenNotifications,
@@ -85,6 +86,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const identity = await requireMemberOrResponse();
   if (identity instanceof Response) return identity;
+  const denied = await allowMutation(identity, "notifications.seen", request);
+  if (denied) return denied;
   const { discordId } = identity;
   const body = await request.json().catch(() => null);
   const ids = Array.isArray(body?.ids)

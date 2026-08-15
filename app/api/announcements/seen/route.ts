@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireMemberOrResponse } from "@/lib/authz";
 import { markAnnouncementSeen } from "@/lib/lesson-store";
+import { allowMutation } from "@/lib/mutation-security";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const member = await requireMemberOrResponse();
   if (member instanceof Response) return member;
+  const denied = await allowMutation(member, "announcements.seen", req);
+  if (denied) return denied;
   const uid = member.discordId;
 
   let body: unknown;

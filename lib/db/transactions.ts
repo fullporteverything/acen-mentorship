@@ -86,6 +86,12 @@ export async function createHomeworkSubmission(input: {
   storageKey: string;
   fileName: string;
   contentType?: string;
+  initialReview?: {
+    reviewerMemberId?: string;
+    decision: "approved" | "rejected" | "revision_requested";
+    feedback: string;
+    rubric?: Record<string, unknown>;
+  };
 }) {
   return dbTransaction(async (tx) => {
     const [counter] = await tx
@@ -103,11 +109,26 @@ export async function createHomeworkSubmission(input: {
     const [submission] = await tx
       .insert(homeworkSubmissions)
       .values({
-        ...input,
+        memberId: input.memberId,
+        lessonId: input.lessonId,
+        storageKey: input.storageKey,
+        fileName: input.fileName,
         version: counter.nextVersion - 1,
         contentType: input.contentType ?? "application/pdf",
       })
       .returning();
+    if (input.initialReview) {
+      await tx.insert(homeworkReviewCounters).values({ submissionId: submission.id, nextVersion: 2 });
+      await tx.insert(homeworkRubricReviews).values({
+        submissionId: submission.id,
+        memberId: input.memberId,
+        reviewerMemberId: input.initialReview.reviewerMemberId,
+        version: 1,
+        decision: input.initialReview.decision,
+        feedback: input.initialReview.feedback,
+        rubric: input.initialReview.rubric ?? {},
+      });
+    }
     return submission;
   });
 }

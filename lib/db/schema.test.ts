@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   announcements,
   auditEvents,
+  auditOutbox,
   curriculumSections,
   homeworkRubricReviews,
   homeworkReviewCounters,
@@ -79,6 +80,7 @@ describe("Neon transactional data model", () => {
       lessonNotes,
       lessonBookmarks,
       auditEvents,
+      auditOutbox,
       rateLimitBuckets,
       migrationRuns,
       migrationItems,
@@ -90,7 +92,7 @@ describe("Neon transactional data model", () => {
       migrationVerificationArtifacts,
     ];
 
-    expect(tables).toHaveLength(32);
+    expect(tables).toHaveLength(33);
     for (const table of tables) {
       expect(config(table).columns.map((column) => column.name)).toContain("created_at");
       expect(config(table).columns.map((column) => column.name)).toContain("updated_at");

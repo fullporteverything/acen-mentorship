@@ -9,6 +9,7 @@ import {
 } from "@/lib/lesson-store";
 import type { Lesson } from "@/lib/lessons-config";
 import { isKinescopeVideoId } from "@/lib/video-id";
+import { allowMutation } from "@/lib/mutation-security";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.lesson.create", req); if (denied) return denied;
 
   let body: {
     title?: string;

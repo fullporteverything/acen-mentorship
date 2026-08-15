@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireMemberOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
 import {
   buildEffectiveLessons,
   computeCurriculumStates,
@@ -61,6 +62,14 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const identity = await requireMemberOrResponse();
   if (identity instanceof Response) return identity;
+  const denied = await allowMutation(
+    identity,
+    "lessons.watch-progress",
+    req,
+    undefined,
+    { limit: 600, windowMs: 60 * 60 * 1000 }
+  );
+  if (denied) return denied;
   const { discordId, isAdmin } = identity;
 
   let body: Record<string, unknown>;

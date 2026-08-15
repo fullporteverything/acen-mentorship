@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAdminOrResponse, requireMemberOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
 import {
   getAnnouncements,
   saveAnnouncements,
@@ -21,6 +22,7 @@ export async function GET() {
 /** POST: add an announcement. Admin-only. */
 export async function POST(req: NextRequest) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.announcements.create", req); if (denied) return denied;
 
   let body: { title?: string; body?: string };
   try {
@@ -68,6 +70,7 @@ export async function POST(req: NextRequest) {
 /** DELETE: remove an announcement by id. Admin-only. */
 export async function DELETE(req: NextRequest) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.announcements.delete", req); if (denied) return denied;
 
   let body: { id?: string };
   try {

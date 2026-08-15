@@ -441,6 +441,21 @@ export const auditEvents = pgTable(
   (table) => [index("audit_events_member_created_index").on(table.memberId, table.createdAt)]
 );
 
+/** Durable intent for Blob-backed mutations when their immediate audit write fails. */
+export const auditOutbox = pgTable(
+  "audit_outbox",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    action: varchar("action", { length: 160 }).notNull(),
+    resourceType: varchar("resource_type", { length: 128 }).notNull(),
+    resourceId: varchar("resource_id", { length: 255 }),
+    payload: jsonb("payload").notNull().default({}),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [index("audit_outbox_pending_index").on(table.deliveredAt, table.createdAt)]
+);
+
 export const rateLimitBuckets = pgTable(
   "rate_limit_buckets",
   {

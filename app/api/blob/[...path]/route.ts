@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { get } from "@vercel/blob";
 import { requireMemberOrResponse } from "@/lib/authz";
+import { contentDisposition } from "@/lib/upload-validation";
+import { isUploadAvailable } from "@/lib/upload-tracking";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,11 @@ export async function GET(
   const identity = await requireMemberOrResponse();
   if (identity instanceof Response) return identity;
 
+  const rawDisposition = req.nextUrl.searchParams.get("disposition") || "attachment";
+  if (rawDisposition !== "inline" && rawDisposition !== "attachment") {
+    return new NextResponse("Invalid disposition", { status: 400 });
+  }
+
   const pathname = ((await params).path || []).join("/");
   const segs = pathname.split("/");
   // Expect dojo/{area}/{ownerId}/...
@@ -36,6 +43,9 @@ export async function GET(
   if (!identity.isAdmin && !identity.ownerIds.includes(ownerId)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
+  if ((segs[1] === "homework" || segs[1] === "journal") && !(await isUploadAvailable(pathname, identity.isAdmin ? undefined : identity.ownerIds))) {
+    return new NextResponse("Upload is quarantined", { status: 423 });
+  }
 
   try {
     const result = await get(pathname, {
@@ -46,11 +56,17 @@ export async function GET(
     if (!result || result.statusCode !== 200 || !result.stream) {
       return new NextResponse("Not found", { status: 404 });
     }
+    const contentType = result.blob.contentType || "application/octet-stream";
+    if (rawDisposition === "inline" && contentType !== "application/pdf") {
+      return new NextResponse("Preview unavailable", { status: 415 });
+    }
     return new NextResponse(result.stream, {
       status: 200,
       headers: {
-        "Content-Type": result.blob.contentType || "application/octet-stream",
+        "Content-Type": contentType,
         "Cache-Control": "private, max-age=60",
+        "Content-Disposition": contentDisposition(segs.at(-1) || "download", rawDisposition),
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch {

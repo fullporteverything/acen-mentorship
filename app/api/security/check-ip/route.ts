@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { assessNetworkRisk } from "@/lib/network-risk";
+import { requireMemberOrResponse } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +22,18 @@ const cache =
  * legitimate member because of an infrastructure hiccup.
  */
 export async function GET(req: NextRequest) {
+  const identity = await requireMemberOrResponse();
+  if (identity instanceof Response) return identity;
   const ip =
     (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
     req.headers.get("x-real-ip") ||
     "";
 
   if (!ip) {
-    return NextResponse.json({ blocked: false });
+    return NextResponse.json({ blocked: false, state: "unavailable" });
+  }
+  if (identity.isAdmin) {
+    return NextResponse.json({ blocked: false, state: "overridden" });
   }
 
   const now = Date.now();
@@ -35,18 +42,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ blocked: cached.blocked });
   }
 
-  try {
-    const res = await fetch(
-      `http://ip-api.com/json/${ip}?fields=status,proxy,hosting`,
-      { cache: "no-store", signal: AbortSignal.timeout(3000) }
-    );
-    const data = await res.json();
-    const blocked =
-      data?.status === "success" && (data.proxy === true || data.hosting === true);
-
-    cache.set(ip, { blocked, at: now });
-    return NextResponse.json({ blocked });
-  } catch {
-    return NextResponse.json({ blocked: false });
-  }
+  const risk = await assessNetworkRisk(ip, fetch);
+  cache.set(ip, { blocked: risk.blocked, at: now });
+  return NextResponse.json(risk);
 }

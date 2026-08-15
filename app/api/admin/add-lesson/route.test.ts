@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ requireAdminOrResponse: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireAdminOrResponse: vi.fn(), allowMutation: vi.fn() }));
 
 vi.mock("@/lib/authz", () => ({ requireAdminOrResponse: mocks.requireAdminOrResponse }));
+vi.mock("@/lib/mutation-security", () => ({ allowMutation: mocks.allowMutation }));
 vi.mock("@/lib/lesson-store", () => ({
   getAddedLessons: vi.fn(), getAddedSections: vi.fn(), saveAddedLessons: vi.fn(), saveAddedSections: vi.fn(),
 }));

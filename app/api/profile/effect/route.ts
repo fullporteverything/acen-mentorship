@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireMemberOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
 import {
   getProfile,
   saveProfile,
@@ -31,6 +32,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const identity = await requireMemberOrResponse();
   if (identity instanceof Response) return identity;
+  const denied = await allowMutation(identity, "profile.effect", req);
+  if (denied) return denied;
   const discordId = identity.discordId;
 
   let body: { effect?: unknown };

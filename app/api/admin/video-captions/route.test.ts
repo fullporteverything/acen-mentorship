@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/authz", () => ({ requireAdminOrResponse: mocks.requireAdminOrResponse }));
+vi.mock("@/lib/mutation-security", () => ({ allowMutation: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/lib/kinescope", () => ({ kinescopeFetch: mocks.kinescopeFetch }));
 vi.mock("@vercel/blob", () => ({
   put: mocks.put,

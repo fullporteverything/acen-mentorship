@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAdminOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
 import {
   getAddedLessons,
   getAddedSections,
@@ -27,6 +28,7 @@ function hasStaticLessons(section: string): boolean {
  */
 export async function PATCH(req: NextRequest) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.section.patch", req); if (denied) return denied;
 
   let body: { from?: string; to?: string };
   try {
@@ -102,6 +104,7 @@ export async function PATCH(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.section.delete", req); if (denied) return denied;
 
   let body: { section?: string; force?: boolean };
   try {

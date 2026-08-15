@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAdminOrResponse } from "@/lib/authz";
 import { getAllJournals, setEntryFeedback } from "@/lib/journal-store";
+import { allowMutation } from "@/lib/mutation-security";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export async function GET() {
 /** POST: set the mentor feedback on one specific entry. Admin-only. */
 export async function POST(req: NextRequest) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.journal.feedback", req); if (denied) return denied;
 
   let body: { discordId?: string; entryId?: string; feedback?: string };
   try {

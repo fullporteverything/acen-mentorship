@@ -12,13 +12,15 @@ import {
 } from "@/lib/lesson-store";
 import { getJournal } from "@/lib/journal-store";
 import { getSecurityMember } from "@/lib/security-store";
-import { autoPassedLessonIds } from "@/lib/progress-link";
+import { autoPassedLessonIds, progressViewerIds } from "@/lib/progress-link";
 import { buildEffectiveLessons } from "@/lib/lessons-config";
 import {
   buildCoreLearningSummary,
   buildOverviewStats,
 } from "@/lib/overview-stats";
 import SupportLink from "@/components/SupportLink";
+import MyHomeworkCard from "@/components/MyHomeworkCard";
+import { listHomeworkArchive } from "@/lib/homework-archive";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,7 @@ const KANJI_ACCENTS = ["道", "剣", "心", "武", "礼", "修", "練", "気"];
 export default async function DashboardPage() {
   const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error) ?? redirect("/"));
   const discordId = identity.discordId;
-  const [announcements, seen, progress, addedLessons, overrides, journal, securityMember] =
+  const [announcements, seen, progress, addedLessons, overrides, journal, securityMember, homeworkArchive] =
     await Promise.all([
     getAnnouncements(),
     getSeenAnnouncements(discordId),
@@ -37,6 +39,9 @@ export default async function DashboardPage() {
     getLessonOverrides(),
     getJournal(discordId),
     getSecurityMember(discordId, identity.name ?? undefined),
+    listHomeworkArchive({ discordIds: progressViewerIds(discordId), limit: 3 })
+      .then((page) => ({ page, error: false }))
+      .catch(() => ({ page: { items: [], nextCursor: null, total: 0, lessons: [] }, error: true })),
   ]);
   const lessons = buildEffectiveLessons(addedLessons, overrides);
   const completedLessonIds = autoPassedLessonIds(
@@ -243,6 +248,8 @@ export default async function DashboardPage() {
             </Link>
           </div>
         </section>
+
+        <MyHomeworkCard items={homeworkArchive.page.items} error={homeworkArchive.error} />
 
         {/* Announcements — live feed, unread pulses burgundy. */}
         <AnnouncementsFeed items={announcements} initialSeen={seen} />

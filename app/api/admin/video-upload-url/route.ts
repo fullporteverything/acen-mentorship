@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
 import {
   getKinescopeConfig,
   KinescopeIntegrationError,
@@ -16,6 +17,7 @@ const MAX_FILE_SIZE = 30 * 1024 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.video.upload_url", request); if (denied) return denied;
 
   const body = await request.json().catch(() => null);
   const fileName = typeof body?.fileName === "string" ? body.fileName.trim() : "";

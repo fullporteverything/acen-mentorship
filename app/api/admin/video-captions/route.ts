@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminOrResponse } from "@/lib/authz";
+import { allowMutation } from "@/lib/mutation-security";
 import { kinescopeFetch } from "@/lib/kinescope";
 import { isKinescopeVideoId } from "@/lib/video-id";
 import { hasEnglishSubtitle } from "@/lib/captions";
@@ -67,6 +68,7 @@ async function englishCaptionsExist(videoId: string): Promise<boolean> {
 export async function POST(request: Request) {
   const admin = await requireAdminOrResponse();
   if (admin instanceof Response) return admin;
+  const denied = await allowMutation(admin, "admin.video.captions", request); if (denied) return denied;
 
   const body = await request.json().catch(() => null);
   const videoId = body?.videoId;

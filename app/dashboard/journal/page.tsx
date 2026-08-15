@@ -13,6 +13,11 @@ import {
   uploadJournalImage,
   type JournalEntry,
 } from "@/lib/journal-store";
+import { validateImage } from "@/lib/upload-validation";
+import { scanUpload } from "@/lib/malware-scan";
+import { recordOrphanedUpload, recordUploadMetadata } from "@/lib/upload-tracking";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { recordAuditEvent, recordBlobAuditSafely } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +44,9 @@ export default async function JournalPage() {
     const member = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error));
     if (!member) return { failedImages: 0 };
     const uid = member.discordId;
+    const rate = await consumeRateLimit(uid, "journal.create", { limit: 20, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return { failedImages: 0 };
+    await recordAuditEvent({ action: "journal.create.requested", resourceType: "journal_entry", actorDiscordId: uid, memberDiscordId: uid });
 
     const body = String(formData.get("body") ?? "").trim().slice(0, MAX_ENTRY);
     const rawTag = String(formData.get("tag") ?? "").trim();
@@ -52,13 +60,19 @@ export default async function JournalPage() {
     const images: string[] = [];
     let failedImages = 0;
     for (const file of files.slice(0, 4)) {
-      if (!file.type.startsWith("image/")) continue;
       if (file.size > 8 * 1024 * 1024) continue;
+      let pathname: string | undefined;
       try {
-        images.push(
-          await uploadJournalImage(uid, id, file.name || "screenshot.png", file)
-        );
+        const image = await validateImage(file);
+        if (!image.valid || (image.width ?? 0) > 8_000 || (image.height ?? 0) > 8_000 || (image.width ?? 0) * (image.height ?? 0) > 32_000_000) {
+          failedImages += 1;
+          continue;
+        }
+        pathname = await uploadJournalImage(uid, id, file.name || "screenshot.png", file);
+        await recordUploadMetadata(uid, pathname, file, await scanUpload(pathname));
+        images.push(pathname);
       } catch {
+        if (pathname) await recordOrphanedUpload(uid, pathname, file, "journal_upload_metadata_failed").catch(() => undefined);
         // Skip a failed image rather than losing the whole entry.
         failedImages += 1;
       }
@@ -79,6 +93,7 @@ export default async function JournalPage() {
 
     const current = await getJournal(uid);
     await saveJournal(uid, [entry, ...current]);
+    await recordBlobAuditSafely({ action: "journal.create", resourceType: "journal_entry", resourceId: id, actorDiscordId: uid, memberDiscordId: uid, details: { imageCount: images.length } });
     revalidatePath("/dashboard/journal");
     return { failedImages };
   }
@@ -88,10 +103,14 @@ export default async function JournalPage() {
     const member = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error));
     if (!member) return;
     const uid = member.discordId;
+    const rate = await consumeRateLimit(uid, "journal.delete", { limit: 30, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return;
     const id = String(formData.get("id") ?? "");
     if (!id) return;
+    await recordAuditEvent({ action: "journal.delete.requested", resourceType: "journal_entry", resourceId: id, actorDiscordId: uid, memberDiscordId: uid });
     const current = await getJournal(uid);
     await saveJournal(uid, current.filter((e) => e.id !== id));
+    await recordBlobAuditSafely({ action: "journal.delete", resourceType: "journal_entry", resourceId: id, actorDiscordId: uid, memberDiscordId: uid });
     revalidatePath("/dashboard/journal");
   }
 

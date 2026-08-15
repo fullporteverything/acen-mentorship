@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/authz", () => ({ requireMemberOrResponse: mocks.requireMemberOrResponse }));
+vi.mock("@/lib/mutation-security", () => ({ allowMutation: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/lib/lesson-store", () => ({
   getAnnouncements: mocks.getAnnouncements,
   getSeenNotifications: mocks.getSeenNotifications,

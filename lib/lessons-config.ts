@@ -67,6 +67,14 @@ export interface LessonOverride {
    * lesson unavailable until a replacement is assigned.
    */
   videoId?: string;
+  /**
+   * Position of the lesson WITHIN ITS SECTION (0-based; lower renders and
+   * gates first). Written by the admin reorder endpoint for every lesson in
+   * the section at once. Lessons without an order keep source order and sort
+   * after ordered siblings (so a lesson added post-reorder lands at the end
+   * of its section).
+   */
+  order?: number;
 }
 
 /** Map of lessonId -> override. */
@@ -108,14 +116,56 @@ export function applyOverrides(
 }
 
 /**
+ * Reorder the merged curriculum by per-lesson `order` overrides, WITHIN each
+ * section only. Groups keep their first-appearance order; inside a group,
+ * ordered lessons sort by their override (source index breaks ties), and
+ * unordered lessons follow in source order. Lesson objects are untouched —
+ * only their positions change.
+ */
+function applyCurriculumOrder(
+  lessons: Lesson[],
+  overrides: LessonOverrides
+): Lesson[] {
+  const groupRank = new Map<string, number>();
+  for (const lesson of lessons) {
+    const key = normalizeGroupName(lesson.group);
+    if (!groupRank.has(key)) groupRank.set(key, groupRank.size);
+  }
+  const orderOf = (lesson: Lesson): number | null => {
+    const value = overrides[lesson.id]?.order;
+    return typeof value === "number" && Number.isFinite(value) && value >= 0
+      ? value
+      : null;
+  };
+  return lessons
+    .map((lesson, sourceIndex) => ({ lesson, sourceIndex }))
+    .sort((a, b) => {
+      const groupDelta =
+        (groupRank.get(normalizeGroupName(a.lesson.group)) ?? 0) -
+        (groupRank.get(normalizeGroupName(b.lesson.group)) ?? 0);
+      if (groupDelta !== 0) return groupDelta;
+      const orderA = orderOf(a.lesson);
+      const orderB = orderOf(b.lesson);
+      if (orderA !== null && orderB !== null && orderA !== orderB) {
+        return orderA - orderB;
+      }
+      if (orderA !== null && orderB === null) return -1;
+      if (orderA === null && orderB !== null) return 1;
+      return a.sourceIndex - b.sourceIndex;
+    })
+    .map((entry) => entry.lesson);
+}
+
+/**
  * Build the effective curriculum: the static lessons plus any admin-added
- * lessons (appended in order), with per-lesson overrides applied.
+ * lessons (appended in order), with per-lesson overrides applied and any
+ * admin ordering overrides positioning lessons within their sections.
  */
 export function buildEffectiveLessons(
   added: Lesson[] = [],
   overrides: LessonOverrides = {}
 ): Lesson[] {
-  return [...LESSONS, ...added].map((lesson) =>
+  const merged = [...LESSONS, ...added].map((lesson) =>
     applyOverrides(
       {
         ...lesson,
@@ -126,6 +176,7 @@ export function buildEffectiveLessons(
       overrides
     )
   );
+  return applyCurriculumOrder(merged, overrides);
 }
 
 /** Look up a single lesson by its id, within `lessons` (defaults to LESSONS). */
@@ -155,7 +206,7 @@ export interface LessonState {
 export const CORE_GROUP = "CORE CONTENT";
 export const SUPPLEMENTAL_GATE_CORE_POSITION = 4;
 
-function normalizeGroupName(group: string): string {
+export function normalizeGroupName(group: string): string {
   return group.trim().replace(/\s+/g, " ").toUpperCase();
 }
 

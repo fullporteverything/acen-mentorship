@@ -218,7 +218,9 @@ export default function LessonsSidebar({
                 const isActive = s.lesson.id === activeLessonId;
                 const icon = !s.unlocked ? "🔒" : s.completed ? "✓" : s.current ? "→" : "";
                 const isStatic = STATIC_LESSON_IDS.has(s.lesson.id);
-                const canAdminDelete = isAdmin && !isStatic;
+                const sectionIds = groupStates.map(
+                  (state) => state.lesson.id
+                );
 
                 return (
                   <div
@@ -303,7 +305,7 @@ export default function LessonsSidebar({
                       </span>
                     </Link>
 
-                    {canAdminDelete && (
+                    {isAdmin && (
                       <div
                         style={{
                           position: "absolute",
@@ -319,7 +321,9 @@ export default function LessonsSidebar({
                         <LessonAdminMenu
                           lessonId={s.lesson.id}
                           title={s.lesson.title}
-                          canDelete
+                          group={s.lesson.group}
+                          sectionIds={sectionIds}
+                          canDelete={!isStatic}
                         />
                       </div>
                     )}

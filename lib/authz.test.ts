@@ -77,9 +77,14 @@ describe("centralized authorization", () => {
     expect(authorizationErrorResponse(new AuthorizationError(403, "Role removed")).status).toBe(403);
   });
 
-  it("does not redirect a page when membership verification is temporarily unavailable", () => {
-    expect(() => rethrowTemporaryAuthorizationError(new AuthorizationError(503, "Discord unavailable"))).toThrow("Discord unavailable");
-    expect(rethrowTemporaryAuthorizationError(new AuthorizationError(403, "Role removed"))).toBeNull();
+  it("redirects every page auth failure to the login gate instead of crashing the render", () => {
+    // The helper always throws NEXT_REDIRECT — an uncaught AuthorizationError
+    // in a server component produced an unstyled 500 ("This page couldn't
+    // load" in Chrome). CrackedGate on / explains the failure instead.
+    expect(() => rethrowTemporaryAuthorizationError(new AuthorizationError(503, "Discord unavailable"))).toThrow("NEXT_REDIRECT");
+    expect(() => rethrowTemporaryAuthorizationError(new AuthorizationError(403, "Role removed"))).toThrow("NEXT_REDIRECT");
+    expect(() => rethrowTemporaryAuthorizationError(new AuthorizationError(401, "No session"))).toThrow("NEXT_REDIRECT");
+    expect(() => rethrowTemporaryAuthorizationError(new Error("blob down"))).toThrow("NEXT_REDIRECT");
   });
 
   it("allows only the configured admin after membership verification", async () => {
@@ -128,7 +133,7 @@ describe("centralized authorization", () => {
     });
   });
 
-  it("uses a recent signed login proof only when live bot revalidation is not configured", async () => {
+  it("uses a recent signed login proof when revalidation is unavailable (no bot token)", async () => {
     delete process.env.DISCORD_BOT_TOKEN;
     mocks.auth.mockResolvedValue({
       user: {
@@ -140,6 +145,22 @@ describe("centralized authorization", () => {
     mocks.verifyDiscordMembership.mockResolvedValue({ member: false, unavailable: true });
 
     await expect(requireMember()).resolves.toMatchObject({ discordId: "login-verified-id" });
+  });
+
+  it("uses a recent signed login proof when the configured bot check is unavailable", async () => {
+    // A present-but-broken bot token (rotated, kicked bot, missing intent)
+    // must not be stricter than no bot token at all — sign-in already
+    // verified the role with the user's own OAuth token.
+    mocks.auth.mockResolvedValue({
+      user: {
+        id: "next-auth-id",
+        discordId: "bot-outage-id",
+        memberVerifiedAt: Date.now() - 60_000,
+      },
+    });
+    mocks.verifyDiscordMembership.mockResolvedValue({ member: false, unavailable: true });
+
+    await expect(requireMember()).resolves.toMatchObject({ discordId: "bot-outage-id" });
   });
 
   it("rejects an expired login proof when bot revalidation is not configured", async () => {

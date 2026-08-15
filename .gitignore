@@ -40,3 +40,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Next 16 auto-generates these on build — not intended for the repo.
+/AGENTS.md
+/CLAUDE.md

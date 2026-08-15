@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 
 import { contentDisposition, validateImage, validatePdf } from "./upload-validation";
 import { minimalPdf } from "@/test/fixtures/pdf";
@@ -6,6 +7,10 @@ import { minimalPdf } from "@/test/fixtures/pdf";
 const bytes = (...values: number[]) => new Blob([new Uint8Array(values)]);
 
 describe("upload validation", () => {
+  it("does not load the DOMMatrix-dependent PDF renderer", () => {
+    const source = readFileSync(new URL("./upload-validation.ts", import.meta.url), "utf8");
+    expect(source).not.toContain("pdf-parse");
+  });
   it("requires PDF magic bytes and a parseable trailer", async () => {
     await expect(validatePdf(new Blob([minimalPdf()]))).resolves.toMatchObject({ valid: true });
     await expect(validatePdf(bytes(...new TextEncoder().encode("<script>")))).resolves.toMatchObject({ valid: false });

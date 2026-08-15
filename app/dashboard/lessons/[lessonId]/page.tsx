@@ -47,8 +47,9 @@ const blobHref = (value: string) =>
 export default async function LessonPage({
   params,
 }: {
-  params: { lessonId: string };
+  params: Promise<{ lessonId: string }>;
 }) {
+  const { lessonId } = await params;
   const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error) ?? redirect("/"));
   const isAdmin = identity.isAdmin;
   const discordId = identity.discordId;
@@ -66,7 +67,7 @@ export default async function LessonPage({
     progress.completedLessons,
     lessons.map((item) => item.id)
   );
-  const lesson = getLesson(params.lessonId, lessons);
+  const lesson = getLesson(lessonId, lessons);
   if (!lesson) {
     notFound();
   }

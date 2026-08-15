@@ -15,14 +15,20 @@ export async function validatePdf(file: Blob): Promise<UploadValidation> {
   const bytes = await readBytes(file, 20 * 1024 * 1024);
   const text = new TextDecoder("latin1").decode(bytes);
   if (!text.startsWith("%PDF-")) return { valid: false, reason: "pdf_magic" };
-  const parser = new PDFParse({ data: bytes });
+  // pdf-lib validates the document structure without PDF.js rendering globals
+  // such as DOMMatrix, which are unavailable in Vercel's Node runtime.
+  const { PDFDocument } = await import("pdf-lib");
   try {
-    const info = await parser.getInfo();
-    return info.total > 0 ? { valid: true, contentType: "application/pdf" } : { valid: false, reason: "pdf_parse" };
+    const document = await PDFDocument.load(bytes, {
+      ignoreEncryption: false,
+      throwOnInvalidObject: true,
+      updateMetadata: false,
+    });
+    return document.getPageCount() > 0
+      ? { valid: true, contentType: "application/pdf" }
+      : { valid: false, reason: "pdf_parse" };
   } catch {
     return { valid: false, reason: "pdf_parse" };
-  } finally {
-    await parser.destroy().catch(() => undefined);
   }
 }
 
@@ -61,4 +67,3 @@ export function contentDisposition(fileName: string, disposition: "inline" | "at
   const safe = fileName.replace(/[\r\n]/g, "_").replace(/[^a-zA-Z0-9._ -]/g, "_").slice(0, 160) || "download";
   return `${disposition}; filename="${safe.replace(/"/g, "_")}"`;
 }
-import { PDFParse } from "pdf-parse";

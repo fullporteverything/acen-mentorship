@@ -99,10 +99,13 @@ export default function Kebab({
           role="menu"
           className="kebab-menu"
           style={{
+            // Flyout LEFT of the trigger, vertically centered — a below-the-
+            // trigger dropdown covered the following rows' checkmarks and
+            // could bleed past the sidebar edge into the content column.
             position: "absolute",
-            top: "calc(100% + 4px)",
-            right: 0,
-            minWidth: 140,
+            top: "50%",
+            right: "calc(100% + 6px)",
+            transform: "translateY(-50%)",
             background: "#0a0000",
             border: "1px solid rgba(232,160,160,0.25)",
             boxShadow: "0 8px 20px rgba(0,0,0,0.55)",

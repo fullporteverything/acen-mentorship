@@ -10,6 +10,8 @@ declare module "next-auth" {
     user: {
       id?: string;
       discordId?: string;
+      /** Signed JWT proof that the required role was verified at login. */
+      memberVerifiedAt?: number;
       /** Discord avatar hash ("a_"-prefixed = animated GIF available). */
       avatarHash?: string;
       /** Discord profile banner hash ("a_"-prefixed = animated). */
@@ -26,6 +28,7 @@ declare module "next-auth/jwt" {
   /** Extra claims we persist on the JWT. */
   interface JWT {
     discordId?: string;
+    memberVerifiedAt?: number;
     avatarHash?: string;
     bannerHash?: string;
     accentColor?: number;

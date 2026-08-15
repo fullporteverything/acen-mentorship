@@ -58,6 +58,7 @@ export async function requireAdminOrResponse(): Promise<MemberIdentity | NextRes
 }
 
 const MEMBERSHIP_REVALIDATION_MS = 60_000;
+const LOGIN_PROOF_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const membershipCache = new Map<string, { checkedAt: number; result: RoleCheckResult }>();
 
 async function revalidateMembership(discordId: string): Promise<RoleCheckResult> {
@@ -88,9 +89,16 @@ export async function requireMember(): Promise<MemberIdentity> {
 
   const roleCheck = await revalidateMembership(discordId);
   if (roleCheck.unavailable) {
-    throw new AuthorizationError(503, "Membership verification is temporarily unavailable");
+    const loginProofIsRecent =
+      !process.env.DISCORD_BOT_TOKEN &&
+      typeof user.memberVerifiedAt === "number" &&
+      Date.now() - user.memberVerifiedAt >= 0 &&
+      Date.now() - user.memberVerifiedAt <= LOGIN_PROOF_MAX_AGE_MS;
+    if (!loginProofIsRecent) {
+      throw new AuthorizationError(503, "Membership verification is temporarily unavailable");
+    }
   }
-  if (!roleCheck.member) {
+  if (!roleCheck.member && !roleCheck.unavailable) {
     throw new AuthorizationError(403, "Discord membership is required");
   }
 

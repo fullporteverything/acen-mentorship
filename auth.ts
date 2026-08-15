@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Discord from "next-auth/providers/discord";
 import { verifyDiscordMembership } from "@/lib/discord-membership";
+import { upgradeLegacyMembershipProof } from "@/lib/membership-proof";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -37,6 +38,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token?.discordId) {
         session.user.discordId = token.discordId as string;
       }
+      session.user.memberVerifiedAt =
+        typeof token.memberVerifiedAt === "number"
+          ? token.memberVerifiedAt
+          : undefined;
       // Discord profile cosmetics captured at sign-in (refresh on next login).
       session.user.avatarHash = (token.avatarHash as string) || undefined;
       session.user.bannerHash = (token.bannerHash as string) || undefined;
@@ -47,8 +52,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
     async jwt({ token, account, profile }) {
+      upgradeLegacyMembershipProof(token);
       if (account) {
         token.discordId = profile?.id as string;
+        // signIn already verified the required role with this OAuth login.
+        // Keep only the verification time, never the OAuth access token.
+        token.memberVerifiedAt = Date.now();
         // Cosmetics from the raw Discord user object (identify scope):
         // animated avatars/banners have an "a_"-prefixed hash; the avatar
         // decoration is an APNG asset on Discord's CDN.

@@ -23,6 +23,7 @@ describe("centralized authorization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.ADMIN_DISCORD_ID = "admin-discord-id";
+    process.env.DISCORD_BOT_TOKEN = "configured-bot-token";
     mocks.verifyDiscordMembership.mockResolvedValue({
       member: true,
       unavailable: false,
@@ -125,5 +126,33 @@ describe("centralized authorization", () => {
     await expect(requireMember()).rejects.toMatchObject({
       status: 503,
     });
+  });
+
+  it("uses a recent signed login proof only when live bot revalidation is not configured", async () => {
+    delete process.env.DISCORD_BOT_TOKEN;
+    mocks.auth.mockResolvedValue({
+      user: {
+        id: "next-auth-id",
+        discordId: "login-verified-id",
+        memberVerifiedAt: Date.now() - 60_000,
+      },
+    });
+    mocks.verifyDiscordMembership.mockResolvedValue({ member: false, unavailable: true });
+
+    await expect(requireMember()).resolves.toMatchObject({ discordId: "login-verified-id" });
+  });
+
+  it("rejects an expired login proof when bot revalidation is not configured", async () => {
+    delete process.env.DISCORD_BOT_TOKEN;
+    mocks.auth.mockResolvedValue({
+      user: {
+        id: "next-auth-id",
+        discordId: "expired-proof-id",
+        memberVerifiedAt: Date.now() - 25 * 60 * 60 * 1000,
+      },
+    });
+    mocks.verifyDiscordMembership.mockResolvedValue({ member: false, unavailable: true });
+
+    await expect(requireMember()).rejects.toMatchObject({ status: 503 });
   });
 });

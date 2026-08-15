@@ -839,3 +839,19 @@ body {
   background: rgba(232, 160, 160, 0.3);
   border-radius: 2px;
 }
+
+/* Drag-to-reorder lesson rows — admins only. The row wrapper carries the
+   grab cursor; the dragged-row opacity and the burgundy insertion line are
+   set inline so they can follow component state. `user-select: none` keeps a
+   drag from turning into a text selection halfway down the sidebar. */
+.lesson-row-draggable {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.lesson-row-draggable:active {
+  cursor: grabbing;
+}
+.lesson-row-draggable[draggable="false"] {
+  cursor: default;
+}

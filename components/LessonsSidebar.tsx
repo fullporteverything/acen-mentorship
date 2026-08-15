@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   computeCurriculumStates,
   getLessonGroups,
@@ -47,7 +48,22 @@ export default function LessonsSidebar({
   isAdmin = false,
   watchProgressByLesson = {},
 }: LessonsSidebarProps) {
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Drag-to-reorder state. `dragging` remembers which lesson is in flight and
+  // which section bucket it came from — drops are only honoured inside that
+  // same bucket. `dropTargetId` is purely visual (the insertion line).
+  const [dragging, setDragging] = useState<{
+    id: string;
+    group: string;
+  } | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  // Section name whose new order is currently being persisted, if any.
+  const [savingGroup, setSavingGroup] = useState<string | null>(null);
+  const [orderError, setOrderError] = useState<{
+    group: string;
+    message: string;
+  } | null>(null);
   const curriculum = computeCurriculumStates(completedLessons, lessons, isAdmin);
   const { stateById } = curriculum;
 
@@ -61,6 +77,64 @@ export default function LessonsSidebar({
     const bCore = b.lessons.some(isCoreLesson) ? 1 : 0;
     return bCore - aCore;
   });
+
+  // A save is in flight — freeze dragging everywhere so two reorders can't race.
+  const isSaving = savingGroup !== null;
+
+  function clearDrag() {
+    setDragging(null);
+    setDropTargetId(null);
+  }
+
+  /**
+   * Persist a section's complete new order. The endpoint validates that the id
+   * set matches the section exactly, so we always send every id in the bucket.
+   */
+  async function saveOrder(groupName: string, lessonIds: string[]) {
+    setSavingGroup(groupName);
+    setOrderError(null);
+    try {
+      const res = await fetch("/api/admin/lesson-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ group: groupName, lessonIds }),
+      });
+      if (!res.ok) {
+        setOrderError({
+          group: groupName,
+          message: "Could not save the new order.",
+        });
+        return;
+      }
+      router.refresh();
+    } catch {
+      setOrderError({
+        group: groupName,
+        message: "Could not save the new order.",
+      });
+    } finally {
+      setSavingGroup(null);
+    }
+  }
+
+  /** Drop handler: pull the dragged id out, slot it back in at the target row. */
+  function handleDrop(
+    groupName: string,
+    sectionIds: string[],
+    targetId: string
+  ) {
+    const active = dragging;
+    // Always clear first, so no highlight can survive a rejected drop.
+    clearDrag();
+    if (isSaving || !active || active.group !== groupName) return;
+    if (active.id === targetId) return;
+
+    const targetIndex = sectionIds.indexOf(targetId);
+    if (targetIndex < 0 || !sectionIds.includes(active.id)) return;
+    const next = sectionIds.filter((id) => id !== active.id);
+    next.splice(targetIndex, 0, active.id);
+    saveOrder(groupName, next);
+  }
 
   return (
     <>
@@ -190,8 +264,11 @@ export default function LessonsSidebar({
                   >
                     {groupDone}/{group.lessons.length}
                   </span>
-                  {isAdmin && !sectionHasStatic && (
-                    <SectionAdminControls section={group.group} />
+                  {isAdmin && (
+                    <SectionAdminControls
+                      section={group.group}
+                      canRename={!sectionHasStatic}
+                    />
                   )}
                 </div>
               </div>
@@ -217,15 +294,58 @@ export default function LessonsSidebar({
               {groupStates.map((s) => {
                 const isActive = s.lesson.id === activeLessonId;
                 const icon = !s.unlocked ? "🔒" : s.completed ? "✓" : s.current ? "→" : "";
-                const isStatic = STATIC_LESSON_IDS.has(s.lesson.id);
                 const sectionIds = groupStates.map(
                   (state) => state.lesson.id
                 );
 
+                // Admins can drag rows to reorder, except while a save runs.
+                const canDrag = isAdmin && !isSaving;
+                const isDragged = dragging?.id === s.lesson.id;
+                // Only same-section rows light up — cross-group drops are ignored.
+                const isDropTarget =
+                  dropTargetId === s.lesson.id &&
+                  dragging !== null &&
+                  dragging.group === group.group &&
+                  dragging.id !== s.lesson.id;
+
                 return (
                   <div
                     key={s.lesson.id}
-                    className="kebab-visible-on-hover"
+                    className={`kebab-visible-on-hover${
+                      isAdmin ? " lesson-row-draggable" : ""
+                    }`}
+                    draggable={canDrag}
+                    onDragStart={(e) => {
+                      if (!canDrag) return;
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", s.lesson.id);
+                      setDragging({ id: s.lesson.id, group: group.group });
+                    }}
+                    onDragOver={(e) => {
+                      // preventDefault is what marks a row as a legal drop
+                      // target — withhold it for other sections entirely.
+                      if (
+                        isSaving ||
+                        !dragging ||
+                        dragging.group !== group.group
+                      )
+                        return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dropTargetId !== s.lesson.id) {
+                        setDropTargetId(s.lesson.id);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      setDropTargetId((current) =>
+                        current === s.lesson.id ? null : current
+                      );
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDrop(group.group, sectionIds, s.lesson.id);
+                    }}
+                    onDragEnd={clearDrag}
                     style={{
                       position: "relative",
                       display: "flex",
@@ -236,10 +356,18 @@ export default function LessonsSidebar({
                       borderLeft: isActive
                         ? "2px solid #E8A0A0"
                         : "2px solid transparent",
+                      // Insertion line is an inset shadow so nothing reflows.
+                      boxShadow: isDropTarget
+                        ? "inset 0 2px 0 #E8A0A0"
+                        : undefined,
+                      opacity: isDragged ? 0.4 : isSaving && isAdmin ? 0.6 : 1,
+                      transition: "opacity 0.15s ease",
                     }}
                   >
                     <Link
                       href={`/dashboard/lessons/${s.lesson.id}`}
+                      // The anchor's native drag would hijack the row drag.
+                      draggable={false}
                       style={{
                         display: "flex",
                         justifyContent: "space-between",
@@ -323,13 +451,32 @@ export default function LessonsSidebar({
                           title={s.lesson.title}
                           group={s.lesson.group}
                           sectionIds={sectionIds}
-                          canDelete={!isStatic}
+                          // The delete endpoint now hides built-in lessons
+                          // rather than refusing, so every row offers it.
+                          canDelete={true}
                         />
                       </div>
                     )}
                   </div>
                 );
               })}
+
+              {/* Reorder failed — the rendered order is unchanged. */}
+              {orderError?.group === group.group && (
+                <p
+                  style={{
+                    padding: "2px 28px 8px",
+                    fontSize: "9px",
+                    lineHeight: 1.5,
+                    letterSpacing: "0.5px",
+                    color: "#E8807A",
+                    fontFamily: "Georgia, serif",
+                    fontStyle: "italic",
+                  }}
+                >
+                  {orderError.message}
+                </p>
+              )}
 
               {/* Empty section — no lessons added yet */}
               {groupStates.length === 0 && (

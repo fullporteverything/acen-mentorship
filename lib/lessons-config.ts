@@ -75,6 +75,15 @@ export interface LessonOverride {
    * of its section).
    */
   order?: number;
+  /**
+   * Removes a BUILT-IN lesson from the effective curriculum. Static lessons
+   * live in code and can't be deleted from a blob, so "delete" for them means
+   * hiding: the lesson vanishes from every student/admin surface but its id —
+   * and all progress/homework attached to it — survives, so clearing the
+   * flag restores it intact. Admin-added lessons are genuinely deleted
+   * instead and never use this.
+   */
+  hidden?: boolean;
 }
 
 /** Map of lessonId -> override. */
@@ -165,17 +174,19 @@ export function buildEffectiveLessons(
   added: Lesson[] = [],
   overrides: LessonOverrides = {}
 ): Lesson[] {
-  const merged = [...LESSONS, ...added].map((lesson) =>
-    applyOverrides(
-      {
-        ...lesson,
-        videoId: isKinescopeVideoId(lesson.videoId?.trim())
-          ? lesson.videoId.trim()
-          : "",
-      },
-      overrides
-    )
-  );
+  const merged = [...LESSONS, ...added]
+    .filter((lesson) => overrides[lesson.id]?.hidden !== true)
+    .map((lesson) =>
+      applyOverrides(
+        {
+          ...lesson,
+          videoId: isKinescopeVideoId(lesson.videoId?.trim())
+            ? lesson.videoId.trim()
+            : "",
+        },
+        overrides
+      )
+    );
   return applyCurriculumOrder(merged, overrides);
 }
 

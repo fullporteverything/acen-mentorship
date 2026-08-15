@@ -204,3 +204,84 @@ describe("curriculum ordering overrides", () => {
     expect(states.stateById.get("lesson-1")?.unlocked).toBe(false);
   });
 });
+
+describe("hidden lesson overrides", () => {
+  it("drops a hidden lesson from the effective curriculum", async () => {
+    const { buildEffectiveLessons } = await import("./lessons-config");
+    const result = buildEffectiveLessons([], { "lesson-2": { hidden: true } });
+    expect(result.map((l) => l.id)).toEqual(["lesson-1", "lesson-3"]);
+  });
+
+  it("hides an admin-added lesson the same way", async () => {
+    const { buildEffectiveLessons } = await import("./lessons-config");
+    const added = [
+      lesson("extra-1", "PA BREAKDOWNS"),
+      lesson("extra-2", "PA BREAKDOWNS"),
+    ];
+    const result = buildEffectiveLessons(added, { "extra-1": { hidden: true } });
+    expect(result.map((l) => l.id)).toEqual([
+      "lesson-1",
+      "lesson-2",
+      "lesson-3",
+      "extra-2",
+    ]);
+  });
+
+  it("keeps a hidden lesson's other override fields inert rather than applied", async () => {
+    const { buildEffectiveLessons } = await import("./lessons-config");
+    const result = buildEffectiveLessons([], {
+      "lesson-1": { hidden: true, title: "Should never render" },
+    });
+    expect(result.some((l) => l.title === "Should never render")).toBe(false);
+  });
+
+  it("re-sequences CORE gating around a hidden lesson", async () => {
+    const { buildEffectiveLessons } = await import("./lessons-config");
+    const visible = buildEffectiveLessons([], { "lesson-1": { hidden: true } });
+    const states = computeCurriculumStates([], visible);
+    // lesson-1 is gone, so the first visible CORE lesson takes over as current.
+    expect(states.stateById.get("lesson-2")).toMatchObject({
+      unlocked: true,
+      current: true,
+    });
+    expect(states.stateById.get("lesson-1")).toBeUndefined();
+    expect(states.stateById.get("lesson-3")?.unlocked).toBe(false);
+    // The gate lesson counts positions in the visible list only.
+    expect(states.coreStates.map((state) => state.lesson.id)).toEqual([
+      "lesson-2",
+      "lesson-3",
+    ]);
+  });
+
+  it("unlocks the lesson after a hidden one from the surviving predecessor", async () => {
+    const { buildEffectiveLessons } = await import("./lessons-config");
+    const visible = buildEffectiveLessons([], { "lesson-2": { hidden: true } });
+    const states = computeCurriculumStates(["lesson-1"], visible);
+    expect(states.stateById.get("lesson-3")).toMatchObject({
+      unlocked: true,
+      current: true,
+    });
+  });
+
+  it("leaves other sections untouched when a lesson is hidden", async () => {
+    const { buildEffectiveLessons, getLessonGroups } = await import(
+      "./lessons-config"
+    );
+    const added = [
+      lesson("extra-1", "PA BREAKDOWNS"),
+      lesson("extra-2", "PA BREAKDOWNS"),
+      lesson("bonus-1", "BONUS"),
+    ];
+    const result = buildEffectiveLessons(added, { "lesson-2": { hidden: true } });
+    expect(
+      getLessonGroups(result).map((group) => ({
+        group: group.group,
+        ids: group.lessons.map((l) => l.id),
+      }))
+    ).toEqual([
+      { group: "CORE CONTENT", ids: ["lesson-1", "lesson-3"] },
+      { group: "PA BREAKDOWNS", ids: ["extra-1", "extra-2"] },
+      { group: "BONUS", ids: ["bonus-1"] },
+    ]);
+  });
+});

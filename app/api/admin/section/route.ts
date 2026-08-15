@@ -5,10 +5,12 @@ import { allowMutation } from "@/lib/mutation-security";
 import {
   getAddedLessons,
   getAddedSections,
+  getLessonOverrides,
   saveAddedLessons,
   saveAddedSections,
+  saveLessonOverrides,
 } from "@/lib/lesson-store";
-import { LESSONS } from "@/lib/lessons-config";
+import { LESSONS, normalizeGroupName } from "@/lib/lessons-config";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,11 @@ export const dynamic = "force-dynamic";
 /** True when the static curriculum contributes any lesson to `section`. */
 function hasStaticLessons(section: string): boolean {
   return LESSONS.some((l) => l.group === section);
+}
+
+/** Section membership, casing/spacing insensitive (admins type by hand). */
+function inSection(lesson: { group: string }, section: string): boolean {
+  return normalizeGroupName(lesson.group) === normalizeGroupName(section);
 }
 
 /**
@@ -98,9 +105,15 @@ export async function PATCH(req: NextRequest) {
 /**
  * DELETE: remove a section. Admin-only. Body: { section, force? }.
  *
- * Empty sections (created by the admin) delete freely. Sections holding only
- * admin-added lessons require `force: true` — those lessons are deleted too.
- * Sections that contain built-in (static) lessons can never be deleted.
+ * ANY section can be deleted, including one holding built-in lessons. Empty
+ * sections go quietly; a section that still holds visible lessons answers 409
+ * with `requiresForce` so the UI can confirm the lesson count first.
+ *
+ * With `force: true` the section's lessons go away the same way a single
+ * lesson delete removes them: admin-added lessons are dropped outright (and
+ * their overrides with them), while built-in lessons — which live in code and
+ * can't be deleted from a blob — get `hidden: true` written to their override,
+ * keeping their progress/homework attached to the id.
  */
 export async function DELETE(req: NextRequest) {
   const admin = await requireAdminOrResponse(); if (admin instanceof Response) return admin;
@@ -121,38 +134,52 @@ export async function DELETE(req: NextRequest) {
     );
   }
 
-  if (hasStaticLessons(section)) {
-    return NextResponse.json(
-      { error: "This section contains built-in lessons and can't be deleted." },
-      { status: 409 }
-    );
-  }
-
+  const overrides = await getLessonOverrides();
   const added = await getAddedLessons();
-  const inSection = added.filter((l) => l.group === section);
+  // Already-hidden built-ins don't count: they're gone from every surface, so
+  // deleting their section isn't destroying anything the admin can still see.
+  const staticVisible = LESSONS.filter(
+    (l) => inSection(l, section) && overrides[l.id]?.hidden !== true
+  );
+  const addedInSection = added.filter((l) => inSection(l, section));
+  const lessonCount = staticVisible.length + addedInSection.length;
 
-  // Section holds admin-added lessons — require an explicit force confirmation.
-  if (inSection.length > 0 && !body.force) {
+  // Section still holds lessons — require an explicit force confirmation.
+  if (lessonCount > 0 && body.force !== true) {
     return NextResponse.json(
       {
-        error: `Section has ${inSection.length} lesson${
-          inSection.length === 1 ? "" : "s"
+        error: `Section has ${lessonCount} lesson${
+          lessonCount === 1 ? "" : "s"
         } — confirm deletion.`,
         requiresForce: true,
-        lessonCount: inSection.length,
+        lessonCount,
       },
       { status: 409 }
     );
   }
 
-  if (inSection.length > 0) {
-    const remaining = added.filter((l) => l.group !== section);
-    await saveAddedLessons(remaining);
+  // One overrides write covers both halves: hide the built-ins, and drop the
+  // now-deleted admin lessons' override entries.
+  if (staticVisible.length > 0 || addedInSection.some((l) => overrides[l.id])) {
+    const next = { ...overrides };
+    for (const lesson of staticVisible) {
+      next[lesson.id] = { ...next[lesson.id], hidden: true };
+    }
+    for (const lesson of addedInSection) {
+      delete next[lesson.id];
+    }
+    await saveLessonOverrides(next);
+  }
+
+  if (addedInSection.length > 0) {
+    await saveAddedLessons(added.filter((l) => !inSection(l, section)));
   }
 
   const sections = await getAddedSections();
-  if (sections.includes(section)) {
-    await saveAddedSections(sections.filter((s) => s !== section));
+  if (sections.some((s) => normalizeGroupName(s) === normalizeGroupName(section))) {
+    await saveAddedSections(
+      sections.filter((s) => normalizeGroupName(s) !== normalizeGroupName(section))
+    );
   }
 
   return NextResponse.json({ ok: true });

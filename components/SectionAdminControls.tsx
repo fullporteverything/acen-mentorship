@@ -7,6 +7,12 @@ import Kebab from "@/components/Kebab";
 interface SectionAdminControlsProps {
   /** The section (group) name these controls act on. */
   section: string;
+  /**
+   * Sections holding built-in lessons can't be renamed (their group name
+   * lives in code), so the Rename item is withheld for them. Delete works
+   * on every section — built-in lessons get hidden server-side.
+   */
+  canRename?: boolean;
 }
 
 type Mode = "idle" | "renaming" | "confirmDelete";
@@ -18,12 +24,13 @@ type Mode = "idle" | "renaming" | "confirmDelete";
  * stays clean for members and for admins who aren't currently editing.
  *
  * Rename swaps in an inline text input. Delete asks inline first; if the
- * section holds admin-added lessons the server returns `requiresForce` and a
- * second confirmation resends with `force: true`. Sections that contain any
- * built-in (static) lesson are refused server-side.
+ * section still holds lessons the server returns `requiresForce` and a
+ * second confirmation resends with `force: true` (admin-added lessons are
+ * removed; built-in lessons are hidden, preserving progress on their ids).
  */
 export default function SectionAdminControls({
   section,
+  canRename = true,
 }: SectionAdminControlsProps) {
   const router = useRouter();
 
@@ -119,7 +126,9 @@ export default function SectionAdminControls({
       <Kebab
         ariaLabel={`Options for ${section}`}
         items={[
-          { label: "Rename", onSelect: () => setMode("renaming") },
+          ...(canRename
+            ? [{ label: "Rename", onSelect: () => setMode("renaming") }]
+            : []),
           {
             label: "Delete",
             danger: true,

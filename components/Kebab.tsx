@@ -99,16 +99,17 @@ export default function Kebab({
           role="menu"
           className="kebab-menu"
           style={{
-            // Flyout LEFT of the trigger, vertically centered — a below-the-
-            // trigger dropdown covered the following rows' checkmarks and
-            // could bleed past the sidebar edge into the content column.
+            // Flyout RIGHT of the trigger, vertically centered. Left covered
+            // the row's own title; below covered the rows underneath. To the
+            // right it floats over the content column's gutter, which is
+            // empty next to the sidebar, so nothing legible sits beneath it.
             position: "absolute",
             top: "50%",
-            right: "calc(100% + 6px)",
+            left: "calc(100% + 6px)",
             transform: "translateY(-50%)",
             background: "#0a0000",
-            border: "1px solid rgba(232,160,160,0.25)",
-            boxShadow: "0 8px 20px rgba(0,0,0,0.55)",
+            border: "1px solid rgba(232,160,160,0.35)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.8)",
             padding: 4,
             zIndex: 60,
           }}

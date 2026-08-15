@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Kebab from "@/components/Kebab";
 
 interface SectionAdminControlsProps {
   /** The section (group) name these controls act on. */
@@ -12,15 +11,14 @@ interface SectionAdminControlsProps {
 type Mode = "idle" | "renaming" | "confirmDelete";
 
 /**
- * Admin-only compact controls for a section header — surfaces a three-dot
- * kebab menu with Rename / Delete. The trigger stays hidden until the section
- * header row is hovered (parent adds .kebab-visible-on-hover), so the sidebar
- * stays clean for members and for admins who aren't currently editing.
+ * Admin-only inline control row for a section header: rename and delete.
  *
- * Rename swaps in an inline text input. Delete asks inline first; if the
- * section holds admin-added lessons the server returns `requiresForce` and a
- * second confirmation resends with `force: true`. Sections that contain any
- * built-in (static) lesson are refused server-side.
+ * Rename opens an inline text input (prefilled with the current name) that
+ * PATCHes /api/admin/section and refreshes. Delete asks for inline confirmation
+ * first; if the section holds lessons the API returns `requiresForce`, and a
+ * second confirmation resends with `force: true`. API error strings surface
+ * inline in the muted-italic error style. Sections with built-in lessons are
+ * refused server-side, and that error is shown here.
  */
 export default function SectionAdminControls({
   section,
@@ -113,27 +111,8 @@ export default function SectionAdminControls({
     }
   }
 
-  // Idle: just the kebab menu tucked to the right of the section header.
-  if (mode === "idle") {
-    return (
-      <Kebab
-        ariaLabel={`Options for ${section}`}
-        items={[
-          { label: "Rename", onSelect: () => setMode("renaming") },
-          {
-            label: "Delete",
-            danger: true,
-            onSelect: () => setMode("confirmDelete"),
-          },
-        ]}
-      />
-    );
-  }
-
-  // Rename + confirmDelete render an inline strip *below* the header row so
-  // the row itself stays visually intact.
   return (
-    <div style={inlineStripStyle}>
+    <div style={rowStyle}>
       {mode === "renaming" ? (
         <form onSubmit={saveRename} style={formStyle}>
           <input
@@ -156,14 +135,14 @@ export default function SectionAdminControls({
             cancel
           </button>
         </form>
-      ) : (
+      ) : mode === "confirmDelete" ? (
         <div style={formStyle}>
           <span style={confirmStyle}>{confirmLabel}</span>
           <button
             type="button"
             onClick={confirmDelete}
             disabled={busy}
-            style={dangerActionStyle}
+            style={actionStyle}
           >
             {busy ? "…" : forceDelete ? "delete anyway" : "yes"}
           </button>
@@ -176,6 +155,29 @@ export default function SectionAdminControls({
             no
           </button>
         </div>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setMode("renaming");
+            }}
+            style={actionStyle}
+          >
+            rename
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setMode("confirmDelete");
+            }}
+            style={actionStyle}
+          >
+            delete
+          </button>
+        </>
       )}
 
       {error && <p style={errorStyle}>{error}</p>}
@@ -183,9 +185,12 @@ export default function SectionAdminControls({
   );
 }
 
-const inlineStripStyle: React.CSSProperties = {
+const rowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  gap: "10px",
   padding: "6px 28px 8px",
-  width: "100%",
 };
 
 const formStyle: React.CSSProperties = {
@@ -206,11 +211,6 @@ const actionStyle: React.CSSProperties = {
   letterSpacing: "2px",
   textTransform: "uppercase",
   cursor: "pointer",
-};
-
-const dangerActionStyle: React.CSSProperties = {
-  ...actionStyle,
-  color: "#E8807A",
 };
 
 const mutedActionStyle: React.CSSProperties = {
@@ -241,7 +241,7 @@ const inputStyle: React.CSSProperties = {
 
 const errorStyle: React.CSSProperties = {
   width: "100%",
-  margin: "4px 0 0",
+  margin: 0,
   color: "#E8807A",
   fontFamily: "Georgia, serif",
   fontSize: "10px",

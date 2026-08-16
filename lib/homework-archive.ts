@@ -10,6 +10,7 @@ import {
   homeworkSubmissions,
   lessons,
   members,
+  migrationRuns,
   uploads,
 } from "@/lib/db/schema";
 import { createHomeworkSubmission, reviewHomeworkSubmission } from "@/lib/db/transactions";
@@ -124,6 +125,10 @@ export async function listHomeworkArchive(input: {
   lessonId?: string;
   status?: HomeworkArchiveStatus;
 }): Promise<HomeworkArchivePage> {
+  // Self-heal: the first archive view after deploy pulls legacy Blob-only
+  // submissions into Neon (once, guarded below). Never let it break the read.
+  await ensureLegacyBackfill().catch(() => undefined);
+
   const limit = Math.max(1, Math.min(input.limit ?? 25, 100));
   const memberRows = input.discordIds.length
     ? await db.select({ id: members.id }).from(members).where(and(inArray(members.discordId, input.discordIds), isNull(members.deletedAt)))
@@ -309,6 +314,68 @@ function toDateOrNull(value: string | undefined): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+const LEGACY_BACKFILL_NAME = "legacy-homework-backfill";
+/** A crashed "running" claim older than this is considered abandoned and retried. */
+const BACKFILL_STALE_MS = 10 * 60 * 1000;
+/** Per-instance short-circuit so a completed backfill costs zero DB round-trips. */
+let backfillEnsured = false;
+
+/**
+ * Run the legacy backfill exactly once, automatically, on the first archive
+ * view after deploy — no admin button required. A row in `migration_runs`
+ * (name-unique) is the cross-instance guard: the first caller claims it, runs
+ * the (idempotent) migration, and marks it completed; everyone else skips. A
+ * claim left "running" past BACKFILL_STALE_MS (a crashed run) is retried, and a
+ * failure marks the row so a later view tries again. Because the backfill is
+ * itself idempotent, even a rare concurrent double-run is harmless.
+ */
+export async function ensureLegacyBackfill(): Promise<void> {
+  if (backfillEnsured) return;
+
+  const [claim] = await db
+    .insert(migrationRuns)
+    .values({ name: LEGACY_BACKFILL_NAME, source: "blob:dojo/progress", status: "running" })
+    .onConflictDoNothing({ target: migrationRuns.name })
+    .returning({ id: migrationRuns.id });
+
+  if (!claim) {
+    const [row] = await db
+      .select({ status: migrationRuns.status, startedAt: migrationRuns.startedAt })
+      .from(migrationRuns)
+      .where(eq(migrationRuns.name, LEGACY_BACKFILL_NAME))
+      .limit(1);
+    if (row?.status === "completed") {
+      backfillEnsured = true;
+      return;
+    }
+    // Another instance is (or was) running it. Only take over a stale claim,
+    // so we don't stampede a healthy in-progress run.
+    const startedMs = row?.startedAt ? row.startedAt.getTime() : 0;
+    if (row?.status === "running" && Date.now() - startedMs < BACKFILL_STALE_MS) return;
+    await db
+      .update(migrationRuns)
+      .set({ status: "running", startedAt: new Date(), completedAt: null })
+      .where(eq(migrationRuns.name, LEGACY_BACKFILL_NAME));
+  }
+
+  try {
+    await backfillLegacyArchive();
+    await db
+      .update(migrationRuns)
+      .set({ status: "completed", completedAt: new Date() })
+      .where(eq(migrationRuns.name, LEGACY_BACKFILL_NAME));
+    backfillEnsured = true;
+  } catch (error) {
+    // Leave a retryable marker; a later archive view will pick it up again.
+    await db
+      .update(migrationRuns)
+      .set({ status: "failed" })
+      .where(eq(migrationRuns.name, LEGACY_BACKFILL_NAME))
+      .catch(() => undefined);
+    throw error;
+  }
 }
 
 /**

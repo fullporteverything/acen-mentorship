@@ -378,9 +378,6 @@ function AdminPanelBody() {
 
       {/* Homework Submissions Queue */}
       <HomeworkQueueSection onPendingCount={setPendingCount} />
-
-      {/* One-off import of pre-archive, Blob-only submissions */}
-      <BackfillArchiveSection />
       </>}
 
       {/* Student Progress — manually advance / reset a student's completions */}
@@ -595,61 +592,6 @@ function AutoApproveSection() {
       <p style={mutedItalic}>
         When ON, submitted homework is instantly approved and the next lesson
         unlocks immediately.
-      </p>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Legacy homework import (Blob -> Neon archive backfill)
-// ---------------------------------------------------------------------------
-
-function BackfillArchiveSection() {
-  const [running, setRunning] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [result, setResult] = useState<{
-    imported: number;
-    skipped: number;
-    failed: number;
-  } | null>(null);
-
-  async function run() {
-    setRunning(true);
-    setFailed(false);
-    try {
-      const res = await fetch("/api/admin/backfill-archive", { method: "POST" });
-      if (!res.ok) throw new Error("bad status");
-      const data = await res.json();
-      setResult({
-        imported: Number(data.imported) || 0,
-        skipped: Number(data.skipped) || 0,
-        failed: Number(data.failed) || 0,
-      });
-    } catch {
-      setFailed(true);
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  return (
-    <section style={cardStyle}>
-      <p style={sectionLabel}>Legacy Homework Import</p>
-      {failed && <WriteError>Could not import — try again.</WriteError>}
-      {result && (
-        <div className="state-message">
-          <p>
-            Imported {result.imported} · skipped {result.skipped}
-            {result.failed > 0 ? ` · failed ${result.failed}` : ""}
-          </p>
-        </div>
-      )}
-      <button type="button" onClick={run} disabled={running} style={smallBtn}>
-        {running ? "Importing…" : "Import legacy homework"}
-      </button>
-      <p style={{ ...mutedItalic, marginTop: "12px" }}>
-        Pulls older Blob-only submissions into the archive. Safe to run
-        repeatedly — already-imported work is skipped.
       </p>
     </section>
   );

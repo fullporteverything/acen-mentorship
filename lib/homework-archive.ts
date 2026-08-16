@@ -1,15 +1,24 @@
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { get, list } from "@vercel/blob";
 
-import { db } from "@/lib/db/client";
+import { db, dbTransaction } from "@/lib/db/client";
 import {
   curriculumSections,
+  homeworkReviewCounters,
   homeworkRubricReviews,
+  homeworkSubmissionCounters,
   homeworkSubmissions,
   lessons,
   members,
   uploads,
 } from "@/lib/db/schema";
 import { createHomeworkSubmission, reviewHomeworkSubmission } from "@/lib/db/transactions";
+import {
+  getAddedLessons,
+  getLessonOverrides,
+  type UserProgress,
+} from "@/lib/lesson-store";
+import { buildEffectiveLessons, getLesson, type Lesson } from "@/lib/lessons-config";
 
 type SubmissionSource = {
   id: string;
@@ -279,4 +288,158 @@ export async function reviewArchivedHomework(input: {
     rubric: {},
   });
   return true;
+}
+
+/**
+ * Position for a legacy lesson in the "homework-archive" section. Lessons still
+ * in the curriculum reuse their curriculum index (matching the submit route), so
+ * a backfilled row and a live submission for the same lesson never collide on
+ * (section, position). Lessons no longer in the curriculum get a stable,
+ * high position derived from their id so distinct ids stay unique.
+ */
+function legacyLessonPosition(lessonId: string, effective: Lesson[]): number {
+  const index = effective.findIndex((lesson) => lesson.id === lessonId);
+  if (index >= 0) return index + 1;
+  let hash = 0;
+  for (let i = 0; i < lessonId.length; i += 1) hash = (hash * 31 + lessonId.charCodeAt(i)) % 1_000_000;
+  return 1_000_000 + hash;
+}
+
+function toDateOrNull(value: string | undefined): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Idempotent migration of Blob-only homework (written before the Neon archive
+ * existed) into `homework_submissions`. Scans `dojo/progress/{discordId}.json`
+ * and, for each submission not already present (matched by storageKey), recreates
+ * its member, lesson, archive version, review, and a clean `uploads` row so the
+ * file is viewable. Preserves each submission's original `submittedAt`. Safe to
+ * run repeatedly — already-imported rows are skipped without touching counters.
+ */
+export async function backfillLegacyArchive(): Promise<{
+  members: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+}> {
+  const storeId = process.env.BLOB_READ_WRITE_TOKEN_STORE_ID;
+  const effective = buildEffectiveLessons(await getAddedLessons(), await getLessonOverrides());
+
+  const [section] = await db
+    .insert(curriculumSections)
+    .values({ slug: "homework-archive", title: "Homework Archive", position: 1_000_000 })
+    .onConflictDoUpdate({ target: curriculumSections.slug, set: { title: "Homework Archive", updatedAt: new Date() } })
+    .returning({ id: curriculumSections.id });
+
+  const { blobs } = await list({ prefix: "dojo/progress/", storeId });
+  let memberCount = 0;
+  let imported = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const blob of blobs) {
+    if (!blob.pathname.endsWith(".json")) continue;
+    const discordId = blob.pathname.replace("dojo/progress/", "").replace(/\.json$/, "");
+    if (!discordId) continue;
+
+    let progress: UserProgress;
+    try {
+      const result = await get(blob.pathname, { access: "private", storeId, useCache: false });
+      if (!result || result.statusCode !== 200 || !result.stream) continue;
+      const text = await new Response(result.stream).text();
+      if (!text) continue;
+      progress = JSON.parse(text) as UserProgress;
+    } catch {
+      // Skip unreadable/corrupt progress blobs rather than failing the whole run.
+      continue;
+    }
+    const submissions = progress.submissions ?? {};
+    if (!Object.keys(submissions).length) continue;
+    memberCount += 1;
+
+    const [member] = await db
+      .insert(members)
+      .values({ discordId, displayName: progress.discordUsername })
+      .onConflictDoUpdate({ target: members.discordId, set: { displayName: progress.discordUsername, updatedAt: new Date(), deletedAt: null } })
+      .returning({ id: members.id });
+
+    for (const [lessonId, submission] of Object.entries(submissions)) {
+      try {
+        // Idempotency: an already-imported submission keeps its storageKey, so a
+        // matching row means this one is done — skip without allocating a version.
+        const [existing] = await db
+          .select({ id: homeworkSubmissions.id })
+          .from(homeworkSubmissions)
+          .where(eq(homeworkSubmissions.storageKey, submission.blobUrl))
+          .limit(1);
+        if (existing) {
+          skipped += 1;
+          continue;
+        }
+
+        const submittedAt = toDateOrNull(submission.submittedAt) ?? new Date(0);
+        const lessonTitle = getLesson(lessonId, effective)?.title ?? lessonId;
+        await db
+          .insert(lessons)
+          .values({ id: lessonId, sectionId: section.id, title: lessonTitle, position: legacyLessonPosition(lessonId, effective), published: true })
+          .onConflictDoUpdate({ target: lessons.id, set: { title: lessonTitle, updatedAt: new Date() } });
+
+        const outcome = await dbTransaction(async (tx) => {
+          const [counter] = await tx
+            .insert(homeworkSubmissionCounters)
+            .values({ memberId: member.id, lessonId, nextVersion: 2 })
+            .onConflictDoUpdate({
+              target: [homeworkSubmissionCounters.memberId, homeworkSubmissionCounters.lessonId],
+              set: { nextVersion: sql<number>`${homeworkSubmissionCounters.nextVersion} + 1`, updatedAt: sql<Date>`now()` },
+            })
+            .returning({ nextVersion: homeworkSubmissionCounters.nextVersion });
+
+          const [inserted] = await tx
+            .insert(homeworkSubmissions)
+            .values({
+              memberId: member.id,
+              lessonId,
+              version: counter.nextVersion - 1,
+              storageKey: submission.blobUrl,
+              fileName: submission.fileName,
+              contentType: "application/pdf",
+              submittedAt,
+            })
+            .onConflictDoNothing({ target: homeworkSubmissions.storageKey })
+            .returning({ id: homeworkSubmissions.id });
+          // Lost the race to another importer — treat as already present.
+          if (!inserted) return "skipped" as const;
+
+          if (submission.status === "approved" || submission.status === "rejected") {
+            await tx.insert(homeworkReviewCounters).values({ submissionId: inserted.id, nextVersion: 2 });
+            await tx.insert(homeworkRubricReviews).values({
+              submissionId: inserted.id,
+              memberId: member.id,
+              version: 1,
+              decision: submission.status,
+              feedback: submission.feedback ?? "",
+              reviewedAt: toDateOrNull(submission.reviewedAt) ?? new Date(),
+            });
+          }
+
+          await tx
+            .insert(uploads)
+            .values({ memberId: member.id, storageKey: submission.blobUrl, fileName: submission.fileName, contentType: "application/pdf", byteSize: 0, status: "clean" })
+            .onConflictDoNothing({ target: uploads.storageKey });
+          return "imported" as const;
+        });
+
+        if (outcome === "imported") imported += 1;
+        else skipped += 1;
+      } catch {
+        // One bad row must not abort the whole migration.
+        failed += 1;
+      }
+    }
+  }
+
+  return { members: memberCount, imported, skipped, failed };
 }

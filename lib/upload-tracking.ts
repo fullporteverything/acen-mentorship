@@ -9,10 +9,12 @@ export async function recordUploadMetadata(discordId: string, storageKey: string
   if (!member) throw new Error("Missing Postgres member metadata for upload");
   const [upload] = await db.insert(uploads).values({
     memberId: member.id, storageKey, fileName: file.name || "upload", contentType: file.type || "application/octet-stream", byteSize: file.size,
-    status: scan.state === "clean" ? "clean" : "quarantined",
+    // No configured scanner means the upload is accepted unscanned and viewable;
+    // only a real "infected" verdict quarantines it.
+    status: scan.state === "infected" ? "quarantined" : "clean",
   }).onConflictDoNothing().returning({ id: uploads.id });
-  if (upload && scan.state !== "clean") {
-    await db.insert(uploadQuarantine).values({ uploadId: upload.id, reason: scan.state === "unconfigured" ? "scanner_unconfigured" : "scan_detected" }).onConflictDoNothing();
+  if (upload && scan.state === "infected") {
+    await db.insert(uploadQuarantine).values({ uploadId: upload.id, reason: "scan_detected" }).onConflictDoNothing();
   }
 }
 

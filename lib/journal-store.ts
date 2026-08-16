@@ -123,15 +123,26 @@ export async function uploadJournalImage(
   discordId: string,
   entryId: string,
   fileName: string,
-  file: File | Blob
+  file: File | Blob,
+  /** The type CONFIRMED by validateImage() — never the browser-supplied file.type. */
+  validatedContentType?: "image/png" | "image/jpeg"
 ): Promise<string> {
   const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   const pathname = `dojo/journal/${discordId}/${entryId}/${Date.now()}_${safe}`;
+  // file.type is attacker-controlled, so we never store it. Only a type vouched
+  // for by validateImage() is trusted; anything else is stored as a neutral
+  // octet-stream, which the /api/blob proxy serves as an attachment (it allows
+  // inline rendering for application/pdf only), so a mislabeled blob can't be
+  // coaxed into rendering as active content.
+  const storedContentType =
+    validatedContentType === "image/png" || validatedContentType === "image/jpeg"
+      ? validatedContentType
+      : "application/octet-stream";
   await put(pathname, file, {
     access: "private",
     storeId: STORE_ID,
     addRandomSuffix: false,
-    contentType: file instanceof File ? file.type || undefined : undefined,
+    contentType: storedContentType,
   });
   return pathname;
 }

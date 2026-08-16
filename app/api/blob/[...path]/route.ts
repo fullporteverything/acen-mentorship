@@ -38,6 +38,12 @@ export async function GET(
   if (segs[0] !== "dojo" || segs.length < 4) {
     return new NextResponse("Not found", { status: 404 });
   }
+  // Reject traversal / empty segments before the owner check. Blob keys are
+  // opaque strings today (so `..` matches no object), but this makes the
+  // owner gate robust even if the storage backend ever normalizes paths.
+  if (segs.some((s) => s === "" || s === "." || s === ".." || s.includes("\\"))) {
+    return new NextResponse("Not found", { status: 404 });
+  }
 
   const ownerId = segs[2];
   if (!identity.isAdmin && !identity.ownerIds.includes(ownerId)) {

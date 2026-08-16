@@ -9,12 +9,17 @@ function contentSecurityPolicy(nonce: string) {
     "object-src 'none'",
     "frame-ancestors 'none'",
     `script-src 'self' 'nonce-${nonce}' https://discord.com https://*.discord.com https://*.kinescope.io`,
+    // Inline style ATTRIBUTES (React style={{}}) require 'unsafe-inline' here;
+    // the app uses them throughout. Scripts do NOT get 'unsafe-inline' — the
+    // nonce above is what lets Next's inline bootstrap run.
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://cdn.discordapp.com https://media.discordapp.net https://*.public.blob.vercel-storage.com",
     "connect-src 'self' https://discord.com https://*.discord.com https://*.kinescope.io https://kinescope.io https://*.public.blob.vercel-storage.com",
     "frame-src 'self' https://kinescope.io https://*.kinescope.io",
     "media-src 'self' blob: https://kinescope.io https://*.kinescope.io https://*.public.blob.vercel-storage.com",
+    // Forms may only submit back to us — cheap CSRF/exfil defense-in-depth.
+    "form-action 'self'",
   ].join("; ");
 }
 
@@ -26,6 +31,13 @@ function withSecurityHeaders(response: NextResponse, nonce: string) {
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  // Set here too (not only in next.config headers()) so the middleware's own
+  // short-circuit responses — the 403 browser gate and the auth redirects —
+  // still carry HSTS, which config headers() don't reliably reach.
+  response.headers.set(
+    "Strict-Transport-Security",
+    "max-age=63072000; includeSubDomains; preload"
+  );
   return response;
 }
 
@@ -128,6 +140,12 @@ export default auth((req) => {
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
+  // Next reads the nonce from the REQUEST Content-Security-Policy header and
+  // stamps it onto every inline script it emits (its framework bootstrap).
+  // Without this the nonce in the response header matched nothing, so either
+  // the inline scripts were blocked or the policy was doing nothing. See
+  // node_modules/next/dist/docs/.../content-security-policy.md.
+  requestHeaders.set("Content-Security-Policy", contentSecurityPolicy(nonce));
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   return withSecurityHeaders(response, nonce);
 });

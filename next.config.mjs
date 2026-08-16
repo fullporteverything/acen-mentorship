@@ -1,19 +1,35 @@
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  "script-src 'self' 'nonce-__CSP_NONCE__' https://discord.com https://*.discord.com https://*.kinescope.io",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' data: https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https://cdn.discordapp.com https://media.discordapp.net https://*.public.blob.vercel-storage.com",
-  "connect-src 'self' https://discord.com https://*.discord.com https://*.kinescope.io https://kinescope.io https://*.public.blob.vercel-storage.com",
-  "frame-src 'self' https://kinescope.io https://*.kinescope.io",
-  "media-src 'self' blob: https://kinescope.io https://*.kinescope.io https://*.public.blob.vercel-storage.com",
-].join("; ");
+/**
+ * Security headers.
+ *
+ * The Content-Security-Policy for HTML pages is NOT set here — it is emitted
+ * per-request by proxy.ts with a live nonce (a static config CSP can't carry a
+ * nonce, and shipping both produced two conflicting CSP headers, one with a
+ * dead nonce placeholder that was never substituted). This file owns only the
+ * header set that is
+ * identical on every response: the browser-isolation + transport headers, plus
+ * a locked-down CSP for the JSON API surface (which the page middleware
+ * deliberately doesn't touch and which never needs to load anything).
+ */
+const ISOLATION_HEADERS = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+  },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+];
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Don't advertise the framework/version to every visitor.
+  poweredByHeader: false,
   transpilePackages: ["three"],
   turbopack: {
     root: process.cwd(),
@@ -22,15 +38,18 @@ const nextConfig = {
     return [
       {
         source: "/(.*)",
+        headers: ISOLATION_HEADERS,
+      },
+      {
+        // API responses are JSON consumed by fetch — they never render markup
+        // or load sub-resources, so the strictest CSP fits and covers the one
+        // surface the page middleware doesn't.
+        source: "/api/:path*",
         headers: [
-          { key: "Content-Security-Policy", value: contentSecurityPolicy },
-          { key: "X-Frame-Options", value: "DENY" },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
-          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          {
+            key: "Content-Security-Policy",
+            value: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+          },
         ],
       },
     ];

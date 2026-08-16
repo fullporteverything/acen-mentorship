@@ -11,9 +11,24 @@ import {
 } from "@/lib/lesson-store";
 import { buildEffectiveLessons } from "@/lib/lessons-config";
 import { getJournal } from "@/lib/journal-store";
-import { getSecurityMembers } from "@/lib/security-store";
+import { getSecurityMember } from "@/lib/security-store";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+
+/** GET is read-only, so a generous ceiling — just a DoS-amplification cap. */
+const NOTIFICATIONS_READ_POLICY = { limit: 60, windowMs: 60 * 1000 };
+/** Receipt POSTs carry a short id list; anything past this is not a real payload. */
+const NOTIFICATIONS_MAX_BODY_BYTES = 4 * 1024;
+
+/** Cheap first gate: reject oversized bodies via Content-Length before buffering. */
+function bodyTooLarge(req: Request, maxBytes: number): NextResponse | null {
+  const len = Number(req.headers.get("content-length"));
+  if (Number.isFinite(len) && len > maxBytes) {
+    return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+  }
+  return null;
+}
 
 interface NotificationItem {
   id: string;
@@ -27,11 +42,21 @@ export async function GET() {
   const identity = await requireMemberOrResponse();
   if (identity instanceof Response) return identity;
   const { discordId } = identity;
+  // No mutation here, so allowMutation doesn't fit — but an unthrottled GET that
+  // fans out to blob reads is a DoS-amplification vector. Cap per member.
+  const throttled = await consumeRateLimit(
+    discordId,
+    "notifications.read",
+    NOTIFICATIONS_READ_POLICY
+  );
+  if (!throttled.allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
   const [
     announcements,
     progress,
     journal,
-    securityMembers,
+    securityMember,
     seen,
     addedLessons,
     overrides,
@@ -39,7 +64,9 @@ export async function GET() {
     getAnnouncements(),
     getViewerProgress(discordId),
     getJournal(discordId),
-    getSecurityMembers(),
+    // Only the caller's own record is used, so read that one blob instead of
+    // scanning every member's (getSecurityMembers fans out across all blobs).
+    getSecurityMember(discordId),
     getSeenNotifications(discordId),
     getAddedLessons(),
     getLessonOverrides(),
@@ -85,9 +112,7 @@ export async function GET() {
       createdAt: entry.feedbackAt,
     });
   }
-  const security = securityMembers.find(
-    (member) => member.discordId === discordId && member.strikes > 0
-  );
+  const security = securityMember.strikes > 0 ? securityMember : undefined;
   if (security) {
     items.push({
       id: `security:${security.strikes}:${security.updatedAt}`,
@@ -112,6 +137,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const identity = await requireMemberOrResponse();
   if (identity instanceof Response) return identity;
+  const oversized = bodyTooLarge(request, NOTIFICATIONS_MAX_BODY_BYTES);
+  if (oversized) return oversized;
   const denied = await allowMutation(identity, "notifications.seen", request);
   if (denied) return denied;
   const { discordId } = identity;

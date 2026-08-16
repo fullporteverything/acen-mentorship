@@ -95,13 +95,19 @@ export async function resolveKinescopeProjectId(): Promise<string> {
     );
   }
 
-  throw new KinescopeProjectResolutionError(
-    `Multiple Kinescope projects were found. Set KINESCOPE_PROJECT_ID to one of: ${projects
+  // The message on this error is returned to the admin browser, so it must not
+  // enumerate the Kinescope account's project names + IDs. Log the detailed list
+  // server-side (operator-only) and hand the client a generic instruction.
+  console.error(
+    `Multiple Kinescope projects found; set KINESCOPE_PROJECT_ID to one of: ${projects
       .map(
         (project: { id: string; name: string }) =>
           `${project.name} (${project.id})`
       )
       .join(", ")}`
+  );
+  throw new KinescopeProjectResolutionError(
+    "Multiple Kinescope projects found — set KINESCOPE_PROJECT_ID."
   );
 }
 

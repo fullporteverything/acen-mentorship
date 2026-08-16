@@ -7,13 +7,15 @@ const mocks = vi.hoisted(() => ({
   getViewerProgress: vi.fn(),
   markNotificationsSeen: vi.fn(),
   getJournal: vi.fn(),
-  getSecurityMembers: vi.fn(),
+  getSecurityMember: vi.fn(),
   getAddedLessons: vi.fn(),
   getLessonOverrides: vi.fn(),
+  consumeRateLimit: vi.fn(),
 }));
 
 vi.mock("@/lib/authz", () => ({ requireMemberOrResponse: mocks.requireMemberOrResponse }));
 vi.mock("@/lib/mutation-security", () => ({ allowMutation: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
 vi.mock("@/lib/lesson-store", () => ({
   getAnnouncements: mocks.getAnnouncements,
   getSeenNotifications: mocks.getSeenNotifications,
@@ -24,15 +26,20 @@ vi.mock("@/lib/lesson-store", () => ({
 }));
 vi.mock("@/lib/journal-store", () => ({ getJournal: mocks.getJournal }));
 vi.mock("@/lib/security-store", () => ({
-  getSecurityMembers: mocks.getSecurityMembers,
+  getSecurityMember: mocks.getSecurityMember,
 }));
 
 import { GET, POST } from "./route";
+
+/** A zero-strike record — getSecurityMember always resolves to the caller's own. */
+const noStrikes = { discordId: "student-1", strikes: 0, locked: false, updatedAt: "2026-01-01" };
 
 describe("GET /api/notifications privacy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireMemberOrResponse.mockResolvedValue({ discordId: "student-1" });
+    mocks.consumeRateLimit.mockResolvedValue({ allowed: true, remaining: 1, resetAt: new Date() });
+    mocks.getSecurityMember.mockResolvedValue(noStrikes);
     mocks.getAnnouncements.mockResolvedValue([]);
     mocks.getSeenNotifications.mockResolvedValue([]);
     mocks.getViewerProgress.mockResolvedValue({
@@ -54,23 +61,29 @@ describe("GET /api/notifications privacy", () => {
   });
 
   it("loads only the authenticated member and hides zero-strike notices", async () => {
-    mocks.getSecurityMembers.mockResolvedValue([
-      { discordId: "student-1", strikes: 0, locked: false, updatedAt: "2026-01-01" },
-      { discordId: "other", strikes: 2, locked: false, updatedAt: "2026-01-02" },
-    ]);
+    mocks.getSecurityMember.mockResolvedValue({
+      discordId: "student-1",
+      strikes: 0,
+      locked: false,
+      updatedAt: "2026-01-01",
+    });
 
     const response = await GET();
     const data = await response.json();
 
+    expect(mocks.getSecurityMember).toHaveBeenCalledWith("student-1");
     expect(mocks.getViewerProgress).toHaveBeenCalledWith("student-1");
     expect(mocks.getJournal).toHaveBeenCalledWith("student-1");
     expect(data.items).toEqual([]);
   });
 
   it("shows a strike only after the authenticated member has one", async () => {
-    mocks.getSecurityMembers.mockResolvedValue([
-      { discordId: "student-1", strikes: 1, locked: false, updatedAt: "2026-01-03" },
-    ]);
+    mocks.getSecurityMember.mockResolvedValue({
+      discordId: "student-1",
+      strikes: 1,
+      locked: false,
+      updatedAt: "2026-01-03",
+    });
 
     const data = await (await GET()).json();
 
@@ -79,7 +92,7 @@ describe("GET /api/notifications privacy", () => {
   });
 
   it("uses reviewedAt to create a fresh homework notification", async () => {
-    mocks.getSecurityMembers.mockResolvedValue([]);
+    mocks.getSecurityMember.mockResolvedValue(noStrikes);
     mocks.getViewerProgress.mockResolvedValue({
       completedLessons: [],
       submissions: {
@@ -102,7 +115,7 @@ describe("GET /api/notifications privacy", () => {
   });
 
   it("names the lesson and says 'needs revision' instead of 'rejected'", async () => {
-    mocks.getSecurityMembers.mockResolvedValue([]);
+    mocks.getSecurityMember.mockResolvedValue(noStrikes);
     mocks.getViewerProgress.mockResolvedValue({
       completedLessons: [],
       submissions: {
@@ -149,5 +162,32 @@ describe("GET /api/notifications privacy", () => {
     );
 
     expect((await GET()).status).toBe(503);
+  });
+
+  it("throttles reads per member and never fans out to blob reads when tripped", async () => {
+    mocks.consumeRateLimit.mockResolvedValue({ allowed: false, remaining: 0, resetAt: new Date() });
+
+    const response = await GET();
+
+    expect(response.status).toBe(429);
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(
+      "student-1",
+      "notifications.read",
+      { limit: 60, windowMs: 60 * 1000 }
+    );
+    expect(mocks.getSecurityMember).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized receipt payloads with a 413", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/notifications", {
+        method: "POST",
+        headers: { "content-length": String(4 * 1024 + 1) },
+        body: JSON.stringify({ ids: ["announcement:a"] }),
+      })
+    );
+
+    expect(response.status).toBe(413);
+    expect(mocks.markNotificationsSeen).not.toHaveBeenCalled();
   });
 });

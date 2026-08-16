@@ -3,22 +3,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requireMemberOrResponse: vi.fn(),
   allowMutation: vi.fn(),
+  consumeRateLimit: vi.fn(),
 }));
 
 vi.mock("@/lib/authz", () => ({ requireMemberOrResponse: mocks.requireMemberOrResponse }));
 vi.mock("@/lib/mutation-security", () => ({ allowMutation: mocks.allowMutation }));
+vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
 
 import { POST } from "./route";
 
 const GUILD = "guild-1";
 const CHANNEL = "channel-1";
 
-function request(body: unknown = {}) {
+function request(body: unknown = {}, headers?: Record<string, string>) {
   return new Request("http://localhost/api/support/ticket", {
     method: "POST",
+    headers,
     body: JSON.stringify(body),
   });
 }
+
+const allowed = { allowed: true, remaining: 1, resetAt: new Date() };
+const denied = { allowed: false, remaining: 0, resetAt: new Date() };
 
 /** Happy-path Discord: create thread → add member → post message. */
 function discordOk() {
@@ -39,6 +45,7 @@ describe("POST /api/support/ticket", () => {
       name: "Kenji.Sato",
     });
     mocks.allowMutation.mockResolvedValue(null);
+    mocks.consumeRateLimit.mockResolvedValue(allowed);
     vi.stubEnv("DISCORD_BOT_TOKEN", "bot-token");
     vi.stubEnv("DISCORD_GUILD_ID", GUILD);
     vi.stubEnv("DISCORD_SUPPORT_CHANNEL_ID", CHANNEL);
@@ -161,6 +168,72 @@ describe("POST /api/support/ticket", () => {
     vi.stubGlobal("fetch", fetchSpy);
 
     expect((await POST(request())).status).toBe(502);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("caps tickets per client IP under the per-user throttle", async () => {
+    mocks.consumeRateLimit.mockImplementation((subject: string, action: string) =>
+      Promise.resolve(action === "support.ticket.ip" ? denied : allowed)
+    );
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await POST(
+      request({}, { "x-forwarded-for": "203.0.113.7, 10.0.0.1" })
+    );
+
+    // Same generic failure — never reveal which cap tripped.
+    expect(response.status).toBe(502);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(
+      "203.0.113.7",
+      "support.ticket.ip",
+      { limit: 5, windowMs: 60 * 60 * 1000 }
+    );
+  });
+
+  it("skips the per-IP cap when no client IP is present", async () => {
+    vi.stubGlobal("fetch", discordOk());
+
+    await POST(request());
+
+    expect(mocks.consumeRateLimit).not.toHaveBeenCalledWith(
+      expect.anything(),
+      "support.ticket.ip",
+      expect.anything()
+    );
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(
+      "__global__",
+      "support.ticket.global",
+      { limit: 20, windowMs: 60 * 60 * 1000 }
+    );
+  });
+
+  it("caps tickets channel-wide with a global ceiling", async () => {
+    mocks.consumeRateLimit.mockImplementation((subject: string, action: string) =>
+      Promise.resolve(action === "support.ticket.global" ? denied : allowed)
+    );
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await POST(
+      request({}, { "x-forwarded-for": "203.0.113.7" })
+    );
+
+    expect(response.status).toBe(502);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized ticket bodies with a 413 before doing any work", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await POST(
+      request({}, { "content-length": String(8 * 1024 + 1) })
+    );
+
+    expect(response.status).toBe(413);
+    expect(mocks.allowMutation).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

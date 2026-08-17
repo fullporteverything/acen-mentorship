@@ -628,6 +628,59 @@ export const migrationVerificationArtifacts = pgTable(
   ]
 );
 
+/**
+ * Append-only ledger of NDA e-signatures — one row per signing event, never
+ * updated. A member counts as currently signed when a row exists whose
+ * ndaVersion matches the live NDA_VERSION (see getOnboardingStatus).
+ */
+export const ndaSignatures = pgTable(
+  "nda_signatures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => members.id),
+    discordId: varchar("discord_id", { length: 32 }).notNull(),
+    legalName: varchar("legal_name", { length: 255 }).notNull(),
+    ndaVersion: integer("nda_version").notNull(),
+    ndaHash: varchar("nda_hash", { length: 128 }).notNull(),
+    ipAddress: varchar("ip_address", { length: 128 }),
+    userAgent: text("user_agent"),
+    consentEsign: boolean("consent_esign").notNull().default(false),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+    ...timestamps,
+  },
+  (table) => [index("nda_signatures_member_version_index").on(table.memberId, table.ndaVersion)]
+);
+
+/**
+ * Stripe Identity verification sessions. status advances via the signed webhook.
+ * A member counts as verified when their latest row is status === "verified".
+ */
+export const identityVerifications = pgTable(
+  "identity_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => members.id),
+    discordId: varchar("discord_id", { length: 32 }).notNull(),
+    stripeSessionId: varchar("stripe_session_id", { length: 255 }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("pending"),
+    verifiedName: varchar("verified_name", { length: 255 }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique("identity_verifications_stripe_session_id_unique").on(table.stripeSessionId),
+    index("identity_verifications_member_created_index").on(table.memberId, table.createdAt),
+    check(
+      "identity_verifications_valid_status",
+      sql`${table.status} IN ('pending', 'verified', 'requires_input', 'canceled')`
+    ),
+  ]
+);
+
 export type MemberRow = typeof members.$inferSelect;
 export type MemberInsert = typeof members.$inferInsert;
 export type HomeworkSubmissionRow = typeof homeworkSubmissions.$inferSelect;

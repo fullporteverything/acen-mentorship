@@ -1,8 +1,11 @@
+import { redirect } from "next/navigation";
 import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import VpnGuard from "@/components/VpnGuard";
 import ScreenGuard from "@/components/ScreenGuard";
 import SiteMeditation from "@/components/SiteMeditation";
 import { getSecurityMember } from "@/lib/security-store";
+import { isIdentityRequired, isNdaGateEnabled } from "@/lib/onboarding";
+import { getOnboardingStatus } from "@/lib/onboarding-store";
 
 /**
  * Wraps every /dashboard route with the security guards:
@@ -17,6 +20,16 @@ export default async function DashboardLayout({
   const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error));
   const isAdmin = identity?.isAdmin ?? false;
   const discordId = identity?.discordId;
+
+  // Onboarding gate. OFF by default: when NDA_GATE_ENABLED !== "true" this is a
+  // single env read and nothing else changes. Admins are never gated. The NDA
+  // step is always required once enabled; the identity step only when Stripe is
+  // configured — so enabling the flag before wiring Stripe is not a dead end.
+  if (isNdaGateEnabled() && identity && !isAdmin) {
+    const status = await getOnboardingStatus(identity.discordId);
+    if (!status.ndaSignedCurrent) redirect("/onboarding");
+    if (isIdentityRequired() && !status.identityVerified) redirect("/onboarding");
+  }
   const securityMember = discordId && !isAdmin
     ? await getSecurityMember(discordId, identity?.name ?? undefined)
     : null;

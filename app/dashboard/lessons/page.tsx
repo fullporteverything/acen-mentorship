@@ -283,6 +283,7 @@ export default async function LessonsPage() {
                         color: "rgba(245,240,240,0.55)",
                         fontFamily: "Georgia, serif",
                         lineHeight: 1.7,
+                        whiteSpace: "pre-wrap",
                       }}
                     >
                       {s.lesson.description}

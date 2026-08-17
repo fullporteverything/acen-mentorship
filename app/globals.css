@@ -877,7 +877,7 @@ body {
 .homework-archive-row-copy { min-width: 0; flex: 1 1 auto; }
 .homework-archive-row-copy h3 { margin-bottom: 6px; color: #f5f0f0; font: 400 15px Georgia, serif; }
 .homework-archive-row-copy p { color: rgba(245,240,240,.5); font: 11px/1.5 Georgia, serif; }
-.homework-archive-row-copy blockquote { margin-top: 10px; padding-left: 12px; border-left: 1px solid rgba(232,160,160,.35); color: rgba(245,240,240,.68); font: italic 12px/1.6 Georgia, serif; }
+.homework-archive-row-copy blockquote { margin-top: 10px; padding-left: 12px; border-left: 1px solid rgba(232,160,160,.35); color: rgba(245,240,240,.68); font: italic 12px/1.6 Georgia, serif; white-space: pre-wrap; }
 .homework-status { flex: 0 0 auto; padding: 5px 8px; border: 1px solid rgba(232,160,160,.18); color: rgba(245,240,240,.65); font: 9px Georgia, serif; letter-spacing: 1px; text-transform: uppercase; }
 .homework-status-approved { color: #b7d5b5; border-color: rgba(183,213,181,.28); }
 .homework-status-rejected,

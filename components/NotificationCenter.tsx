@@ -138,7 +138,7 @@ export default function NotificationCenter() {
                     <p style={{ color: "#E8A0A0", fontSize: 11, marginBottom: 4 }}>
                       {item.title}
                     </p>
-                    <p style={{ ...mutedStyle, margin: 0 }}>{item.body}</p>
+                    <p style={{ ...mutedStyle, margin: 0, whiteSpace: "pre-wrap" }}>{item.body}</p>
                     <p style={stampStyle}>{relativeTime(item.createdAt)}</p>
                   </>
                 );

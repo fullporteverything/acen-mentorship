@@ -401,6 +401,7 @@ export default async function LessonPage({
                           color: "rgba(245,240,240,0.72)",
                           lineHeight: 1.7,
                           fontStyle: "italic",
+                          whiteSpace: "pre-wrap",
                         }}
                       >
                         Feedback: {submission.feedback}

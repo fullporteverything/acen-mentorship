@@ -53,10 +53,15 @@ export default function EditableText({
   }, [editing]);
 
   const Tag = as;
+  // Preserve the author's line breaks for the long fields (description /
+  // homework prompt). Titles stay single-line.
+  const displayStyle: React.CSSProperties = multiline
+    ? { ...style, whiteSpace: "pre-wrap" }
+    : (style ?? {});
 
   if (!isAdmin) {
     return (
-      <Tag className={className} style={style}>
+      <Tag className={className} style={displayStyle}>
         {value}
       </Tag>
     );
@@ -135,7 +140,7 @@ export default function EditableText({
   return (
     <Tag
       className={`editable-admin${className ? ` ${className}` : ""}`}
-      style={style}
+      style={displayStyle}
       onDoubleClick={() => setEditing(true)}
       title="Double-click to edit"
     >

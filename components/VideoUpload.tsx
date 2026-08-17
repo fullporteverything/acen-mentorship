@@ -22,6 +22,7 @@ import {
 export default function VideoUpload() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState("");
+  const [dragActive, setDragActive] = useState(false);
   const [status, setStatus] = useState<"idle" | "uploading" | "done">("idle");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
@@ -71,6 +72,26 @@ export default function VideoUpload() {
     if (status) return `Upload failed (HTTP ${status}).`;
     if (!firstLine) return "Upload failed. Please try again.";
     return firstLine.length > 160 ? `${firstLine.slice(0, 160)}…` : firstLine;
+  }
+
+  /**
+   * Accept a chosen or dropped file. Mirrors it into the hidden <input> so the
+   * existing submit path (which reads inputRef.current.files) works unchanged
+   * whether the file came from the picker or a drag-and-drop.
+   */
+  function acceptFile(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("video/")) {
+      setError("Only video files are accepted.");
+      return;
+    }
+    if (inputRef.current) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      inputRef.current.files = dt.files;
+    }
+    setError("");
+    setFileName(file.name);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -210,32 +231,69 @@ export default function VideoUpload() {
 
       <form onSubmit={handleSubmit} style={{ maxWidth: "520px" }}>
         <label
+          onDragOver={(e) => {
+            if (uploading) return;
+            e.preventDefault();
+            if (!dragActive) setDragActive(true);
+          }}
+          onDragEnter={(e) => {
+            if (uploading) return;
+            e.preventDefault();
+            setDragActive(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+            if (uploading) return;
+            acceptFile(e.dataTransfer.files?.[0]);
+          }}
           style={{
             display: "block",
-            border: "1px dashed rgba(232,160,160,0.3)",
-            background: "rgba(232,160,160,0.03)",
-            padding: "18px 20px",
+            textAlign: "center",
+            border: `1px dashed ${dragActive ? "rgba(232,160,160,0.75)" : "rgba(232,160,160,0.3)"}`,
+            background: dragActive ? "rgba(232,160,160,0.10)" : "rgba(232,160,160,0.03)",
+            padding: "26px 20px",
             cursor: uploading ? "default" : "pointer",
             fontFamily: "Georgia, serif",
             marginBottom: "10px",
+            transition: "border-color 0.15s ease, background 0.15s ease",
           }}
         >
           <input
             ref={inputRef}
             type="file"
             accept="video/*"
-            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")}
+            onChange={(e) => acceptFile(e.target.files?.[0])}
             disabled={uploading}
             style={{ display: "none" }}
           />
           <span
             style={{
+              display: "block",
               fontSize: "13px",
               color: fileName ? "#F5F0F0" : "rgba(245,240,240,0.5)",
             }}
           >
-            {fileName || "Choose a video file…"}
+            {fileName || (dragActive ? "Drop the video to upload" : "Choose a video file…")}
           </span>
+          {!fileName && (
+            <span
+              style={{
+                display: "block",
+                marginTop: "6px",
+                fontSize: "10px",
+                letterSpacing: "2px",
+                textTransform: "uppercase",
+                color: "rgba(232,160,160,0.55)",
+              }}
+            >
+              or drag &amp; drop here
+            </span>
+          )}
         </label>
 
         <p

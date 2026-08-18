@@ -78,7 +78,7 @@ export async function GET(req: Request) {
         skippedShorts += 1;
         continue;
       }
-      const ok = await postToDiscord(announceChannelId, botToken, video.title, video.url);
+      const ok = await postToDiscord(announceChannelId, botToken, video.url);
       // Only mark handled once it's actually out — a failed post is retried next
       // poll rather than silently dropped.
       if (ok) {
@@ -95,11 +95,14 @@ export async function GET(req: Request) {
   }
 }
 
-/** Post the announcement with a real @everyone ping. Returns whether it landed. */
+/**
+ * Post the announcement with real @everyone + @here pings. Returns whether it
+ * landed. The bare YouTube link auto-expands into Discord's rich video card
+ * (thumbnail + title), so we don't repeat the title in the text.
+ */
 async function postToDiscord(
   channelId: string,
   botToken: string,
-  title: string,
   videoUrl: string
 ): Promise<boolean> {
   try {
@@ -110,8 +113,8 @@ async function postToDiscord(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        // Discord auto-embeds the bare YouTube link into a rich video card.
-        content: `@everyone\n**${title}**\n${videoUrl}`,
+        content: `@everyone @here\nNEW YOUTUBE VIDEO OUT!\n\n${videoUrl}`,
+        // parse:["everyone"] is what actually fires BOTH @everyone and @here.
         allowed_mentions: { parse: ["everyone"] },
       }),
       signal: AbortSignal.timeout(DISCORD_TIMEOUT_MS),

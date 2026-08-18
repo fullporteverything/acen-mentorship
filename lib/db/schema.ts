@@ -681,6 +681,19 @@ export const identityVerifications = pgTable(
   ]
 );
 
+/**
+ * Records every YouTube video id the announce bot has handled — both long-form
+ * videos it posted and Shorts it skipped — so the 5-minute poll never
+ * double-posts. Keyed by the video id itself (no surrogate). Self-created at
+ * runtime (see youtube-announce-store) to match this definition.
+ */
+export const youtubeAnnouncements = pgTable("youtube_announcements", {
+  videoId: varchar("video_id", { length: 64 }).primaryKey(),
+  title: text("title"),
+  posted: boolean("posted").notNull().default(false),
+  handledAt: timestamp("handled_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type MemberRow = typeof members.$inferSelect;
 export type MemberInsert = typeof members.$inferInsert;
 export type HomeworkSubmissionRow = typeof homeworkSubmissions.$inferSelect;

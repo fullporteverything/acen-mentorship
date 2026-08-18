@@ -47,48 +47,52 @@ export async function GET(req: Request) {
     return NextResponse.json({ skipped: "youtube integration not configured" });
   }
 
-  let feed;
+  // The whole flow (feed + DB + Discord) is wrapped so any thrown error becomes
+  // a clean 500 with its message rather than an opaque Vercel crash page. This
+  // endpoint is secret-gated, so echoing the detail back is safe and makes the
+  // 5-minute cron debuggable from the response alone.
   try {
-    feed = await fetchChannelFeed(channelId);
+    const feed = await fetchChannelFeed(channelId);
+
+    // First ever run for this channel: record the whole feed as "seen" without
+    // posting, so we don't dump the back catalog to @everyone. Newest upload
+    // after this seed is the first thing that actually posts.
+    if ((await announcedCount()) === 0) {
+      await seedHandled(feed.map((v) => ({ videoId: v.videoId, title: v.title })));
+      return NextResponse.json({ seeded: feed.length });
+    }
+
+    const unhandled = await unhandledIds(feed.map((v) => v.videoId));
+    if (unhandled.size === 0) {
+      return NextResponse.json({ posted: 0 });
+    }
+
+    // Post oldest→newest so the channel reads chronologically when several land
+    // between polls.
+    const fresh = feed.filter((v) => unhandled.has(v.videoId)).reverse();
+    let posted = 0;
+    let skippedShorts = 0;
+    for (const video of fresh) {
+      if (await isLikelyShort(video.videoId)) {
+        await markHandled(video.videoId, video.title, false);
+        skippedShorts += 1;
+        continue;
+      }
+      const ok = await postToDiscord(announceChannelId, botToken, video.title, video.url);
+      // Only mark handled once it's actually out — a failed post is retried next
+      // poll rather than silently dropped.
+      if (ok) {
+        await markHandled(video.videoId, video.title, true);
+        posted += 1;
+      }
+    }
+
+    return NextResponse.json({ posted, skippedShorts });
   } catch (error) {
-    console.error("[youtube-poll] feed fetch failed", error);
-    return NextResponse.json({ error: "feed unavailable" }, { status: 502 });
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error("[youtube-poll] failed", error);
+    return NextResponse.json({ error: "poll failed", detail }, { status: 500 });
   }
-
-  // First ever run for this channel: record the whole feed as "seen" without
-  // posting, so we don't dump the back catalog to @everyone. Newest upload
-  // after this seed is the first thing that actually posts.
-  if ((await announcedCount()) === 0) {
-    await seedHandled(feed.map((v) => ({ videoId: v.videoId, title: v.title })));
-    return NextResponse.json({ seeded: feed.length });
-  }
-
-  const unhandled = await unhandledIds(feed.map((v) => v.videoId));
-  if (unhandled.size === 0) {
-    return NextResponse.json({ posted: 0 });
-  }
-
-  // Post oldest→newest so the channel reads chronologically when several land
-  // between polls.
-  const fresh = feed.filter((v) => unhandled.has(v.videoId)).reverse();
-  let posted = 0;
-  let skippedShorts = 0;
-  for (const video of fresh) {
-    if (await isLikelyShort(video.videoId)) {
-      await markHandled(video.videoId, video.title, false);
-      skippedShorts += 1;
-      continue;
-    }
-    const ok = await postToDiscord(announceChannelId, botToken, video.title, video.url);
-    // Only mark handled once it's actually out — a failed post is retried next
-    // poll rather than silently dropped.
-    if (ok) {
-      await markHandled(video.videoId, video.title, true);
-      posted += 1;
-    }
-  }
-
-  return NextResponse.json({ posted, skippedShorts });
 }
 
 /** Post the announcement with a real @everyone ping. Returns whether it landed. */

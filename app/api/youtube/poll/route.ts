@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { fetchChannelFeed, isLikelyShort } from "@/lib/youtube-feed";
+import { fetchChannelFeed, isLikelyShort, type FeedVideo } from "@/lib/youtube-feed";
 import {
   announcedCount,
   markHandled,
@@ -47,12 +47,34 @@ export async function GET(req: Request) {
     return NextResponse.json({ skipped: "youtube integration not configured" });
   }
 
+  const previewMode = url.searchParams.get("preview") === "1";
+  const testMode = url.searchParams.get("test") === "1";
+
   // The whole flow (feed + DB + Discord) is wrapped so any thrown error becomes
   // a clean 500 with its message rather than an opaque Vercel crash page. This
   // endpoint is secret-gated, so echoing the detail back is safe and makes the
   // 5-minute cron debuggable from the response alone.
   try {
     const feed = await fetchChannelFeed(channelId);
+
+    // ?preview=1 / ?test=1 — diagnostics that use the LATEST long-form video but
+    // never touch the dedup table, so they can be run any time without changing
+    // what the real cron will post.
+    if (previewMode || testMode) {
+      const latest = await pickLatestLongform(feed);
+      if (!latest) {
+        return NextResponse.json({ mode: previewMode ? "preview" : "test", note: "no long-form video found in the feed" });
+      }
+      const content = buildContent(latest.url);
+      if (previewMode) {
+        // Dry run: show exactly what would be posted, post nothing.
+        return NextResponse.json({ mode: "preview", channelId: announceChannelId, video: latest, content });
+      }
+      // Test post: real message + embed land in the channel, but pings are
+      // SUPPRESSED so it doesn't notify anyone. Delete it after eyeballing it.
+      const ok = await postToDiscord(announceChannelId, botToken, latest.url, false);
+      return NextResponse.json({ mode: "test", posted: ok, video: latest, note: "no ping fired; delete the test message when done" });
+    }
 
     // First ever run for this channel: record the whole feed as "seen" without
     // posting, so we don't dump the back catalog to @everyone. Newest upload
@@ -78,7 +100,7 @@ export async function GET(req: Request) {
         skippedShorts += 1;
         continue;
       }
-      const ok = await postToDiscord(announceChannelId, botToken, video.url);
+      const ok = await postToDiscord(announceChannelId, botToken, video.url, true);
       // Only mark handled once it's actually out — a failed post is retried next
       // poll rather than silently dropped.
       if (ok) {
@@ -95,15 +117,31 @@ export async function GET(req: Request) {
   }
 }
 
+/** The exact announcement text. Kept in one place so preview shows what posts. */
+function buildContent(videoUrl: string): string {
+  // The bare YouTube link auto-expands into Discord's rich video card
+  // (thumbnail + title), so we don't repeat the title in the text.
+  return `@everyone @here\nNEW YOUTUBE VIDEO OUT!\n\n${videoUrl}`;
+}
+
+/** Newest video in the feed that isn't a Short, or null. Used by the test modes. */
+async function pickLatestLongform(feed: FeedVideo[]): Promise<FeedVideo | null> {
+  for (const video of feed) {
+    if (!(await isLikelyShort(video.videoId))) return video;
+  }
+  return null;
+}
+
 /**
- * Post the announcement with real @everyone + @here pings. Returns whether it
- * landed. The bare YouTube link auto-expands into Discord's rich video card
- * (thumbnail + title), so we don't repeat the title in the text.
+ * Post the announcement. Returns whether it landed. When `ping` is true it fires
+ * real @everyone + @here mentions (parse:["everyone"] covers both); when false
+ * (test mode) mentions are suppressed so no one is notified.
  */
 async function postToDiscord(
   channelId: string,
   botToken: string,
-  videoUrl: string
+  videoUrl: string,
+  ping: boolean
 ): Promise<boolean> {
   try {
     const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
@@ -113,9 +151,8 @@ async function postToDiscord(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        content: `@everyone @here\nNEW YOUTUBE VIDEO OUT!\n\n${videoUrl}`,
-        // parse:["everyone"] is what actually fires BOTH @everyone and @here.
-        allowed_mentions: { parse: ["everyone"] },
+        content: buildContent(videoUrl),
+        allowed_mentions: { parse: ping ? ["everyone"] : [] },
       }),
       signal: AbortSignal.timeout(DISCORD_TIMEOUT_MS),
     });

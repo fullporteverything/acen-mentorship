@@ -18,7 +18,7 @@ function cornerIndex(pos: "tl" | "br"): CSSProperties {
     alignItems: "center",
     lineHeight: 0.82,
     fontFamily: "Georgia, serif",
-    fontSize: 19,
+    fontSize: 27,
     fontWeight: 700,
     color: "var(--gold)",
     userSelect: "none",
@@ -107,7 +107,7 @@ export default function LoginCard({
           border: "1px solid rgba(231,192,113,0.45)",
           borderRadius: 18,
           background:
-            "radial-gradient(130% 90% at 50% 0%, #160a10 0%, #0a0407 55%, #000 100%)",
+            "radial-gradient(130% 90% at 50% 0%, #171207 0%, #0a0805 55%, #000 100%)",
           boxShadow:
             "0 40px 90px -40px rgba(0,0,0,0.9), inset 0 1px 0 rgba(247,232,172,0.10)",
         }}
@@ -115,11 +115,11 @@ export default function LoginCard({
         {/* Playing-card corner indices — 7 of spades, mirrored corner to corner */}
         <span aria-hidden style={cornerIndex("tl")}>
           <span>7</span>
-          <span style={{ fontSize: 15 }}>♠</span>
+          <span style={{ fontSize: 21 }}>♠</span>
         </span>
         <span aria-hidden style={cornerIndex("br")}>
           <span>7</span>
-          <span style={{ fontSize: 15 }}>♠</span>
+          <span style={{ fontSize: 21 }}>♠</span>
         </span>
 
         <motion.div

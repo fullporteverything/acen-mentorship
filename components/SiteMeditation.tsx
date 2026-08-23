@@ -150,7 +150,7 @@ function AfkCard() {
           height: 308,
           borderRadius: 20,
           background:
-            "radial-gradient(130% 90% at 50% 0%, #160a10 0%, #0a0407 55%, #000 100%)",
+            "radial-gradient(130% 90% at 50% 0%, #171207 0%, #0a0805 55%, #000 100%)",
           border: "1px solid rgba(231,192,113,0.5)",
           boxShadow:
             "0 44px 100px -34px rgba(0,0,0,0.9), inset 0 1px 0 rgba(247,232,172,0.12), 0 0 46px rgba(231,192,113,0.12)",

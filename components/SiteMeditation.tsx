@@ -3,61 +3,57 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 
 /**
- * Site-wide meditation mode.
+ * Site-wide AFK card.
  *
  * Mounted once in the dashboard layout so it covers every dashboard page.
- * After IDLE_MS with no activity, a blurred backdrop drops over the whole
- * site and a large glowing Φ *assembles itself in 3D* — rings draw on, the
- * glyph sketches (construction ellipse + bar) then solidifies into the serif
- * Φ — and finally settles into a perpetual pulse.
+ * After IDLE_MS with no activity, a blurred backdrop drops over the site and
+ * a single playing card — the 7 of spades — slowly fades in, drifting gently,
+ * with a dealer's aside along the bottom: "long night sir?".
  *
- * It stays until the member clicks (or presses a key). A stray mouse-move
- * does NOT dismiss it, so the stillness holds "until mouse click".
+ * It stays until the member clicks (or presses a key). A stray mouse-move does
+ * NOT dismiss it, so the pause holds until an intentional click/keypress.
  */
 
 const IDLE_MS = 60_000;
-const SIZE = 240;
 
 export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number } = {}) {
-  const [meditating, setMeditating] = useState(false);
+  const [afk, setAfk] = useState(false);
   const pathname = usePathname();
 
   // Watching a lesson video means long, legitimate stretches with no mouse or
   // keyboard input — the overlay would pop every idle period mid-video. So on
-  // lesson-detail pages (where the video player lives) meditation never arms.
+  // lesson-detail pages (where the video player lives) it never arms.
   const suppressed = /^\/dashboard\/lessons\/[^/]+/.test(pathname ?? "");
 
   // Ref mirror so the always-on listeners can read the latest state without
   // being torn down / re-added on every toggle.
-  const meditatingRef = useRef(false);
+  const afkRef = useRef(false);
   useEffect(() => {
-    meditatingRef.current = meditating;
-  }, [meditating]);
+    afkRef.current = afk;
+  }, [afk]);
 
   useEffect(() => {
     if (suppressed) {
-      // Entering a video page while meditating also clears the overlay.
-      setMeditating(false);
+      setAfk(false);
       return;
     }
 
     let timer: ReturnType<typeof setTimeout>;
-
     const arm = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => setMeditating(true), idleMs);
+      timer = setTimeout(() => setAfk(true), idleMs);
     };
-
-    // Activity re-arms the idle timer — but only while awake. Once we're
-    // meditating, movement is ignored; it takes a click/keypress to return.
+    // Activity re-arms the idle timer — but only while awake. Once the card is
+    // up, movement is ignored; it takes a click/keypress to return.
     const onActivity = () => {
-      if (!meditatingRef.current) arm();
+      if (!afkRef.current) arm();
     };
     const dismiss = () => {
-      if (meditatingRef.current) {
-        setMeditating(false);
+      if (afkRef.current) {
+        setAfk(false);
         arm();
       }
     };
@@ -89,15 +85,15 @@ export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number }
 
   return (
     <AnimatePresence>
-      {meditating && (
+      {afk && (
         <motion.div
-          key="site-meditation"
+          key="site-afk"
           aria-hidden
-          onMouseDown={() => setMeditating(false)}
+          onMouseDown={() => setAfk(false)}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 1.2, ease: "easeOut" }}
+          transition={{ duration: 1.4, ease: "easeOut" }}
           style={{
             position: "fixed",
             inset: 0,
@@ -110,231 +106,117 @@ export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number }
             cursor: "pointer",
           }}
         >
-          <div
-            style={{
-              perspective: 1000,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
-            <MeditationPhi />
-            <MeditationCaption />
-          </div>
+          <AfkCard />
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-/**
- * The self-assembling Φ. Layer 1 does the one-shot 3D "build" (rotate into
- * frame + staged part draws); layer 2 carries the perpetual life (breathing
- * scale + slow 3D wobble) once the build is done.
- */
-function MeditationPhi() {
-  const s = SIZE;
+/** A 7 of spades that slowly fades in and drifts, "long night sir?" on the base. */
+function AfkCard() {
+  const corner = (pos: "tl" | "br"): CSSProperties => {
+    const base: CSSProperties = {
+      position: "absolute",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      lineHeight: 0.82,
+      fontFamily: "Georgia, serif",
+      fontWeight: 700,
+      fontSize: 26,
+      color: "#e3c071",
+      userSelect: "none",
+    };
+    return pos === "tl"
+      ? { ...base, top: 18, left: 20 }
+      : { ...base, bottom: 18, right: 20, transform: "rotate(180deg)" };
+  };
 
   return (
     <motion.div
-      style={{ width: s, height: s, transformStyle: "preserve-3d" }}
-      initial={{ opacity: 0, rotateX: -42, rotateY: 20, scale: 0.82 }}
-      animate={{ opacity: 1, rotateX: 0, rotateY: 0, scale: 1 }}
-      transition={{ duration: 1.9, ease: [0.22, 1, 0.36, 1] }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+      initial={{ opacity: 0, y: 22, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 2.2, ease: [0.22, 1, 0.36, 1] }}
     >
       <motion.div
-        style={{ width: s, height: s, position: "relative", transformStyle: "preserve-3d" }}
-        animate={{ scale: [1, 1.035, 1], rotateY: [0, 6, 0, -6, 0] }}
-        transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-      >
-        <svg
-          width={s}
-          height={s}
-          viewBox="0 0 100 100"
-          xmlns="http://www.w3.org/2000/svg"
-          style={{ display: "block", overflow: "visible" }}
-        >
-          <defs>
-            <radialGradient id="med-halo" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#FFF0C8" stopOpacity={0.4} />
-              <stop offset="50%" stopColor="#e3c071" stopOpacity={0.18} />
-              <stop offset="100%" stopColor="#e3c071" stopOpacity={0} />
-            </radialGradient>
-
-            <linearGradient id="med-fill" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#f7e8ac" />
-              <stop offset="55%" stopColor="#e3c071" />
-              <stop offset="100%" stopColor="#9b7c37" />
-            </linearGradient>
-
-            <filter id="med-glow" x="-70%" y="-70%" width="240%" height="240%">
-              <feGaussianBlur stdDeviation="1.6" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          {/* Inner halo — fades in with the build, then pulses forever. */}
-          <motion.circle
-            cx={50}
-            cy={50}
-            r={30}
-            fill="url(#med-halo)"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0.5, 1, 0.5], r: [26, 34, 26] }}
-            transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
-          />
-
-          {/* Outer ring — draws itself on. */}
-          <motion.circle
-            cx={50}
-            cy={50}
-            r={44}
-            fill="none"
-            stroke="rgba(231,192,113,0.5)"
-            strokeWidth={0.6}
-            strokeDasharray={300}
-            initial={{ strokeDashoffset: 300 }}
-            animate={{ strokeDashoffset: 0 }}
-            transition={{ duration: 1.3, ease: "easeInOut", delay: 0.15 }}
-          />
-
-          {/* Rotating outer tick ring — fades in, then spins forever. */}
-          <motion.g
-            style={{ transformOrigin: "50px 50px" }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, rotate: -360 }}
-            transition={{
-              opacity: { duration: 0.9, delay: 0.6 },
-              rotate: { duration: 16, repeat: Infinity, ease: "linear", delay: 0.6 },
-            }}
-          >
-            {Array.from({ length: 12 }).map((_, i) => {
-              const angle = (i * 360) / 12;
-              const major = i % 3 === 0;
-              return (
-                <line
-                  key={i}
-                  x1={50}
-                  y1={4}
-                  x2={50}
-                  y2={major ? 10 : 7}
-                  stroke="#e3c071"
-                  strokeOpacity={major ? 0.85 : 0.4}
-                  strokeWidth={major ? 1.2 : 0.7}
-                  strokeLinecap="round"
-                  transform={`rotate(${angle} 50 50)`}
-                />
-              );
-            })}
-          </motion.g>
-
-          {/* Counter-rotating dashed inner ring — fades in. */}
-          <motion.g
-            style={{ transformOrigin: "50px 50px" }}
-            animate={{ rotate: -360 }}
-            transition={{ duration: 42, repeat: Infinity, ease: "linear" }}
-          >
-            <motion.circle
-              cx={50}
-              cy={50}
-              r={36}
-              fill="none"
-              stroke="rgba(231,192,113,0.28)"
-              strokeWidth={0.4}
-              strokeDasharray="3 4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 1, delay: 0.9 }}
-            />
-          </motion.g>
-
-          {/* Orbiting dots — appear, then orbit forever. */}
-          <motion.g
-            style={{ transformOrigin: "50px 50px" }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, rotate: 360 }}
-            transition={{
-              opacity: { duration: 0.8, delay: 1.1 },
-              rotate: { duration: 10, repeat: Infinity, ease: "linear", delay: 1.1 },
-            }}
-          >
-            <circle cx={50} cy={12} r={1.6} fill="#f7e8ac" filter="url(#med-glow)" />
-          </motion.g>
-          <motion.g
-            style={{ transformOrigin: "50px 50px" }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.75, rotate: -360 }}
-            transition={{
-              opacity: { duration: 0.8, delay: 1.3 },
-              rotate: { duration: 15, repeat: Infinity, ease: "linear", delay: 1.3 },
-            }}
-          >
-            <circle cx={50} cy={88} r={1.2} fill="#f7e8ac" filter="url(#med-glow)" />
-          </motion.g>
-
-          {/* Solid serif Φ — fades in amid the ring build, then shimmers forever. */}
-          <motion.g
-            filter="url(#med-glow)"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1, delay: 1.1 }}
-          >
-            <motion.text
-              x={50}
-              y={70}
-              textAnchor="middle"
-              fontFamily="'Cormorant Garamond', Georgia, 'Times New Roman', serif"
-              fontSize={58}
-              fontWeight={500}
-              fill="url(#med-fill)"
-              animate={{ opacity: [0.9, 1, 0.9] }}
-              transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", delay: 1.9 }}
-            >
-              Φ
-            </motion.text>
-          </motion.g>
-        </svg>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-/** 静 (stillness) tag + a faint return hint, fading in after the build. */
-function MeditationCaption() {
-  return (
-    <motion.div
-      style={{ marginTop: 28, textAlign: "center" }}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 1.2, delay: 2.0 }}
-    >
-      <p
+        // gentle perpetual drift once it has settled in
+        animate={{ y: [0, -7, 0] }}
+        transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut", delay: 2.2 }}
         style={{
-          fontSize: 11,
-          letterSpacing: 6,
-          color: "rgba(231,192,113,0.75)",
-          textTransform: "uppercase",
-          fontFamily: "Georgia, serif",
+          position: "relative",
+          width: 220,
+          height: 308,
+          borderRadius: 20,
+          background:
+            "radial-gradient(130% 90% at 50% 0%, #160a10 0%, #0a0407 55%, #000 100%)",
+          border: "1px solid rgba(231,192,113,0.5)",
+          boxShadow:
+            "0 44px 100px -34px rgba(0,0,0,0.9), inset 0 1px 0 rgba(247,232,172,0.12), 0 0 46px rgba(231,192,113,0.12)",
+          display: "grid",
+          placeItems: "center",
         }}
       >
-        静&nbsp;&nbsp;stillness
-      </p>
-      <p
+        <span aria-hidden style={corner("tl")}>
+          <span>7</span>
+          <span style={{ fontSize: 20 }}>♠</span>
+        </span>
+        <span aria-hidden style={corner("br")}>
+          <span>7</span>
+          <span style={{ fontSize: 20 }}>♠</span>
+        </span>
+
+        {/* center spade */}
+        <span
+          aria-hidden
+          style={{
+            fontSize: 104,
+            lineHeight: 1,
+            color: "#e3c071",
+            textShadow: "0 0 26px rgba(231,192,113,0.4)",
+            fontFamily: "Georgia, serif",
+            transform: "translateY(-6px)",
+          }}
+        >
+          ♠
+        </span>
+
+        {/* dealer's aside */}
+        <p
+          style={{
+            position: "absolute",
+            bottom: 22,
+            left: 0,
+            right: 0,
+            textAlign: "center",
+            fontFamily: "Georgia, serif",
+            fontStyle: "italic",
+            fontSize: 14,
+            letterSpacing: 0.5,
+            color: "rgba(247,232,172,0.8)",
+          }}
+        >
+          long night sir?
+        </p>
+      </motion.div>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.2, delay: 2.4 }}
         style={{
-          marginTop: 10,
+          marginTop: 22,
           fontSize: 9,
           letterSpacing: 3,
-          color: "rgba(245,240,240,0.35)",
           textTransform: "uppercase",
+          color: "rgba(245,240,240,0.32)",
           fontFamily: "Georgia, serif",
           fontStyle: "italic",
         }}
       >
         click to return
-      </p>
+      </motion.p>
     </motion.div>
   );
 }

@@ -82,7 +82,8 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
     <>
     <header className="topnav">
       {/* Left cluster: text wordmark — click returns to /dashboard. No icon
-         chip: the wordmark is the "SUITE 7™" text alone. */}
+         chip: the wordmark is the "SUITE 7" text alone (™ lives only on the
+         homepage). */}
       <a
         className="topnav-brand"
         href="/dashboard"
@@ -120,7 +121,6 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
             >
               SUITE 7
             </span>
-            <span style={{ color: "var(--burgundy)" }}>™</span>
           </span>
           <span
             className="topnav-brand-sub"

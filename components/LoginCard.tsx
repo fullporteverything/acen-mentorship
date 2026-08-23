@@ -160,6 +160,17 @@ export default function LoginCard({
             }}
           >
             Suite 7
+            <span
+              style={{
+                fontSize: "0.34em",
+                verticalAlign: "super",
+                letterSpacing: "normal",
+                marginLeft: 3,
+                color: "var(--gold)",
+              }}
+            >
+              ™
+            </span>
           </motion.h1>
 
           {/* Top rule */}

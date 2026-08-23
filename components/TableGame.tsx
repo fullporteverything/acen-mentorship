@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Martini from "@/components/Martini";
 import TableScene from "@/components/TableScene";
+import { tableAudio } from "@/lib/table-audio";
 import {
   RESHUFFLE_BELOW,
   buildShoe,
@@ -52,6 +53,14 @@ const GOLD = "#e3c071";
 const CREAM = "#F5F0F0";
 const CRIMSON = "#b21d3b";
 
+/** The printed felt rules moved into the DOM (the felt print is hidden in 3D). */
+const HOUSE_RULES = [
+  "Blackjack pays 3 to 2",
+  "Dealer stands on all 17s",
+  "Double on first two cards",
+  "6-deck shoe",
+] as const;
+
 function formatChips(n: number): string {
   // 3:2 on a 25 bet pays 37.5 — show the half-chip rather than lying.
   return n % 1 === 0 ? n.toLocaleString("en-US") : n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -72,6 +81,11 @@ export default function TableGame() {
   // WebGL init failure drops back to the DOM card rows.
   const [reducedMotion, setReducedMotion] = useState(false);
   const [webglFailed, setWebglFailed] = useState(false);
+  // Table dressing: mute toggle + the house-rules panel. Neither touches play.
+  const [muted, setMuted] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  /** Bumped on every reshuffle so the scene can play ShoeRefill + `shuffle`. */
+  const [shuffleSeq, setShuffleSeq] = useState(0);
 
   // Synchronous truth for guards + timer callbacks (state lags a render).
   const phaseRef = useRef<Phase>("BETTING");
@@ -152,13 +166,19 @@ export default function TableGame() {
     timersRef.current.push(id);
   }, []);
 
+  /** Refill the shoe. The seq bump is what cues ShoeRefill + the shuffle voice. */
+  const reshuffle = useCallback(() => {
+    shoeRef.current = shuffle(buildShoe());
+    setShuffleSeq((n) => n + 1);
+  }, []);
+
   const draw = useCallback((): Card => {
     if (shoeRef.current.length === 0) {
       // Can't happen with the between-rounds reshuffle, but never deal air.
-      shoeRef.current = shuffle(buildShoe());
+      reshuffle();
     }
     return shoeRef.current.pop() as Card;
-  }, []);
+  }, [reshuffle]);
 
   /** Dealer's turn: flip the hole card, draw to 17+ (if wanted), settle. */
   const runDealer = useCallback(
@@ -213,7 +233,7 @@ export default function TableGame() {
     const stake = stakeRef.current;
     if (chips === null || stake < MIN_BET || stake > chips) return;
     if (shoeRef.current.length < RESHUFFLE_BELOW) {
-      shoeRef.current = shuffle(buildShoe());
+      reshuffle();
     }
     setShuffleNote(false);
     setResult(null);
@@ -231,7 +251,7 @@ export default function TableGame() {
     } else {
       toPhase("PLAYER");
     }
-  }, [draw, runDealer, setDealer, setPlayer, toPhase]);
+  }, [draw, reshuffle, runDealer, setDealer, setPlayer, toPhase]);
 
   const takeStake = useCallback(() => {
     if (phaseRef.current !== "BETTING") return;
@@ -280,13 +300,13 @@ export default function TableGame() {
     stakeRef.current = 0;
     setBet(0);
     if (shoeRef.current.length < RESHUFFLE_BELOW) {
-      shoeRef.current = shuffle(buildShoe());
+      reshuffle();
       setShuffleNote(true);
     } else {
       setShuffleNote(false);
     }
     toPhase("BETTING");
-  }, [setDealer, setPlayer, toPhase]);
+  }, [reshuffle, setDealer, setPlayer, toPhase]);
 
   // Keyboard: H = hit, S = stand (PLAYER phase only).
   useEffect(() => {
@@ -309,6 +329,31 @@ export default function TableGame() {
   }, [hit, stand]);
 
   const handleGlFallback = useCallback(() => setWebglFailed(true), []);
+
+  // ── Table audio (lib/table-audio.ts) ───────────────────────────────────
+  // The scene fires the per-card / per-chip voices in sync with its own
+  // animations; the outcome voices belong to the state machine.
+  useEffect(() => {
+    setMuted(tableAudio().isMuted());
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setMuted((prev) => {
+      const next = !prev;
+      tableAudio().setMuted(next);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "SETTLED" || !result) return;
+    tableAudio().play(
+      result.outcome === "lose" ? "lose" : result.outcome === "push" ? "push" : "win"
+    );
+  }, [phase, result]);
+
+  // The audio graph is shared by the whole table — only the page tears it down.
+  useEffect(() => () => tableAudio().dispose(), []);
 
   // ── Derived display values ─────────────────────────────────────────────
   const playerValue = playerHand.length ? handValue(playerHand) : null;
@@ -434,34 +479,78 @@ export default function TableGame() {
             centerStrip={centerStrip}
           />
         ) : (
-          <>
-            <div className="suite7-scene" role="img" aria-label={sceneLabel}>
+          <div className="suite7-scene">
+            {/* role="img" wraps ONLY the canvas so the tool buttons below stay
+                reachable by assistive tech. */}
+            <div className="suite7-scene-canvas" role="img" aria-label={sceneLabel}>
               <TableScene
                 playerHand={playerHand}
                 dealerHand={dealerHand}
                 holeCardHidden={!holeRevealed}
                 phase={phase}
                 betChips={bet}
+                bankroll={bankroll}
+                shuffleSeq={shuffleSeq}
                 outcome={result?.outcome ?? null}
                 reducedMotion={reducedMotion}
+                onPlaceBet={addChip}
+                onClearBet={clearBet}
                 onFallback={handleGlFallback}
               />
-              <div className="suite7-scene-hud suite7-scene-hud-top" aria-hidden>
-                <HudTag label="Dealer" totalText={dealerTotalText} />
-              </div>
-              <div className="suite7-scene-hud suite7-scene-hud-bottom" aria-hidden>
-                <HudTag label="You" totalText={playerTotalText} />
-              </div>
             </div>
-            {centerStrip}
-          </>
+            <div className="suite7-scene-hud suite7-scene-hud-top" aria-hidden>
+              <HudTag label="Dealer" totalText={dealerTotalText} />
+            </div>
+            <div className="suite7-scene-hud suite7-scene-hud-bottom" aria-hidden>
+              <HudTag label="You" totalText={playerTotalText} />
+            </div>
+
+            <div className="suite7-scene-tools">
+              <button
+                type="button"
+                className="suite7-tool"
+                onClick={toggleMute}
+                aria-pressed={muted}
+                aria-label={muted ? "Unmute table sound" : "Mute table sound"}
+                title={muted ? "Sound off" : "Sound on"}
+              >
+                <SpeakerIcon muted={muted} />
+              </button>
+              <button
+                type="button"
+                className="suite7-tool suite7-tool-wide"
+                data-suite7-rules-toggle=""
+                onClick={() => setRulesOpen((v) => !v)}
+                aria-expanded={rulesOpen}
+                aria-controls="suite7-house-rules"
+              >
+                House Rules
+              </button>
+            </div>
+            {rulesOpen ? <RulesPanel onClose={() => setRulesOpen(false)} /> : null}
+
+            {/* Result / dealer note overlaid on the lower scene edge so nothing
+                below the table shifts when a hand settles. */}
+            <div className="suite7-scene-banner" aria-live="polite">
+              {phase === "SETTLED" && result ? <ResultBanner result={result} /> : null}
+              {phase === "DEALER" ? (
+                <span className="suite7-scene-note">
+                  {doubled ? `doubled to ${formatChips(bet)} — ` : ""}the dealer plays…
+                </span>
+              ) : null}
+            </div>
+          </div>
         )}
 
         {/* Controls */}
         <div style={{ marginTop: 24 }}>
           {phase === "BETTING" ? (
             <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", gap: 10 }} role="group" aria-label="Chip denominations">
+              <div
+                style={{ display: "flex", gap: 8 }}
+                role="group"
+                aria-label="Chip denominations — or click the chips on the felt"
+              >
                 {CHIP_DENOMS.map((value) => (
                   <button
                     key={value}
@@ -557,19 +646,6 @@ export default function TableGame() {
           ) : null}
         </div>
 
-        {/* Table rules footnote */}
-        <p
-          style={{
-            marginTop: 22,
-            fontFamily: "Georgia, serif",
-            fontSize: 9,
-            letterSpacing: 2,
-            textTransform: "uppercase",
-            color: "rgba(231,192,113,0.35)",
-          }}
-        >
-          Six decks · Dealer stands on all 17s · Blackjack pays 3:2
-        </p>
       </section>
 
       <div className="suite7-martini-slot">
@@ -581,37 +657,87 @@ export default function TableGame() {
 
 /* ── Presentational pieces ─────────────────────────────────────────────── */
 
-/** Label + total pill overlaid on the 3D scene (same look as the HandRow header). */
+/** Gold speaker glyph for the mute toggle. */
+function SpeakerIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden focusable="false">
+      <path
+        d="M3 6h2.2L8.6 3.2v9.6L5.2 10H3z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      {muted ? (
+        <path d="M11 5.6l3.4 4.8M14.4 5.6L11 10.4" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+      ) : (
+        <>
+          <path d="M10.9 5.7a3.2 3.2 0 010 4.6" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+          <path d="M12.8 3.9a5.8 5.8 0 010 8.2" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+/**
+ * The house rules, in the DOM instead of printed on the felt (the 3D scene
+ * hides the `S7_FeltPrint` material). Dismisses on Esc and on a click outside;
+ * the toggle button itself is excluded so a second click just closes it.
+ */
+function RulesPanel({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (ref.current?.contains(target)) return;
+      if (target.closest("[data-suite7-rules-toggle]")) return; // its own toggle
+      onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    ref.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      id="suite7-house-rules"
+      ref={ref}
+      className="suite7-rules-pop"
+      role="dialog"
+      aria-label="House rules"
+      tabIndex={-1}
+    >
+      <div className="suite7-rules-title">House Rules</div>
+      <ul className="suite7-rules-list">
+        {HOUSE_RULES.map((rule) => (
+          <li key={rule}>{rule}</li>
+        ))}
+      </ul>
+      <button type="button" className="suite7-rules-close" onClick={onClose}>
+        Close
+      </button>
+    </div>
+  );
+}
+
+/** Label + total pill overlaid on the 3D scene — gold hairline, blurred glass. */
 function HudTag({ label, totalText }: { label: string; totalText: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-      <span
-        style={{
-          fontSize: 9,
-          letterSpacing: 3,
-          textTransform: "uppercase",
-          fontFamily: "Georgia, serif",
-          color: "rgba(231,192,113,0.6)",
-        }}
-      >
-        {label}
-      </span>
-      {totalText ? (
-        <span
-          style={{
-            fontFamily: "Georgia, serif",
-            fontVariantNumeric: "tabular-nums",
-            fontSize: 12,
-            color: "rgba(245,240,240,0.75)",
-            border: "1px solid rgba(231,192,113,0.2)",
-            padding: "1px 8px",
-            borderRadius: 999,
-            background: "rgba(5,4,2,0.55)",
-          }}
-        >
-          {totalText}
-        </span>
-      ) : null}
+    <div className="suite7-hud-pill">
+      <span className="suite7-hud-label">{label}</span>
+      {totalText ? <span className="suite7-hud-total">{totalText}</span> : null}
     </div>
   );
 }
@@ -685,6 +811,7 @@ function ResultBanner({ result }: { result: Settlement }) {
         letterSpacing: 1.5,
         color,
         fontVariantNumeric: "tabular-nums",
+        textShadow: "0 2px 14px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.7)",
       }}
     >
       {text}

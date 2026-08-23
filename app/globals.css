@@ -1324,11 +1324,13 @@ a.topnav-rank:hover {
 }
 
 /* 3D table scene (components/TableScene.tsx). The canvas is transparent over
-   this ground; the DOM HUD tags float above it. */
+   this ground; the DOM HUD tags, tool buttons and result banner float above it.
+   The canvas is the ONLY interactive layer inside — everything else that takes
+   pointer events opts back in explicitly. */
 .suite7-scene {
   position: relative;
   width: 100%;
-  height: clamp(340px, 48vw, 520px);
+  height: clamp(360px, 52vw, 560px);
   border: 1px solid rgba(231, 192, 113, 0.25);
   border-radius: 14px;
   overflow: hidden;
@@ -1338,6 +1340,10 @@ a.topnav-rank:hover {
     rgba(10, 8, 5, 0.9) 55%,
     #000
   );
+}
+.suite7-scene-canvas {
+  position: absolute;
+  inset: 0;
 }
 .suite7-scene canvas {
   display: block;
@@ -1358,6 +1364,160 @@ a.topnav-rank:hover {
 }
 .suite7-scene-hud-bottom {
   bottom: 12px;
+}
+
+/* HUD pill: hairline gold, warm near-black, blurred so the felt reads through. */
+.suite7-hud-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 4px 11px 5px;
+  border: 1px solid rgba(231, 192, 113, 0.22);
+  border-radius: 999px;
+  background: rgba(6, 5, 3, 0.5);
+  -webkit-backdrop-filter: blur(7px) saturate(115%);
+  backdrop-filter: blur(7px) saturate(115%);
+  box-shadow: 0 1px 12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(231, 192, 113, 0.07);
+}
+.suite7-hud-label {
+  font-family: Georgia, serif;
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(231, 192, 113, 0.62);
+}
+.suite7-hud-total {
+  font-family: Georgia, serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: rgba(245, 240, 240, 0.85);
+}
+
+/* Scene tools: mute + house rules, top-right corner of the table. */
+.suite7-scene-tools {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 2;
+}
+.suite7-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(231, 192, 113, 0.28);
+  border-radius: 999px;
+  background: rgba(6, 5, 3, 0.55);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  color: #e3c071;
+  font-family: Georgia, serif;
+  font-size: 9px;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.suite7-tool-wide {
+  padding: 0 12px;
+}
+.suite7-tool:hover {
+  border-color: rgba(231, 192, 113, 0.7);
+  color: #f7e8ac;
+}
+.suite7-tool:focus-visible {
+  outline: 1px solid rgba(231, 192, 113, 0.8);
+  outline-offset: 2px;
+}
+
+/* House-rules panel — same glass as the pills, anchored under the tool row. */
+.suite7-rules-pop {
+  position: absolute;
+  top: 48px;
+  right: 12px;
+  z-index: 3;
+  width: min(258px, calc(100% - 24px));
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(231, 192, 113, 0.3);
+  border-radius: 12px;
+  background: rgba(7, 5, 3, 0.9);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  backdrop-filter: blur(12px) saturate(120%);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.7);
+}
+.suite7-rules-pop:focus {
+  outline: none;
+}
+.suite7-rules-title {
+  font-family: Georgia, serif;
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(231, 192, 113, 0.7);
+  padding-bottom: 9px;
+  margin-bottom: 9px;
+  border-bottom: 1px solid rgba(231, 192, 113, 0.16);
+}
+.suite7-rules-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: Georgia, serif;
+  font-size: 12px;
+  line-height: 1.9;
+  color: rgba(245, 240, 240, 0.8);
+}
+.suite7-rules-list li::before {
+  content: "·";
+  color: rgba(231, 192, 113, 0.6);
+  margin-right: 9px;
+}
+.suite7-rules-close {
+  margin-top: 11px;
+  background: none;
+  border: 1px solid rgba(231, 192, 113, 0.25);
+  border-radius: 999px;
+  color: rgba(231, 192, 113, 0.8);
+  font-family: Georgia, serif;
+  font-size: 9px;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.suite7-rules-close:hover {
+  border-color: rgba(231, 192, 113, 0.6);
+  color: #f7e8ac;
+}
+
+/* Result banner — overlaid on the lower scene edge so settling a hand never
+   pushes the controls below the table around. */
+.suite7-scene-banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 16px;
+  pointer-events: none;
+  text-align: center;
+  z-index: 1;
+}
+.suite7-scene-note {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 11px;
+  color: rgba(245, 240, 240, 0.5);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
 }
 
 /* Phone tier: smaller cards, tighter overlap; never any horizontal scroll. */
@@ -1383,6 +1543,13 @@ a.topnav-rank:hover {
   .suite7-card-back::after {
     font-size: 24px;
   }
+  .suite7-tool-wide {
+    padding: 0 9px;
+    letter-spacing: 1.6px;
+  }
+  .suite7-scene-banner {
+    bottom: 40px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1394,5 +1561,8 @@ a.topnav-rank:hover {
   }
   .suite7-chip-btn:hover:not(:disabled) {
     transform: none;
+  }
+  .suite7-tool {
+    transition: none;
   }
 }

@@ -694,8 +694,64 @@ export const youtubeAnnouncements = pgTable("youtube_announcements", {
   handledAt: timestamp("handled_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Server-side play-chip bankroll for The Table (house blackjack). One row per
+ * member, created at DEFAULT_CHIP_BALANCE on first read. Chips are cosmetic
+ * bragging rights only — never purchasable, never redeemable, never money.
+ * Self-created at runtime (see lib/table-chips-store) to match this definition.
+ */
+export const tableChips = pgTable(
+  "table_chips",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => members.id),
+    discordId: varchar("discord_id", { length: 32 }).notNull(),
+    balance: integer("balance").notNull().default(1000),
+    handsPlayed: integer("hands_played").notNull().default(0),
+    handsWon: integer("hands_won").notNull().default(0),
+    handsPushed: integer("hands_pushed").notNull().default(0),
+    blackjacks: integer("blackjacks").notNull().default(0),
+    biggestWin: integer("biggest_win").notNull().default(0),
+    totalWagered: integer("total_wagered").notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [
+    unique("table_chips_member_id_unique").on(table.memberId),
+    index("table_chips_balance_index").on(table.balance),
+  ]
+);
+
+/**
+ * Ledger of every chip GRANT (chips earned from real progress, never bought).
+ * The UNIQUE (member_id, grant_key) is the whole idempotency mechanism: a
+ * lecture, a journal day or a daily stipend can only ever pay out once, no
+ * matter how many times the chips endpoint is polled. Keys are minted by
+ * lib/table-earn (`lesson:<id>`, `journal:<YYYY-MM-DD>`, `daily:<YYYY-MM-DD>`).
+ */
+export const tableGrants = pgTable(
+  "table_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => members.id),
+    discordId: varchar("discord_id", { length: 32 }).notNull(),
+    grantKey: varchar("grant_key", { length: 200 }).notNull(),
+    amount: integer("amount").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("table_grants_member_grant_key_unique").on(table.memberId, table.grantKey),
+    index("table_grants_member_id_index").on(table.memberId),
+  ]
+);
+
 export type MemberRow = typeof members.$inferSelect;
 export type MemberInsert = typeof members.$inferInsert;
 export type HomeworkSubmissionRow = typeof homeworkSubmissions.$inferSelect;
 export type HomeworkReviewRow = typeof homeworkRubricReviews.$inferSelect;
 export type JournalRow = typeof journals.$inferSelect;
+export type TableChipsRow = typeof tableChips.$inferSelect;
+export type TableGrantRow = typeof tableGrants.$inferSelect;

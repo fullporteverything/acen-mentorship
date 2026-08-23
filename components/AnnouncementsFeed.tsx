@@ -9,11 +9,22 @@ interface AnnouncementItem {
   createdAt: string;
 }
 
+/** "TODAY" / "YESTERDAY" / "3 DAYS AGO" — the House Calls card stamp style. */
+function relativeDate(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const days = Math.floor((Date.now() - then) / 86_400_000);
+  if (days <= 0) return "TODAY";
+  if (days === 1) return "YESTERDAY";
+  if (days < 30) return `${days} DAYS AGO`;
+  return new Date(iso).toLocaleDateString().toUpperCase();
+}
+
 /**
- * Announcements feed on the Overview page. Unread items get a slow burgundy
- * pulse; hovering or clicking one fires POST /api/announcements/seen to mark
- * it read (fire-and-forget) and clears the pulse locally without waiting for
- * the round-trip.
+ * House Calls feed on the Lobby. Unread items get a slow gold pulse; hovering
+ * or clicking one fires POST /api/announcements/seen to mark it read
+ * (fire-and-forget) and clears the pulse locally without waiting for the
+ * round-trip.
  */
 export default function AnnouncementsFeed({
   items,
@@ -105,7 +116,7 @@ export default function AnnouncementsFeed({
   }
 
   return (
-    <div style={{ maxWidth: 640, display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <p
         style={{
           fontSize: 9,
@@ -115,7 +126,7 @@ export default function AnnouncementsFeed({
           fontFamily: "Georgia, serif",
         }}
       >
-        Announcements
+        House Calls
       </p>
 
       {items.map((a) => {
@@ -130,9 +141,10 @@ export default function AnnouncementsFeed({
             onClick={() => markSeen(a.id)}
             style={{
               position: "relative",
-              padding: "22px 24px",
-              border: "1px solid rgba(231,192,113,0.15)",
-              background: "rgba(231,192,113,0.03)",
+              padding: "16px 22px",
+              borderLeft: "3px solid #e3c071",
+              background:
+                "linear-gradient(90deg, rgba(231,192,113,0.07), rgba(231,192,113,0))",
               cursor: isUnread ? "pointer" : "default",
               overflow: "hidden",
             }}
@@ -184,13 +196,14 @@ export default function AnnouncementsFeed({
             <p
               style={{
                 fontSize: 10,
-                color: "rgba(245,240,240,0.4)",
+                color: "rgba(245,240,240,0.38)",
                 fontFamily: "Georgia, serif",
                 marginTop: 12,
-                letterSpacing: 1,
+                letterSpacing: 1.5,
+                textTransform: "uppercase",
               }}
             >
-              {new Date(a.createdAt).toLocaleDateString()}
+              {relativeDate(a.createdAt)}
             </p>
           </article>
         );

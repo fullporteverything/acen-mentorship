@@ -17,6 +17,9 @@ export default async function AdminPage() {
           padding: "60px 56px",
           minHeight: "calc(100vh - 76px)",
           position: "relative",
+          maxWidth: "980px",
+          marginLeft: "auto",
+          marginRight: "auto",
         }}
       >
         {/* Card-suit corner accent — top right */}

@@ -158,15 +158,19 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
       >
         <NotificationCenter />
         {rank && (
+          // Status badge — the member's rank. Deliberately NOT button-styled
+          // (transparent, thin gold rule, gold dot) so it reads as a label, not
+          // a clickable control.
           <span
             className="topnav-rank"
             aria-label={`Rank: ${rank}`}
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 5,
-              background: "linear-gradient(180deg,#f7e8ac,#b8934a)",
-              color: "#2a1c05",
+              gap: 6,
+              background: "transparent",
+              border: "1px solid rgba(231,192,113,0.35)",
+              color: "#e3c071",
               fontSize: 9,
               letterSpacing: 2,
               textTransform: "uppercase",
@@ -176,11 +180,19 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
               borderRadius: 999,
               whiteSpace: "nowrap",
               lineHeight: 1,
+              cursor: "default",
             }}
           >
-            <span aria-hidden style={{ fontSize: 8 }}>
-              ◆
-            </span>
+            <span
+              aria-hidden
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: "50%",
+                background: "#e3c071",
+                boxShadow: "0 0 6px rgba(231,192,113,0.6)",
+              }}
+            />
             {rank}
           </span>
         )}

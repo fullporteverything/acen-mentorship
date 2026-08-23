@@ -15,10 +15,23 @@ import {
   type Card,
   type Settlement,
 } from "@/lib/blackjack";
+import {
+  fetchChipState,
+  postSettle,
+  type ChipStats,
+  type NewGrant,
+} from "@/lib/table-chips-client";
+import ChipLeaderboard from "@/components/ChipLeaderboard";
 
 /**
- * The Table — house blackjack, play-chips only. Purely cosmetic fun: chips
- * never touch the server (localStorage `suite7:chips`), no purchases, no API.
+ * The Table — house blackjack, play-chips only. No purchases, no cash-out.
+ *
+ * The bankroll is SERVER-HELD (lib/table-chips-store): it follows the member
+ * across devices, feeds the leaderboard, and is earned from real course
+ * progress. Settlement is authoritative on the server — this component shows
+ * the local result immediately for feel, then reconciles with the balance the
+ * server returns. If the API is unreachable the table stays playable offline
+ * against the localStorage cache, and simply stops reporting hands.
  *
  * All RULES live in lib/blackjack.ts; this component owns the phase state
  * machine and rendering. Round flow:
@@ -75,6 +88,8 @@ export default function TableGame() {
   const [dealerHand, setDealerHand] = useState<Card[]>([]);
   const [holeRevealed, setHoleRevealed] = useState(false);
   const [doubled, setDoubled] = useState(false);
+  const [stats, setStats] = useState<ChipStats | null>(null);
+  const [grants, setGrants] = useState<NewGrant[]>([]);
   const [result, setResult] = useState<Settlement | null>(null);
   const [shuffleNote, setShuffleNote] = useState(false);
   // 3D scene support: reduced motion snaps the scene's animations; only a
@@ -91,6 +106,10 @@ export default function TableGame() {
   const phaseRef = useRef<Phase>("BETTING");
   const bankrollRef = useRef<number | null>(null);
   const stakeRef = useRef(0);
+  /** The BASE stake, unchanged by a double — the server wants stake + flag. */
+  const baseStakeRef = useRef(0);
+  /** False once a server call fails: the table keeps playing, offline. */
+  const onlineRef = useRef(true);
   const pHandRef = useRef<Card[]>([]);
   const dHandRef = useRef<Card[]>([]);
   const shoeRef = useRef<Card[]>([]);
@@ -119,20 +138,46 @@ export default function TableGame() {
     }
   }, []);
 
-  // Load bankroll after mount (SSR-safe: render "—" until then).
+  // Load the bankroll after mount (SSR-safe: render "—" until then). The
+  // server is the source of truth; opening the table also claims whatever the
+  // member has earned since last time, which we surface as a toast.
   useEffect(() => {
-    let chips = DEFAULT_CHIPS;
-    try {
-      const raw = window.localStorage.getItem(CHIPS_KEY);
-      if (raw !== null) {
-        const parsed = Number(raw);
-        if (Number.isFinite(parsed) && parsed >= 0) chips = parsed;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const state = await fetchChipState();
+        if (cancelled) return;
+        bankrollRef.current = state.balance;
+        setBankroll(state.balance);
+        setStats(state.stats);
+        if (state.newGrants.length > 0) setGrants(state.newGrants);
+        try {
+          window.localStorage.setItem(CHIPS_KEY, String(state.balance));
+        } catch {
+          // cache only
+        }
+      } catch {
+        // Offline / API down: fall back to the cached stack so the table is
+        // still playable. Hands won't be reported until the next reload.
+        if (cancelled) return;
+        onlineRef.current = false;
+        let chips = DEFAULT_CHIPS;
+        try {
+          const raw = window.localStorage.getItem(CHIPS_KEY);
+          if (raw !== null) {
+            const parsed = Number(raw);
+            if (Number.isFinite(parsed) && parsed >= 0) chips = parsed;
+          }
+        } catch {
+          // Fall through to the default stack.
+        }
+        bankrollRef.current = chips;
+        setBankroll(chips);
       }
-    } catch {
-      // Fall through to the default stack.
-    }
-    bankrollRef.current = chips;
-    setBankroll(chips);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // prefers-reduced-motion → all dealing delays collapse to zero.
@@ -201,8 +246,33 @@ export default function TableGame() {
       schedule(() => {
         const settlement = settle(stakeRef.current, pHandRef.current, dHandRef.current);
         setResult(settlement);
+        // Optimistic: show the result instantly, then let the server's
+        // authoritative balance land. A rejected or failed report leaves the
+        // optimistic number in place rather than yanking the stack around.
         setChips((bankrollRef.current ?? DEFAULT_CHIPS) + settlement.delta);
         toPhase("SETTLED");
+        if (onlineRef.current) {
+          const wasDoubled = stakeRef.current > baseStakeRef.current;
+          void postSettle({
+            bet: baseStakeRef.current,
+            playerHand: pHandRef.current,
+            dealerHand: dHandRef.current,
+            doubled: wasDoubled,
+          })
+            .then((res) => {
+              bankrollRef.current = res.balance;
+              setBankroll(res.balance);
+              setStats(res.stats);
+              try {
+                window.localStorage.setItem(CHIPS_KEY, String(res.balance));
+              } catch {
+                // cache only
+              }
+            })
+            .catch(() => {
+              onlineRef.current = false;
+            });
+        }
       }, t);
     },
     [draw, schedule, setChips, setDealer, toPhase]
@@ -217,6 +287,7 @@ export default function TableGame() {
       const next = prev + value;
       if (next > chips) return prev; // can't bet more than the bankroll
       stakeRef.current = next;
+      baseStakeRef.current = next;
       return next;
     });
   }, []);
@@ -224,6 +295,7 @@ export default function TableGame() {
   const clearBet = useCallback(() => {
     if (phaseRef.current !== "BETTING") return;
     stakeRef.current = 0;
+    baseStakeRef.current = 0;
     setBet(0);
   }, []);
 
@@ -298,6 +370,7 @@ export default function TableGame() {
     setHoleRevealed(false);
     setDoubled(false);
     stakeRef.current = 0;
+    baseStakeRef.current = 0;
     setBet(0);
     if (shoeRef.current.length < RESHUFFLE_BELOW) {
       reshuffle();
@@ -413,6 +486,27 @@ export default function TableGame() {
   return (
     <div className="suite7-table-wrap">
       <section className="suite7-felt" aria-label="Blackjack table">
+        {/* What the House just paid you for course progress since last visit. */}
+        {grants.length > 0 ? (
+          <div className="suite7-grants" role="status">
+            <div className="suite7-grants-head">
+              <span>The House settles up</span>
+              <button
+                type="button"
+                onClick={() => setGrants([])}
+                aria-label="Dismiss earnings"
+              >
+                ×
+              </button>
+            </div>
+            {grants.map((g) => (
+              <p key={g.grantKey}>
+                <span>{g.label}</span>
+                <span className="suite7-grants-amt">+{formatChips(g.amount)}</span>
+              </p>
+            ))}
+          </div>
+        ) : null}
         {/* Bankroll — chip stack + tabular count */}
         <div
           style={{
@@ -650,6 +744,7 @@ export default function TableGame() {
 
       <div className="suite7-martini-slot">
         <Martini />
+        <ChipLeaderboard />
       </div>
     </div>
   );

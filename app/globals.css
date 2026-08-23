@@ -1566,3 +1566,54 @@ a.topnav-rank:hover {
     transition: none;
   }
 }
+
+/* ── The Table · earnings toast ──────────────────────────────────────────
+   What the House paid out for course progress when the table was opened.
+   Sits above the felt panel; dismissible, and never blocks the game. */
+.suite7-grants {
+  border: 1px solid rgba(231, 192, 113, 0.3);
+  background: linear-gradient(180deg, rgba(231, 192, 113, 0.08), rgba(231, 192, 113, 0.02));
+  padding: 14px 16px;
+  margin-bottom: 22px;
+}
+.suite7-grants-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.suite7-grants-head span {
+  font-family: Georgia, serif;
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.suite7-grants-head button {
+  border: 0;
+  background: transparent;
+  color: rgba(245, 240, 240, 0.45);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.suite7-grants-head button:hover {
+  color: var(--gold);
+}
+.suite7-grants p {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  color: rgba(245, 240, 240, 0.78);
+  padding: 3px 0;
+}
+.suite7-grants-amt {
+  color: var(--gold-hi);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "<string>", line 6, in <module>
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\s7_table.py", line 368, in build_table
+    parts.append(flat_text("SUITE 7", wx, wy, wh, mat_print,
+                 ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           name="FeltWordmark"))
+                           ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\s7_table.py", line 233, in flat_text
+    g = _text_mesh(body, font, name, char_h / _cap_fraction(font), mat)
+                                              ~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\s7_table.py", line 166, in _cap_fraction
+    probe = _text_mesh("H", font_path, "_capprobe", 1.0)
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\s7_table.py", line 147, in _text_mesh
+    cu.align_y = "BASELINE"
+    ^^^^^^^^^^
+TypeError: bpy_struct: item.attr = val: enum "BASELINE" not found in ('TOP', 'TOP_BASELINE', 'CENTER', 'BOTTOM_BASELINE', 'BOTTOM')

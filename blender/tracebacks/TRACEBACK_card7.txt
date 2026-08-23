@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "<string>", line 6, in <module>
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\card7.py", line 133, in build_and_render
+    setup_render(bpy.context.scene, filepath)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\card7.py", line 94, in setup_render
+    scene.render.engine = "BLENDER_EEVEE_NEXT"
+    ^^^^^^^^^^^^^^^^^^^
+TypeError: bpy_struct: item.attr = val: enum "BLENDER_EEVEE_NEXT" not found in ('BLENDER_EEVEE', 'BLENDER_WORKBENCH', 'CYCLES')

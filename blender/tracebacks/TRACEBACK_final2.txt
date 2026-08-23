@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "<string>", line 5, in <module>
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\s7_clips.py", line 459, in rest_check
+    (pa, ra), (pb, rb) = pose(f), pose(f + 1)
+                         ~~~~^^^
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\s7_clips.py", line 333, in pose_shoerefill_card
+    sx, sy, sz = REST["Shoe_loc"]
+                 ~~~~^^^^^^^^^^^^
+KeyError: 'Shoe_loc'

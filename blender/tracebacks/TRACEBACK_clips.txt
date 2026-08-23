@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "<string>", line 10, in <module>
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\s7_build.py", line 35, in build_all
+    K.build_clips()
+    ~~~~~~~~~~~~~^^
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\s7_clips.py", line 247, in build_clips
+    act = bake(obj, name, f0, f1, pose)
+  File "C:\Users\vanqu\Downloads\suite-7-mcp\suite7-mcp-build\blender\s7_clips.py", line 74, in bake
+    for fc in act.fcurves:
+              ^^^^^^^^^^^
+AttributeError: 'Action' object has no attribute 'fcurves'

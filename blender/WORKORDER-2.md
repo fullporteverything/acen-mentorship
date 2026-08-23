@@ -44,29 +44,49 @@ now ≤140k total across files, textures ≤2048².
 
 ── PRIORITY 1 · THE DEALER ────────────────────────────────────────────────
 A faceless dealer, **neck-down**, standing behind the dealer notch. The
-site frames the table from the player side at ~41° pitch, so the dealer is
-seen chest-to-waist above the rail — spend the detail there.
+site frames the table from the player side, so he is seen chest-to-waist
+above the rail — spend the polygon budget there and on the HANDS.
 
-- Object `Dealer`: torso + arms + hands, cut off cleanly at the neck (flat
-  cap or collar shadow — NO head, it's the brand's faceless House).
-  Outfit: black suit **vest** with subtle sheen over a crisp near-black
-  shirt (sleeves rolled OR full sleeves with gold cufflinks), a thin gold
-  tie-line or ϕ lapel pin as the single accent. Hands matter most —
-  simple stylized gloves (black) are acceptable and dodge skin-tone work.
-  Anchor: standing centered in the dealer notch, hands resting at the
-  felt edge near the Shoe/ChipTray. ≤35k tris.
+**THE SUIT MUST READ AS A REAL SUIT.** The owner's reference is the
+classic casino dealer, and the last brief was too vague. Build it as
+actual tailored garments, not a coloured torso:
+
+- **Dress shirt** — crisp white/cream, its own mesh with a real *collar*
+  (a folded stand collar, not a painted line), a placket down the centre,
+  and sleeves that read as fabric: gathered at a **buttoned cuff**, with a
+  little slack/fold volume at the elbow. Sleeves may be full-length or
+  neatly rolled to mid-forearm — rolled reads well and is cheaper.
+- **Waistcoat/vest** — black, worn OVER the shirt as a separate shell with
+  visible thickness at the edges (offset the shirt, don't co-planar it).
+  It needs: a **V opening** at the chest showing shirt beneath, shaped
+  **lapel/armhole curves**, a row of small buttons down the front, and
+  welt pockets. Give it a slightly different roughness to the shirt so it
+  reads as a different cloth under the table light.
+- **Bow tie** — black, at the collar. Small but it is the single silhouette
+  detail that says "dealer" instantly. Do not skip it.
+- **Accent** — one gold note only: a ϕ lapel pin OR gold cufflinks. Not both.
+- **Hands** — the most-seen part. Real fingers (a simple 4-fingers+thumb
+  proxy is fine, no need for full topology), positioned to actually hold
+  and push cards. Neutral dark gloves are acceptable if skin tone fights
+  the palette, but bare hands read warmer and more human.
+- **No head.** Cut cleanly at the collar line — the shirt collar closes
+  the silhouette so it reads as intentional, not decapitated.
+- Anchor standing centred in the dealer notch, hands near the Shoe.
+  ≤35k tris. Materials Principled/PBR only (glTF).
+
 - Clips (30fps, start/end at rest, root motion, names exact):
-  - `DealerIdle` (~90–150f, LOOPING — flag loop in NOTES): subtle breathing
-    sway + occasional finger tap on the felt. Must loop seamlessly.
-  - `DealerDeal` (~40f): right hand reaches to the Shoe, pulls, and sweeps
-    toward the table center — timed so the site can fire it WITH CardDeal
-    (card leaves the shoe as the hand sweeps past it).
-  - `DealerFlip` (~20f): a short wrist flick toward the hole-card spot,
-    pairs with CardFlip.
+  - `DealerIdle` (~90–150f, LOOPING — flag the loop in NOTES): subtle
+    breathing, weight shift, an occasional finger tap on the felt. Must
+    loop seamlessly.
+  - `DealerDeal` (~40f): the right hand reaches to the Shoe, pulls a card,
+    and sweeps toward the table centre — timed so the site can fire it
+    WITH `CardDeal` (the card leaves the shoe as the hand sweeps past).
+  - `DealerFlip` (~20f): a short wrist flick at the hole-card spot, pairs
+    with `CardFlip`.
   - `DealerSweep` (~30f): open-palm drag toward the ChipTray, pairs with
     the house collecting a lost bet.
-  Simple armature is fine; export skinned. If IK setup fights the clock,
-  bake to FK — the site only plays clips.
+  Simple armature is fine; export skinned. If IK fights the clock, bake to
+  FK — the site only plays clips by name.
 
 ── PRIORITY 2 · THE 52-CARD ATLAS — ✅ DONE, SKIP ─────────────────────────
 Delivered and committed at `public/brand/cards-atlas.png` (3328×1860,

@@ -86,6 +86,24 @@ Multiplayer arrives later; author it now so the site just swaps meshes:
   to Table's). Same felt print. Reuse s7_table.outline with wider params.
 - Keep the original `Table` untouched — the site picks per player count.
 
+── PRIORITY 3.5 · EXPORT THE MARTINI AS A MESH ───────────────────────────
+`martini.py` builds a real 3D martini but only ever RENDERS it to a PNG.
+The site now wants it as an actual prop standing on the felt that the
+player clicks to sip, so it needs to be in the glb:
+- Add object `Martini` to `table-assets.glb` — glass (bowl + stem + foot),
+  `Liquid` as a SEPARATE child object (the site drives its height for the
+  sip levels, so it must be its own node), and `Olive` on a pick.
+- Materials must be glTF PBR: use Principled with Transmission for the
+  glass (transmission ~0.9, roughness ~0.06, IOR 1.45, a little thickness)
+  — the Cycles-only world trick from the render does NOT survive glTF.
+- Scale it to the table: a real martini glass is ~17cm tall against a
+  card's 8.9cm width, so roughly 1.9 x the card's 0.62 width in table
+  units. Stand it upright with its foot at felt level (y=0.008).
+- Optional clip `MartiniSip` (~24f): a small lift + tilt + set-down, if
+  cheap. The site currently animates the liquid level itself.
+The site ships a procedural three.js martini in the meantime; yours
+replaces it the moment `Martini` exists in the glb.
+
 ── PRIORITY 4 · SMALL FIXES (cheap, batch at the end) ─────────────────────
 - ~~ChipTray recess~~ ✅ done (0.050 boolean pocket, slot audit clean).
 - ~~`martini.png`~~ ✅ done (Cycles glass, gradient world so refraction has

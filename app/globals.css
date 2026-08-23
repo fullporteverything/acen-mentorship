@@ -1110,23 +1110,223 @@ a.topnav-rank:hover {
   border-color: rgba(231, 192, 113, 0.7) !important;
 }
 
-/* Layout: felt left, martini right; martini drops below the felt on phones. */
-.suite7-table-wrap {
+/* ── The stage ───────────────────────────────────────────────────────────
+   The table page has no page chrome: below the 76px TopNav the 3D canvas is
+   the whole viewport, on black, with no panel frame. Every control is an
+   absolutely-positioned HUD layer over it. The martini is no longer a DOM
+   flourish in a side column — it is a prop standing on the felt. */
+.suite7-stage-main {
+  position: relative;
+  margin-top: 76px;
+  height: calc(100dvh - 76px);
+  min-height: 520px;
+  background: #000000;
+  overflow: hidden;
+}
+
+/* The one surviving piece of page chrome. */
+.suite7-backlink {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  z-index: 6;
+  font-family: Georgia, serif;
+  font-size: 9px;
+  letter-spacing: 2.6px;
+  text-transform: uppercase;
+  color: rgba(231, 192, 113, 0.55);
+  text-decoration: none;
+  padding: 4px 2px;
+  transition: color 0.2s;
+}
+.suite7-backlink:hover {
+  color: var(--gold-hi);
+}
+.suite7-backlink:focus-visible {
+  outline: 1px solid rgba(231, 192, 113, 0.8);
+  outline-offset: 2px;
+}
+
+.suite7-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000000;
+}
+.suite7-stage-canvas {
+  position: absolute;
+  inset: 0;
+}
+.suite7-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Every overlay layer is inert by default so the canvas keeps receiving the
+   clicks that place bets and sip the martini; controls opt back in. */
+.suite7-hud {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+.suite7-hud button,
+.suite7-hud a,
+.suite7-hud [role="dialog"] {
+  pointer-events: auto;
+}
+
+.suite7-hud-bank {
+  top: 10px;
+  left: 88px;
+  right: 200px;
   display: flex;
-  align-items: flex-start;
-  gap: 36px;
+  justify-content: flex-start;
 }
-.suite7-martini-slot {
-  flex: 0 0 auto;
+.suite7-hud-tools {
+  top: 10px;
+  right: 12px;
 }
-@media (max-width: 759px) {
-  .suite7-table-wrap {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .suite7-martini-slot {
-    align-self: center;
-  }
+/* The two totals track their card rows: the camera's vertical framing is
+   fixed, so the dealer row lands around a third of the way down the stage and
+   the player row just past halfway. */
+.suite7-hud-dealer {
+  top: 33%;
+  left: 16px;
+}
+.suite7-hud-player {
+  top: 52%;
+  left: 16px;
+}
+.suite7-hud-grants {
+  bottom: 156px;
+  left: 16px;
+  width: min(300px, calc(100% - 32px));
+}
+.suite7-hud-grants > * {
+  pointer-events: auto;
+}
+
+/* Bankroll + live bet readout. */
+.suite7-bank {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 16px 7px;
+  border: 1px solid rgba(231, 192, 113, 0.2);
+  border-radius: 999px;
+  background: rgba(6, 5, 3, 0.55);
+  -webkit-backdrop-filter: blur(9px) saturate(115%);
+  backdrop-filter: blur(9px) saturate(115%);
+  box-shadow: 0 2px 18px rgba(0, 0, 0, 0.6);
+  max-width: 100%;
+}
+.suite7-bank-figures {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.suite7-bank-bet {
+  padding-left: 14px;
+  border-left: 1px solid rgba(231, 192, 113, 0.14);
+}
+.suite7-bank-label {
+  font-family: Georgia, serif;
+  font-size: 8px;
+  letter-spacing: 2.6px;
+  text-transform: uppercase;
+  color: rgba(231, 192, 113, 0.6);
+}
+.suite7-bank-value {
+  font-family: Georgia, serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  color: var(--cream);
+}
+.suite7-bank-note {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 10px;
+  color: rgba(245, 240, 240, 0.45);
+}
+
+/* The action cluster: gold hairlines on a blurred scrim, low and centred. */
+.suite7-stage-controls {
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  display: flex;
+  justify-content: center;
+  padding: 0 12px;
+}
+.suite7-controls-scrim {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 11px 18px;
+  border: 1px solid rgba(231, 192, 113, 0.18);
+  border-radius: 999px;
+  background: rgba(5, 4, 2, 0.6);
+  -webkit-backdrop-filter: blur(11px) saturate(118%);
+  backdrop-filter: blur(11px) saturate(118%);
+  box-shadow: 0 6px 34px rgba(0, 0, 0, 0.75);
+  max-width: 100%;
+}
+.suite7-denoms {
+  display: flex;
+  gap: 7px;
+}
+/* The felt's own chip rack is the primary way to bet; these stay for keyboard
+   and assistive users, so they read as secondary. */
+.suite7-controls-scrim .suite7-chip-btn {
+  width: 38px;
+  height: 38px;
+  border-width: 3px;
+  font-size: 10px;
+}
+.suite7-controls-scrim .suite7-btn {
+  border-radius: 999px;
+  padding: 9px 16px;
+  letter-spacing: 2.4px;
+}
+.suite7-keyhint {
+  font-family: Georgia, serif;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: rgba(245, 240, 240, 0.35);
+  white-space: nowrap;
+}
+
+/* DOM fallback (no WebGL): back to a plain bordered panel, in flow. */
+.suite7-fallback {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 46px 24px 40px;
+}
+.suite7-fallback > .suite7-felt {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.suite7-fallback-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(231, 192, 113, 0.12);
+}
+.suite7-fallback-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
 }
 
 .suite7-felt {
@@ -1277,6 +1477,14 @@ a.topnav-rank:hover {
   opacity: 0.35;
   cursor: default;
 }
+.suite7-btn-quiet {
+  border-color: rgba(231, 192, 113, 0.22);
+  color: rgba(245, 240, 240, 0.75);
+}
+.suite7-btn-quiet:disabled {
+  color: rgba(245, 240, 240, 0.3);
+}
+
 .suite7-btn-primary {
   background: linear-gradient(180deg, #f7e8ac, #b8934a);
   border-color: transparent;
@@ -1323,49 +1531,6 @@ a.topnav-rank:hover {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(0, 0, 0, 0.3);
 }
 
-/* 3D table scene (components/TableScene.tsx). The canvas is transparent over
-   this ground; the DOM HUD tags, tool buttons and result banner float above it.
-   The canvas is the ONLY interactive layer inside — everything else that takes
-   pointer events opts back in explicitly. */
-.suite7-scene {
-  position: relative;
-  width: 100%;
-  height: clamp(360px, 52vw, 560px);
-  border: 1px solid rgba(231, 192, 113, 0.25);
-  border-radius: 14px;
-  overflow: hidden;
-  background: radial-gradient(
-    120% 100% at 50% 0%,
-    rgba(231, 192, 113, 0.05),
-    rgba(10, 8, 5, 0.9) 55%,
-    #000
-  );
-}
-.suite7-scene-canvas {
-  position: absolute;
-  inset: 0;
-}
-.suite7-scene canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.suite7-scene-hud {
-  position: absolute;
-  left: 14px;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  pointer-events: none;
-  z-index: 1;
-}
-.suite7-scene-hud-top {
-  top: 12px;
-}
-.suite7-scene-hud-bottom {
-  bottom: 12px;
-}
-
 /* HUD pill: hairline gold, warm near-black, blurred so the felt reads through. */
 .suite7-hud-pill {
   display: inline-flex;
@@ -1394,23 +1559,19 @@ a.topnav-rank:hover {
   color: rgba(245, 240, 240, 0.85);
 }
 
-/* Scene tools: mute + house rules, top-right corner of the table. */
-.suite7-scene-tools {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+/* Stage tools: mute · house rules · high rollers. */
+.suite7-stage-tools {
   display: flex;
   align-items: center;
   gap: 6px;
-  z-index: 2;
 }
 .suite7-tool {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 10px;
   border: 1px solid rgba(231, 192, 113, 0.28);
   border-radius: 999px;
   background: rgba(6, 5, 3, 0.55);
@@ -1425,7 +1586,7 @@ a.topnav-rank:hover {
   transition: border-color 0.2s, color 0.2s;
 }
 .suite7-tool-wide {
-  padding: 0 12px;
+  padding: 0 13px;
 }
 .suite7-tool:hover {
   border-color: rgba(231, 192, 113, 0.7);
@@ -1436,22 +1597,43 @@ a.topnav-rank:hover {
   outline-offset: 2px;
 }
 
-/* House-rules panel — same glass as the pills, anchored under the tool row. */
-.suite7-rules-pop {
+/* Floating panels (house rules · high rollers) — same glass as the pills,
+   anchored under the tool row, Esc / click-outside to close. */
+.suite7-panel-pop {
   position: absolute;
-  top: 48px;
+  top: 50px;
   right: 12px;
-  z-index: 3;
-  width: min(258px, calc(100% - 24px));
+  z-index: 5;
+  width: min(268px, calc(100% - 24px));
   padding: 14px 16px 12px;
   border: 1px solid rgba(231, 192, 113, 0.3);
   border-radius: 12px;
-  background: rgba(7, 5, 3, 0.9);
-  -webkit-backdrop-filter: blur(12px) saturate(120%);
-  backdrop-filter: blur(12px) saturate(120%);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.7);
+  background: rgba(7, 5, 3, 0.93);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  backdrop-filter: blur(14px) saturate(120%);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.78);
+  pointer-events: auto;
 }
-.suite7-rules-pop:focus {
+.suite7-panel-wide {
+  width: min(420px, calc(100% - 24px));
+  padding: 12px 14px 12px;
+}
+.suite7-panel-body {
+  max-height: min(58dvh, 460px);
+  overflow-y: auto;
+}
+/* ChipLeaderboard ships its own panel chrome (and its own "High Rollers"
+   heading) as inline styles; inside this pop-over it is just the content, so
+   the frame is flattened. !important is the only lever over inline styles. */
+.suite7-panel-wide .suite7-rules-title {
+  display: none;
+}
+.suite7-panel-wide .suite7-panel-body > section {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 2px 2px 0 !important;
+}
+.suite7-panel-pop:focus {
   outline: none;
 }
 .suite7-rules-title {
@@ -1496,21 +1678,18 @@ a.topnav-rank:hover {
   color: #f7e8ac;
 }
 
-/* Result banner — overlaid on the lower scene edge so settling a hand never
-   pushes the controls below the table around. */
-.suite7-scene-banner {
-  position: absolute;
+/* Result banner — floats above the control cluster so settling a hand never
+   pushes anything around. */
+.suite7-stage-banner {
   left: 0;
   right: 0;
-  bottom: 46px;
+  bottom: 86px;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 30px;
   padding: 0 16px;
-  pointer-events: none;
   text-align: center;
-  z-index: 1;
 }
 .suite7-scene-note {
   font-family: Georgia, serif;
@@ -1520,7 +1699,71 @@ a.topnav-rank:hover {
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
 }
 
-/* Phone tier: smaller cards, tighter overlap; never any horizontal scroll. */
+/* Tablet / phone tier: the stage still fills the viewport; the HUD compacts
+   into a bottom bar and every tap target stays at least 44px. */
+@media (max-width: 759px) {
+  .suite7-hud-bank {
+    left: 12px;
+    right: 12px;
+    top: 42px;
+    justify-content: flex-start;
+  }
+  .suite7-backlink {
+    top: 10px;
+  }
+  .suite7-hud-tools {
+    top: 6px;
+    right: 8px;
+  }
+  .suite7-hud-dealer {
+    top: 36%;
+  }
+  .suite7-hud-player {
+    top: 53%;
+  }
+  .suite7-hud-grants {
+    bottom: 176px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
+  .suite7-stage-controls {
+    bottom: 0;
+    padding: 0;
+  }
+  .suite7-controls-scrim {
+    width: 100%;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    gap: 8px;
+  }
+  .suite7-controls-scrim .suite7-btn,
+  .suite7-controls-scrim .suite7-chip-btn {
+    min-height: 44px;
+  }
+  .suite7-controls-scrim .suite7-chip-btn {
+    min-width: 44px;
+  }
+  .suite7-tool {
+    min-width: 44px;
+    height: 44px;
+  }
+  .suite7-tool-wide {
+    padding: 0 12px;
+    letter-spacing: 1.6px;
+  }
+  .suite7-stage-banner {
+    bottom: 96px;
+  }
+  .suite7-panel-pop {
+    top: 56px;
+  }
+}
+
+/* Phone tier: smaller DOM-fallback cards; never any horizontal scroll. */
 @media (max-width: 480px) {
   .suite7-card,
   .suite7-flip-inner {
@@ -1543,12 +1786,8 @@ a.topnav-rank:hover {
   .suite7-card-back::after {
     font-size: 24px;
   }
-  .suite7-tool-wide {
-    padding: 0 9px;
-    letter-spacing: 1.6px;
-  }
-  .suite7-scene-banner {
-    bottom: 40px;
+  .suite7-keyhint {
+    display: none;
   }
 }
 
@@ -1572,8 +1811,14 @@ a.topnav-rank:hover {
    Sits above the felt panel; dismissible, and never blocks the game. */
 .suite7-grants {
   border: 1px solid rgba(231, 192, 113, 0.3);
-  background: linear-gradient(180deg, rgba(231, 192, 113, 0.08), rgba(231, 192, 113, 0.02));
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(24, 18, 8, 0.94), rgba(8, 6, 4, 0.94));
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.7);
   padding: 14px 16px;
+}
+.suite7-fallback .suite7-grants {
   margin-bottom: 22px;
 }
 .suite7-grants-head {

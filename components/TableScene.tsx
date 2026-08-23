@@ -80,27 +80,43 @@ const CHIP_STYLE: Record<number, { light: string; mid: string; dark: string; tex
   500: { light: "#d4526f", mid: "#b21d3b", dark: "#5f0f20", text: "#F5F0F0" },
 };
 
-/** Denominations in the in-scene rack, left → right. */
+/** Denominations in the in-scene rack, nearest the betting circle → outward. */
 const RACK_DENOMS = [25, 100, 500] as const;
 const RACK_STACK_HEIGHT = 4; // chips drawn per rack stack
 
-/* ── World dimensions (arbitrary units, camera framed to fit) ────────────── */
+/* ── The Blender glb contract (public/brand/table-assets.glb) ────────────── */
 
-const TABLE_W = 7.6;
-const TABLE_D = 4.8;
+const GLB_URL = "/brand/table-assets.glb";
+/** The authored table's own footprint, in glb units (x 6.0 × z 3.5). */
+const AUTHORED_W = 6.0;
+const AUTHORED_D = 3.5;
+/**
+ * World scale applied to the whole glb.
+ *
+ * Raised from 1.267 (the old "match the procedural footprint" value): the
+ * PLAYABLE band is fixed in table-relative terms — it runs from the front lip
+ * of the dealer's chip-tray pocket (glb z −0.48) to the back of the authored
+ * betting circle (glb z +0.56), i.e. 1.04 of the table's 2.98 felt depth. Two
+ * full card rows plus their clearances have to live inside it, so the CARD
+ * size relative to the table is capped at ~0.41 glb units of depth. At the old
+ * scale that forced cardScale ≈ 0.50, below the readable floor; at 1.9 the
+ * solver lands on ≈ 0.75 with every clearance comfortably positive. The owner
+ * signed off on a bigger table, and the camera below is re-framed for it.
+ */
+const TABLE_SCALE = 1.9;
+
+/* ── World dimensions (world units = glb units × TABLE_SCALE) ────────────── */
+
+const TABLE_W = AUTHORED_W * TABLE_SCALE;
+const TABLE_D = AUTHORED_D * TABLE_SCALE;
 const CARD_W = 0.72;
 const CARD_H = 1.04;
 /** Half the procedural card's visual thickness (face/back plane offset). */
 const CARD_HALF_T = 0.008;
 const CARD_GAP = 0.44; // fan overlap step at full size
-const CHIP_R = 0.17;
-const CHIP_H = 0.05;
-
-/* ── The Blender glb contract (public/brand/table-assets.glb) ────────────── */
-
-const GLB_URL = "/brand/table-assets.glb";
-/** Authored table is 6.0 wide — scale it up to the old procedural footprint. */
-const TABLE_SCALE = TABLE_W / 6.0;
+/** Procedural chip metrics — sized to the authored Chip7 (r 0.16, h 0.045). */
+const CHIP_R = 0.16 * TABLE_SCALE;
+const CHIP_H = 0.045 * TABLE_SCALE;
 /** Node / clip names inside the glb (verified author contract). */
 const GLB_CARD_NODE = "Card7S";
 const GLB_CHIP_NODE = "Chip7";
@@ -109,6 +125,8 @@ const GLB_ENV_NODES = ["Table", "Shoe", "ChipTray", "DiscardTray"] as const;
 /** Material names on the authored Table mesh (one sub-mesh per material). */
 const MAT_FELT = "S7_Felt";
 const MAT_FELT_PRINT = "S7_FeltPrint";
+/** The padded rail tube AND the table body slab share this material. */
+const MAT_RAIL = "S7_Rail";
 /** A laid glb card rests at local y = 0.020; ChipToss ends at y = 0.0305. */
 const GLB_CARD_REST_Y = 0.02;
 const GLB_CHIP_CLIP_Y = 0.0305;
@@ -138,10 +156,46 @@ const DEAL_TOUCHDOWN = 0.82;
 const MAX_BET_CHIPS = 12; // visual cap — larger bets are implied
 const MAX_PAYOUT_CHIPS = 8;
 /** Widest half-span a fanned hand may occupy; beyond it the fan tightens. */
-const ROW_HALF_SPAN_CAP = 1.85;
+const ROW_HALF_SPAN_CAP = 1.46 * TABLE_SCALE;
 
-const CAM_BASE = new THREE.Vector3(0, 4.4, 4.9);
-const CAM_TARGET = new THREE.Vector3(0, 0, -0.15);
+/* ── Layout clearances (glb units × TABLE_SCALE, so the table can re-scale) ─ */
+
+/** Clear felt every card / chip / prop keeps to the rail and the tray pocket. */
+const EDGE_MARGIN = 0.055 * TABLE_SCALE;
+/** Extra clearance the dealer row keeps from the chip-tray pocket. */
+const TRAY_GAP = 0.09 * TABLE_SCALE;
+/** Clearance between the dealer row and the player row. */
+const ROW_GAP = 0.075 * TABLE_SCALE;
+/** Gap between adjacent rack stacks, edge to edge. */
+const RACK_GAP = 0.055 * TABLE_SCALE;
+/** Gap between the betting circle and the nearest rack stack / the martini. */
+const CIRCLE_GAP = 0.1 * TABLE_SCALE;
+/**
+ * How far out toward the front rail the rack and the martini sit, as a
+ * fraction of the room between the player's card row and the rail. 1 would
+ * pin them against the rail (correct, but they crowd the bottom of frame).
+ */
+const FRONT_SEAT = 0.62;
+
+/* ── The martini, a 3D prop on the felt (glb units, scaled by TABLE_SCALE) ── */
+
+/** localStorage key — shared with the retired DOM martini so sips carry over. */
+const MARTINI_KEY = "suite7:martini";
+const MARTINI_SIPS = 5;
+/** Bowl rim radius: the prop's footprint for clearance purposes. */
+const MARTINI_RIM_R = 0.2;
+/** Bowl interior: apex y → rim y (the liquid cone lives between them). */
+const MARTINI_APEX_Y = 0.25;
+const MARTINI_RIM_Y = 0.436;
+const MARTINI_LIQUID_R = 0.188;
+const SIP_SECONDS = 0.5;
+const POUR_SECONDS = 0.95;
+
+/* ── Camera: lower and closer than the old framing, per the owner ────────── */
+
+const CAM_BASE = new THREE.Vector3(0, 4.3, 6.9);
+const CAM_TARGET = new THREE.Vector3(0, 0, 0.8);
+const CAM_FOV = 36;
 
 /* ── Card atlas (public/brand/cards-atlas.png) ───────────────────────────── */
 
@@ -380,6 +434,76 @@ interface Tween {
   done?: () => void;
 }
 
+/* ── The playable surface: felt polygon, rail overhang, obstacles ─────────── */
+
+/** A 2D ring in the XZ plane (Vector2.x = world x, Vector2.y = world z). */
+type Ring = THREE.Vector2[];
+
+/** An axis-aligned XZ footprint a card / chip must not land on. */
+interface Obstacle {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+function pointInRing(ring: Ring, x: number, z: number): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i];
+    const b = ring[j];
+    if (a.y > z !== b.y > z && x < ((b.x - a.x) * (z - a.y)) / (b.y - a.y) + a.x) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Unsigned distance from (x,z) to the ring's outline. */
+function distToRing(ring: Ring, x: number, z: number): number {
+  let best = Infinity;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[j];
+    const b = ring[i];
+    const dx = b.x - a.x;
+    const dz = b.y - a.y;
+    const len = dx * dx + dz * dz;
+    let t = len > 0 ? ((x - a.x) * dx + (z - a.y) * dz) / len : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const px = x - (a.x + t * dx);
+    const pz = z - (a.y + t * dz);
+    const d = px * px + pz * pz;
+    if (d < best) best = d;
+  }
+  return Math.sqrt(best);
+}
+
+/** Signed distance outside an obstacle (negative while inside it). */
+function obstacleGap(o: Obstacle, x: number, z: number): number {
+  const dx = Math.max(o.minX - x, 0, x - o.maxX);
+  const dz = Math.max(o.minZ - z, 0, z - o.maxZ);
+  if (dx > 0 || dz > 0) return Math.hypot(dx, dz);
+  return -Math.min(x - o.minX, o.maxX - x, z - o.minZ, o.maxZ - z);
+}
+
+/** A rounded-rectangle ring — the procedural fallback's stand-in felt. */
+function roundedRectRing(halfX: number, halfZ: number, r: number, seg = 6): Ring {
+  const ring: Ring = [];
+  const corners: [number, number, number][] = [
+    [halfX - r, halfZ - r, 0],
+    [-(halfX - r), halfZ - r, Math.PI / 2],
+    [-(halfX - r), -(halfZ - r), Math.PI],
+    [halfX - r, -(halfZ - r), -Math.PI / 2],
+  ];
+  for (const [cx, cz, a0] of corners) {
+    for (let i = 0; i <= seg; i++) {
+      const a = a0 + (Math.PI / 2) * (i / seg);
+      ring.push(new THREE.Vector2(cx + r * Math.cos(a), cz + r * Math.sin(a)));
+    }
+  }
+  return ring;
+}
+
 /* ── Table metrics + solved layout ───────────────────────────────────────── */
 
 /** Everything measured off the authored table (world units, post-TABLE_SCALE). */
@@ -390,8 +514,28 @@ interface FeltMetrics {
   maxZ: number;
   /** World y of the felt surface. */
   top: number;
+  /**
+   * The felt's actual TOP-FACE outline — not its bounding box. The felt is a
+   * half-moon: at x = 0 it reaches z = +1.49·scale, but at |x| = 2.4·scale it
+   * has already curved back past z = 0. Treating the bbox as playable is what
+   * put the chip rack on the rail.
+   */
+  feltRing: Ring;
+  /** Holes cut in the felt — the recessed chip-tray pocket. */
+  feltHoles: Ring[];
+  /**
+   * How far the padded rail tube overhangs the felt outline, measured off the
+   * rail mesh itself (every S7_Rail vertex above the felt surface, tested
+   * against the felt outline). The playable surface is the felt ring pulled
+   * in by exactly this much.
+   */
+  railInset: number;
   /** Player-side edge of the dealer chip tray — the dealer row must clear it. */
   trayFrontZ: number;
+  /** Player-side edge of the felt's tray POCKET (further forward than the tray). */
+  pocketFrontZ: number;
+  /** Raised props on the felt (trays, shoe) a card row must not overlap. */
+  obstacles: Obstacle[];
   /** Right-hand x limit for a fanned row (discard tray / shoe stay clear). */
   rowHalfSpan: number;
   betCenter: THREE.Vector2;
@@ -402,6 +546,76 @@ interface FeltMetrics {
   shoeMouth: THREE.Vector3;
   /** Where payout chips come from. */
   payoutFrom: THREE.Vector3;
+}
+
+/**
+ * Clear felt in every direction around (x, z): the distance to the rail's
+ * inner surface, to the tray pocket, and to any raised prop — whichever is
+ * nearest. Negative means the point is already on the rail, in the pocket or
+ * under a prop. THIS, not the felt bounding box, is the playable test.
+ */
+function surfaceClearance(m: FeltMetrics, x: number, z: number): number {
+  const dRing = distToRing(m.feltRing, x, z);
+  if (!pointInRing(m.feltRing, x, z)) return -dRing - m.railInset;
+  let c = dRing - m.railInset;
+  for (const hole of m.feltHoles) {
+    const d = distToRing(hole, x, z);
+    const signed = pointInRing(hole, x, z) ? -d : d;
+    if (signed < c) c = signed;
+  }
+  for (const o of m.obstacles) {
+    const g = obstacleGap(o, x, z);
+    if (g < c) c = g;
+  }
+  return c;
+}
+
+/** True when a disc of `radius` centred on (x,z) sits clear of everything. */
+function discFits(m: FeltMetrics, x: number, z: number, radius: number): boolean {
+  return surfaceClearance(m, x, z) >= radius + EDGE_MARGIN;
+}
+
+/** The widest half-span a row of `cardW × cardH` cards may occupy at `z`. */
+function solveRowHalfSpan(
+  m: FeltMetrics,
+  z: number,
+  cardW: number,
+  cardH: number,
+  cap: number
+): number {
+  const step = 0.02;
+  const probes = [-cardH / 2, 0, cardH / 2];
+  let h = 0;
+  while (h + step <= cap) {
+    const next = h + step;
+    let ok = true;
+    for (const sx of [-1, 1]) {
+      for (const dz of probes) {
+        if (surfaceClearance(m, sx * (next + cardW / 2), z + dz) < EDGE_MARGIN) {
+          ok = false;
+          break;
+        }
+      }
+      if (!ok) break;
+    }
+    if (!ok) break;
+    h = next;
+  }
+  return h;
+}
+
+/** Walk out toward the front rail from `from` while a `radius` disc still fits. */
+function seatTowardRail(m: FeltMetrics, x: number, from: number, radius: number): number {
+  const step = 0.02;
+  let z = from;
+  let best = from;
+  const limit = from + m.maxZ - m.minZ;
+  while (z <= limit) {
+    if (!discFits(m, x, z, radius)) break;
+    best = z;
+    z += step;
+  }
+  return best;
 }
 
 /** The solved placement every card, chip and rack slot is positioned from. */
@@ -420,21 +634,28 @@ interface Layout {
   chipRestY: number;
   chipStep: number;
   rack: { denom: number; x: number; z: number }[];
+  /** Where the 3D martini glass stands, on the player's right. */
+  martini: { x: number; z: number; scale: number };
 }
 
 /** Procedural table metrics — used until (or unless) the glb lands. */
 function proceduralMetrics(): FeltMetrics {
-  const halfX = TABLE_W / 2;
-  const halfZ = TABLE_D / 2;
+  const halfX = 2.74 * TABLE_SCALE;
+  const halfZ = 1.49 * TABLE_SCALE;
   return {
     minX: -halfX,
     maxX: halfX,
     minZ: -halfZ,
     maxZ: halfZ,
-    top: 0,
-    // No authored tray in this mode — reserve a plausible dealer strip so the
-    // solver still produces a full-size, fully contained layout.
-    trayFrontZ: -halfZ + 1.5,
+    top: 0.008 * TABLE_SCALE,
+    // Stand-in outline + rail overhang in the authored table's proportions, so
+    // the pre-glb layout is already close to the measured one.
+    feltRing: roundedRectRing(halfX, halfZ, 0.9 * TABLE_SCALE),
+    feltHoles: [],
+    railInset: 0.03 * TABLE_SCALE,
+    trayFrontZ: -0.506 * TABLE_SCALE,
+    pocketFrontZ: -0.48 * TABLE_SCALE,
+    obstacles: [],
     rowHalfSpan: ROW_HALF_SPAN_CAP,
     betCenter: new THREE.Vector2(
       GLB_BET_CENTER.x * TABLE_SCALE,
@@ -443,64 +664,74 @@ function proceduralMetrics(): FeltMetrics {
     betRadius: GLB_BET_RADIUS * TABLE_SCALE,
     chipRadius: CHIP_R,
     chipHeight: CHIP_H,
-    shoeMouth: new THREE.Vector3(3.0, 0.5, -1.3),
-    payoutFrom: new THREE.Vector3(-2.4, CHIP_H / 2, -1.7),
+    shoeMouth: new THREE.Vector3(1.92, 0.42, -1.1).multiplyScalar(TABLE_SCALE),
+    payoutFrom: new THREE.Vector3(0, 0.03, -0.72).multiplyScalar(TABLE_SCALE),
   };
 }
 
 /**
- * Turn measured table metrics into concrete row / rack placement.
+ * Turn measured table metrics into concrete row / rack / prop placement.
  *
  * The rules, in order of priority:
- *   1. every card of a full hand stays inside the felt with a real margin;
- *   2. the dealer row clears the raised chip tray on the dealer side;
+ *   1. every card, chip and prop keeps EDGE_MARGIN of clear felt to the rail's
+ *      INNER surface — the felt outline pulled in by the measured rail
+ *      overhang — and to the tray pocket and the raised props;
+ *   2. the dealer row clears the dealer's chip-tray pocket;
  *   3. the player row sits BEHIND the betting circle (dealer-ward), the way a
  *      real table lays out — never on top of the chips;
  *   4. if 1–3 cannot all hold at full card size, the CARDS shrink and the fan
- *      tightens. The table is never scaled up and the rows never move outward.
+ *      tightens. The rows never move outward.
  */
 function solveLayout(m: FeltMetrics): Layout {
-  const MARGIN = 0.1; // felt-edge clearance
-  const TRAY_GAP = 0.08; // clearance from the dealer's chip tray
-  const ROW_GAP = 0.16; // clearance between the two card rows
+  // The playable z-band: from the front lip of the tray pocket to the back of
+  // the betting circle. Everything else follows from it.
+  const backLimit = Math.max(m.trayFrontZ, m.pocketFrontZ) + TRAY_GAP;
+  const frontLimit = m.betCenter.y - m.betRadius - EDGE_MARGIN;
+  const band = Math.max(0.25, frontLimit - backLimit);
 
-  const backLimit = m.minZ + MARGIN;
-  const frontLimit = m.trayFrontZ - TRAY_GAP;
-  const dealerBand = Math.max(0.2, frontLimit - backLimit);
-  // The player row must end before the betting circle begins.
-  const circleBack = m.betCenter.y - m.betRadius - MARGIN;
-  const roomForTwoRows = (circleBack - backLimit - ROW_GAP) / 2;
-
-  const cardScale = THREE.MathUtils.clamp(
-    Math.min(dealerBand, roomForTwoRows) / CARD_H,
-    0.62,
-    1
-  );
+  const cardScale = THREE.MathUtils.clamp((band - ROW_GAP) / 2 / CARD_H, 0.42, 1);
   const cardH = CARD_H * cardScale;
   const cardW = CARD_W * cardScale;
 
-  // Dealer row: centred in the band between the felt's back edge and the tray.
-  const dealerZ = (backLimit + frontLimit) / 2;
-  // Player row: as close to the betting circle as clearance allows.
-  const playerMax = circleBack - cardH / 2;
-  const playerMin = dealerZ + cardH + ROW_GAP;
-  const playerZ = playerMax >= playerMin ? playerMax : (playerMin + playerMax) / 2;
+  const dealerZ = backLimit + cardH / 2;
+  const playerZ = frontLimit - cardH / 2;
 
   // Card rest height: the card's BOTTOM plane sits just above the felt.
   const cardRestY = m.top + CARD_HALF_T * cardScale + 0.005;
   const chipRestY = m.top + m.chipHeight / 2 + 0.002;
 
-  // Chip rack: player side, clear of the betting circle in x and of the card
-  // rows in z, fully inside the felt.
-  const rackZ = m.maxZ - m.chipRadius - 0.16;
-  const rackStep = m.chipRadius * 2 + 0.26;
-  const rackX0 = m.betCenter.x + m.betRadius + m.chipRadius + 0.3;
-  const rackMaxX = m.maxX - m.chipRadius - MARGIN;
-  const rack = RACK_DENOMS.map((denom, i) => ({
-    denom,
-    x: Math.min(rackX0 + i * rackStep, rackMaxX - (RACK_DENOMS.length - 1 - i) * rackStep),
-    z: rackZ,
-  }));
+  const cap = Math.min(ROW_HALF_SPAN_CAP, m.rowHalfSpan);
+  const rowHalfSpan = Math.max(
+    cardW,
+    Math.min(
+      cap,
+      solveRowHalfSpan(m, dealerZ, cardW, cardH, cap),
+      solveRowHalfSpan(m, playerZ, cardW, cardH, cap)
+    )
+  );
+
+  // The player's own furniture lives between the card row and the front rail:
+  // the chip rack to their left, the martini to their right.
+  const rowFront = playerZ + cardH / 2;
+  const chipR = m.chipRadius;
+  const rackStep = chipR * 2 + RACK_GAP;
+  const rackNear = rowFront + chipR + EDGE_MARGIN;
+  const rack = RACK_DENOMS.map((denom, i) => {
+    const x = m.betCenter.x - (m.betRadius + chipR + CIRCLE_GAP + i * rackStep);
+    const far = seatTowardRail(m, x, rackNear, chipR);
+    return { denom, x, z: rackNear + (far - rackNear) * FRONT_SEAT };
+  });
+
+  const martiniScale = TABLE_SCALE;
+  const martiniR = MARTINI_RIM_R * martiniScale;
+  const martiniX = m.betCenter.x + m.betRadius + martiniR + CIRCLE_GAP;
+  const martiniNear = rowFront + martiniR + EDGE_MARGIN;
+  const martiniFar = seatTowardRail(m, martiniX, martiniNear, martiniR);
+  const martini = {
+    x: martiniX,
+    z: martiniNear + (martiniFar - martiniNear) * FRONT_SEAT,
+    scale: martiniScale,
+  };
 
   return {
     metrics: m,
@@ -512,10 +743,11 @@ function solveLayout(m: FeltMetrics): Layout {
     cardStackStep: 0.006,
     dealerZ,
     playerZ,
-    rowHalfSpan: Math.min(ROW_HALF_SPAN_CAP, m.rowHalfSpan),
+    rowHalfSpan,
     chipRestY,
     chipStep: m.chipHeight,
     rack,
+    martini,
   };
 }
 
@@ -571,7 +803,10 @@ interface RackStack {
   lift: number;
 }
 
-type HitTarget = { kind: "rack"; stack: RackStack } | { kind: "bet" };
+type HitTarget =
+  | { kind: "rack"; stack: RackStack }
+  | { kind: "bet" }
+  | { kind: "martini" };
 
 const SUIT_KEYS: Record<Suit, string> = { "♠": "S", "♥": "H", "♦": "D", "♣": "C" };
 
@@ -579,7 +814,7 @@ const SUIT_KEYS: Record<Suit, string> = { "♠": "S", "♥": "H", "♦": "D", "�
 function createController(mount: HTMLDivElement): Controller {
   const audio = tableAudio();
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 50);
+  const camera = new THREE.PerspectiveCamera(CAM_FOV, 1, 0.1, 80);
   const camBase = CAM_BASE.clone();
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -725,7 +960,8 @@ function createController(mount: HTMLDivElement): Controller {
   const shoeEdges = new THREE.EdgesGeometry(shoeGeo);
   sharedDisposables.push(shoeMat, shoeEdgeMat, shoeEdges);
   const shoe = new THREE.Mesh(shoeGeo, shoeMat);
-  shoe.position.set(3.0, 0.2, -1.3);
+  shoe.position.set(1.92 * TABLE_SCALE, 0.2 * TABLE_SCALE, -1.1 * TABLE_SCALE);
+  shoe.scale.setScalar(TABLE_SCALE);
   shoe.rotation.y = -0.35;
   shoe.castShadow = true;
   shoe.add(new THREE.LineSegments(shoeEdges, shoeEdgeMat));
@@ -768,33 +1004,38 @@ function createController(mount: HTMLDivElement): Controller {
 
   /* ── Lighting: PBR needs more than MeshBasic did ──────────────────────── */
 
+  /* Distances (and, for the inverse-square lamps, intensities) follow
+     TABLE_SCALE so re-scaling the table keeps the same lighting. */
+  const LS = TABLE_SCALE / 1.2667; // light scale relative to the original rig
+
   const ambient = new THREE.AmbientLight(0x8a7550, 0.55);
   const key = new THREE.DirectionalLight(0xffe9c4, 1.35);
-  key.position.set(2.2, 7.2, 4.2);
+  key.position.set(2.2 * LS, 7.2 * LS, 4.2 * LS);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   key.shadow.bias = -0.0004;
-  key.shadow.normalBias = 0.024;
+  key.shadow.normalBias = 0.024 * LS;
   key.shadow.radius = 3;
   const shadowCam = key.shadow.camera;
-  shadowCam.left = -4.3;
-  shadowCam.right = 4.3;
-  shadowCam.top = 3.0;
-  shadowCam.bottom = -3.0;
-  shadowCam.near = 1.5;
-  shadowCam.far = 20;
+  shadowCam.left = -4.3 * LS;
+  shadowCam.right = 4.3 * LS;
+  shadowCam.top = 3.0 * LS;
+  shadowCam.bottom = -3.0 * LS;
+  shadowCam.near = 1.5 * LS;
+  shadowCam.far = 20 * LS;
   shadowCam.updateProjectionMatrix();
 
   const rim = new THREE.DirectionalLight(0xe3c071, 0.42);
-  rim.position.set(-3.2, 3, -5);
+  rim.position.set(-3.2 * LS, 3 * LS, -5 * LS);
 
-  /* The house lamp: a warm cone that pools on the felt and dies at the rails. */
-  const spot = new THREE.SpotLight(0xffdfae, 95, 20, 0.62, 0.92, 2);
-  spot.position.set(0, 6.4, 0.5);
-  spot.target.position.set(0, 0, -0.2);
+  /* The house lamp: a warm cone that pools on the felt and dies at the rails.
+     Decay is 2, so the intensity has to grow with the square of the throw. */
+  const spot = new THREE.SpotLight(0xffdfae, 95 * LS * LS, 20 * LS, 0.62, 0.92, 2);
+  spot.position.set(0, 6.4 * LS, 0.5 * LS);
+  spot.target.position.set(0, 0, -0.2 * LS);
 
-  const pulse = new THREE.PointLight(0xf7e8ac, 0, 6, 2);
-  pulse.position.set(0, 1.15, 0);
+  const pulse = new THREE.PointLight(0xf7e8ac, 0, 6 * LS, 2);
+  pulse.position.set(0, 1.15 * LS, 0);
   scene.add(ambient, key, rim, spot, spot.target, pulse);
 
   /* ── Animation clock + tween list ─────────────────────────────────────── */
@@ -997,6 +1238,105 @@ function createController(mount: HTMLDivElement): Controller {
     return box;
   }
 
+  /** Every sub-mesh in `root` that uses material `matName`. */
+  function meshesOfMaterial(root: THREE.Object3D, matName: string): THREE.Mesh[] {
+    const out: THREE.Mesh[] = [];
+    root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      if (mats.some((m) => m.name === matName)) out.push(mesh);
+    });
+    return out;
+  }
+
+  /**
+   * The outline(s) of a mesh's TOP face, in world XZ.
+   *
+   * Takes every triangle whose three corners sit on the highest y in the mesh
+   * (for the felt slab that is exactly its top face — the sides and underside
+   * carry different normals and therefore different vertices), keeps the edges
+   * used by a single triangle, and chains them into rings. The result is the
+   * felt's real half-moon silhouette plus one ring per hole cut in it (the
+   * recessed chip-tray pocket). Returns [] if the mesh has no index buffer.
+   */
+  function topFaceRings(mesh: THREE.Mesh): Ring[] {
+    const geo = mesh.geometry;
+    const pos = geo.getAttribute("position") as THREE.BufferAttribute | undefined;
+    const index = geo.getIndex();
+    if (!pos || !index) return [];
+    mesh.updateWorldMatrix(true, false);
+    const world = new Float64Array(pos.count * 3);
+    const v = new THREE.Vector3();
+    let maxY = -Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      world[i * 3] = v.x;
+      world[i * 3 + 1] = v.y;
+      world[i * 3 + 2] = v.z;
+      if (v.y > maxY) maxY = v.y;
+    }
+    const EPS = 1e-4;
+    const key = (i: number) => `${world[i * 3].toFixed(4)},${world[i * 3 + 2].toFixed(4)}`;
+    const onTop = (i: number) => Math.abs(world[i * 3 + 1] - maxY) < EPS;
+    const counts = new Map<string, { n: number; a: string; b: string }>();
+    for (let t = 0; t < index.count; t += 3) {
+      const a = index.getX(t);
+      const b = index.getX(t + 1);
+      const c = index.getX(t + 2);
+      if (!onTop(a) || !onTop(b) || !onTop(c)) continue;
+      for (const [u, w] of [
+        [a, b],
+        [b, c],
+        [c, a],
+      ]) {
+        const ku = key(u);
+        const kw = key(w);
+        if (ku === kw) continue;
+        const k = ku < kw ? `${ku}|${kw}` : `${kw}|${ku}`;
+        const seen = counts.get(k);
+        if (seen) seen.n++;
+        else counts.set(k, { n: 1, a: ku, b: kw });
+      }
+    }
+    const adj = new Map<string, string[]>();
+    for (const e of counts.values()) {
+      if (e.n !== 1) continue; // interior edge — shared by two triangles
+      if (!adj.has(e.a)) adj.set(e.a, []);
+      if (!adj.has(e.b)) adj.set(e.b, []);
+      (adj.get(e.a) as string[]).push(e.b);
+      (adj.get(e.b) as string[]).push(e.a);
+    }
+    const visited = new Set<string>();
+    const rings: Ring[] = [];
+    for (const start of adj.keys()) {
+      if (visited.has(start)) continue;
+      const ring: Ring = [];
+      let prev: string | null = null;
+      let cur: string | null = start;
+      while (cur !== null && !visited.has(cur)) {
+        visited.add(cur);
+        const [x, z] = cur.split(",");
+        ring.push(new THREE.Vector2(Number(x), Number(z)));
+        const nbrs = adj.get(cur) as string[];
+        const next = nbrs.find((n) => n !== prev && !visited.has(n)) ?? null;
+        prev = cur;
+        cur = next;
+      }
+      if (ring.length >= 3) rings.push(ring);
+    }
+    return rings;
+  }
+
+  /** |signed area| of a ring, used to pick the outline out of the holes. */
+  function ringArea(ring: Ring): number {
+    let a = 0;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      a += ring[j].x * ring[i].y - ring[i].x * ring[j].y;
+    }
+    return Math.abs(a) / 2;
+  }
+
   /** Hide ONLY the printed felt lettering; felt, rail, trim and tray stay. */
   function hideFeltPrint(root: THREE.Object3D): boolean {
     let hid = false;
@@ -1022,6 +1362,53 @@ function createController(mount: HTMLDivElement): Controller {
     return hid;
   }
 
+  /**
+   * Measure the rail's OVERHANG over the felt.
+   *
+   * The rail is a padded tube whose centreline runs just outside the felt's
+   * edge, so part of it sits ON the felt — which is precisely why "inside the
+   * felt bounding box" used to land chips on the rail. Every S7_Rail vertex
+   * ABOVE the felt surface belongs to that tube (the table body slab tops out
+   * at the felt line); the deepest one that falls inside the felt outline is
+   * how far the playable surface has to be pulled in.
+   */
+  function measureRailInset(
+    /** The TABLE node only: the trays share S7_Rail and stand well inside the
+        felt, so measuring the whole glb would read a tray as a rail overhang. */
+    table: THREE.Object3D,
+    ring: Ring,
+    holes: Ring[],
+    feltTop: number,
+    limit: number
+  ): number {
+    const rails = meshesOfMaterial(table, MAT_RAIL);
+    if (rails.length === 0) {
+      warnOnce("rail", `no "${MAT_RAIL}" material found — using the fallback rail inset.`);
+      return 0.03 * TABLE_SCALE;
+    }
+    const v = new THREE.Vector3();
+    let inset = 0;
+    for (const mesh of rails) {
+      const pos = mesh.geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
+      if (!pos) continue;
+      mesh.updateWorldMatrix(true, false);
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+        if (v.y <= feltTop + 1e-4) continue; // table body slab, not the tube
+        if (!pointInRing(ring, v.x, v.z)) continue;
+        let d = distToRing(ring, v.x, v.z);
+        for (const hole of holes) {
+          if (pointInRing(hole, v.x, v.z)) d = 0;
+        }
+        if (d > inset) inset = d;
+      }
+    }
+    // A rail can only ever cover a sliver of the felt; anything more means the
+    // mesh is not what we think it is, and a runaway inset would be worse than
+    // no inset at all.
+    return Math.min(inset, limit);
+  }
+
   function measureFromGlb(root: THREE.Object3D): FeltMetrics {
     const base = proceduralMetrics();
     const table = root.getObjectByName("Table");
@@ -1037,6 +1424,9 @@ function createController(mount: HTMLDivElement): Controller {
       minZ: feltBox.min.z,
       maxZ: feltBox.max.z,
       top: feltBox.max.y,
+      feltRing: base.feltRing,
+      feltHoles: [],
+      obstacles: [],
       betCenter: new THREE.Vector2(
         GLB_BET_CENTER.x * TABLE_SCALE,
         GLB_BET_CENTER.y * TABLE_SCALE
@@ -1046,6 +1436,50 @@ function createController(mount: HTMLDivElement): Controller {
       payoutFrom: base.payoutFrom.clone(),
     };
 
+    // ── The playable surface: felt outline, its holes, the rail overhang ──
+    const feltMeshes = table ? meshesOfMaterial(table, MAT_FELT) : [];
+    const rings = feltMeshes.length ? topFaceRings(feltMeshes[0]) : [];
+    if (rings.length === 0) {
+      warnOnce(
+        "feltring",
+        `could not trace the "${MAT_FELT}" top face — falling back to an inset ` +
+          `bounding box, which is more conservative than the real half-moon.`
+      );
+      m.feltRing = roundedRectRing(
+        (m.maxX - m.minX) / 2,
+        (m.maxZ - m.minZ) / 2,
+        Math.min(m.maxX - m.minX, m.maxZ - m.minZ) * 0.3
+      );
+    } else {
+      let outline = rings[0];
+      let best = ringArea(outline);
+      for (const r of rings) {
+        const a = ringArea(r);
+        if (a > best) {
+          best = a;
+          outline = r;
+        }
+      }
+      m.feltRing = outline;
+      m.feltHoles = rings.filter((r) => r !== outline);
+    }
+    m.railInset = measureRailInset(
+      table ?? root,
+      m.feltRing,
+      m.feltHoles,
+      m.top,
+      Math.min(m.maxX - m.minX, m.maxZ - m.minZ) * 0.06
+    );
+
+    // The felt's tray POCKET reaches further toward the player than the tray
+    // that sits in it, so it — not the tray — is the dealer row's back wall.
+    m.pocketFrontZ = m.minZ;
+    for (const hole of m.feltHoles) {
+      for (const p of hole) {
+        if (p.y > m.pocketFrontZ && p.y < m.betCenter.y) m.pocketFrontZ = p.y;
+      }
+    }
+
     // The dealer's raised chip tray is the dealer row's front wall.
     const tray = root.getObjectByName("ChipTray");
     if (tray) {
@@ -1053,25 +1487,27 @@ function createController(mount: HTMLDivElement): Controller {
       m.trayFrontZ = b.max.z;
       b.getCenter(m.payoutFrom);
       m.payoutFrom.y = m.top + m.chipHeight / 2;
+      m.obstacles.push({ minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z });
     } else {
       m.trayFrontZ = m.minZ + (m.maxZ - m.minZ) * 0.28;
     }
 
-    // Rows must also stay clear of the discard tray (left) and shoe (right).
-    let halfSpan = Math.min(Math.abs(m.minX), m.maxX) - 0.1;
+    // Rows must also stay clear of the discard tray (left) and the shoe (right)
+    // — both raised props standing on the felt.
+    let halfSpan = Math.min(Math.abs(m.minX), m.maxX);
     const discard = root.getObjectByName("DiscardTray");
     if (discard) {
       const b = new THREE.Box3().setFromObject(discard);
-      halfSpan = Math.min(halfSpan, Math.abs(b.max.x) - 0.12);
+      m.obstacles.push({ minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z });
     }
     const shoeNode = root.getObjectByName(GLB_SHOE_NODE);
     if (shoeNode) {
       const b = new THREE.Box3().setFromObject(shoeNode);
-      halfSpan = Math.min(halfSpan, b.min.x - 0.12);
+      m.obstacles.push({ minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z });
       // The clip-less deal arc starts at the shoe's mouth.
       m.shoeMouth.set(b.min.x + (b.max.x - b.min.x) * 0.35, b.max.y * 0.8, b.max.z);
     }
-    m.rowHalfSpan = Math.max(0.9, Math.min(ROW_HALF_SPAN_CAP, halfSpan));
+    m.rowHalfSpan = Math.max(0.9, halfSpan);
 
     // Chip metrics straight off the authored Chip7.
     const chipNode = root.getObjectByName(GLB_CHIP_NODE);
@@ -1092,6 +1528,7 @@ function createController(mount: HTMLDivElement): Controller {
     relayoutRow("player");
     relayoutRow("dealer");
     buildRack();
+    placeMartini();
   }
 
   /** Swap the environment + chips + clips in once the glb has loaded. */
@@ -1808,6 +2245,8 @@ function createController(mount: HTMLDivElement): Controller {
     scene.add(bh);
     hitMeshes.push(bh);
     betHit = bh;
+    // disposeRack() empties hitMeshes, so the martini re-registers here.
+    hitMeshes.push(martini.hit);
     refreshRackState();
   }
 
@@ -1829,6 +2268,7 @@ function createController(mount: HTMLDivElement): Controller {
   }
 
   function setHover(target: HitTarget | null) {
+    // The martini is a prop, not a bet — it stays live in every phase.
     const next =
       target && target.kind === "rack" && !target.stack.enabled
         ? null
@@ -1837,8 +2277,10 @@ function createController(mount: HTMLDivElement): Controller {
           : target;
     if (next === hovered) return;
     if (hovered && hovered.kind === "rack") hovered.stack.hovered = false;
+    if (hovered && hovered.kind === "martini") martini.hovered = false;
     hovered = next;
     if (hovered && hovered.kind === "rack") hovered.stack.hovered = true;
+    if (hovered && hovered.kind === "martini") martini.hovered = true;
     renderer.domElement.style.cursor = hovered ? "pointer" : "";
   }
 
@@ -1854,6 +2296,224 @@ function createController(mount: HTMLDivElement): Controller {
       const glow = stack.enabled ? stack.lift * 0.35 : 0;
       for (const mat of stack.mats) mat.emissiveIntensity = glow;
     }
+  }
+
+
+  /* The martini (3D prop on the felt, clickable) --------------------------- */
+
+  /**
+   * A lathed glass standing on the player's right: a conical bowl on a stem
+   * and foot (one LatheGeometry surface, thin transmissive glass), a pale-gold
+   * liquid cone inside it whose apex sits at the bowl's apex — so the level is
+   * just a uniform scale on the cone, never a rebuilt geometry — and an olive
+   * on a pick. Click it to take a sip (five of them); click the empty glass
+   * for another round. The level lives in localStorage `suite7:martini`, the
+   * same key the retired DOM martini used, so an in-progress drink carries over.
+   */
+  interface MartiniProp {
+    group: THREE.Group;
+    /** Scaled on hover; holds everything so the whole prop ticks together. */
+    body: THREE.Group;
+    /** Sits at the bowl's apex — scale = fill level, rotation = slosh. */
+    liquidPivot: THREE.Group;
+    hit: THREE.Mesh;
+    glassMat: THREE.MeshPhysicalMaterial;
+    sips: number;
+    /** Displayed fill, 0→1, tweened toward sips / MARTINI_SIPS. */
+    fill: number;
+    /** Bumped per sip so an older, slower pour can't out-write a newer one. */
+    pour: number;
+    hovered: boolean;
+    hover: number;
+    slosh: number;
+    sloshVel: number;
+  }
+
+  const martiniDisposables: { dispose(): void }[] = [];
+
+  function readMartiniSips(): number {
+    try {
+      const raw = window.localStorage.getItem(MARTINI_KEY);
+      if (raw !== null) {
+        const parsed = Number(raw);
+        if (Number.isInteger(parsed) && parsed >= 0 && parsed <= MARTINI_SIPS) return parsed;
+      }
+    } catch {
+      // Private mode — pour a fresh one.
+    }
+    return MARTINI_SIPS;
+  }
+
+  function writeMartiniSips(sips: number) {
+    try {
+      window.localStorage.setItem(MARTINI_KEY, String(sips));
+    } catch {
+      // Non-fatal: the drink just doesn't survive a reload.
+    }
+  }
+
+  function buildMartini(): MartiniProp {
+    // Profile in authored table units, revolved about y. Rim r 0.20, total
+    // height 0.444 — a real martini glass against a 6.0-wide table.
+    const profile = [
+      new THREE.Vector2(0, 0),
+      new THREE.Vector2(0.125, 0),
+      new THREE.Vector2(0.125, 0.012),
+      new THREE.Vector2(0.095, 0.02),
+      new THREE.Vector2(0.03, 0.034),
+      new THREE.Vector2(0.017, 0.06),
+      new THREE.Vector2(0.016, 0.232),
+      new THREE.Vector2(0.024, MARTINI_APEX_Y),
+      new THREE.Vector2(MARTINI_RIM_R, MARTINI_RIM_Y),
+      new THREE.Vector2(MARTINI_RIM_R, MARTINI_RIM_Y + 0.008),
+    ];
+    const glassGeo = new THREE.LatheGeometry(profile, 44);
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      metalness: 0,
+      roughness: 0.06,
+      transmission: 0.9,
+      thickness: 0.34,
+      ior: 1.45,
+      transparent: true,
+      side: THREE.DoubleSide,
+      envMapIntensity: 1.1,
+      emissive: new THREE.Color(GOLD_LIGHT),
+      emissiveIntensity: 0,
+    });
+    const glass = new THREE.Mesh(glassGeo, glassMat);
+
+    // Liquid: a cone whose point is the bowl's apex, so `scale` IS the level.
+    const liquidH = MARTINI_RIM_Y - MARTINI_APEX_Y;
+    const liquidGeo = new THREE.CylinderGeometry(MARTINI_LIQUID_R, 0, liquidH, 40, 1, false);
+    const liquidMat = new THREE.MeshStandardMaterial({
+      color: 0xe6d49a,
+      roughness: 0.14,
+      metalness: 0.05,
+      transparent: true,
+      opacity: 0.9,
+      envMapIntensity: 0.9,
+      // The cone is closed, so front faces are all that ever show.
+      side: THREE.FrontSide,
+    });
+    const liquid = new THREE.Mesh(liquidGeo, liquidMat);
+    liquid.position.y = liquidH / 2;
+    const liquidPivot = new THREE.Group();
+    liquidPivot.position.y = MARTINI_APEX_Y;
+    liquidPivot.add(liquid);
+
+    // Olive on a pick, leaning against the rim.
+    const oliveGeo = new THREE.SphereGeometry(0.032, 18, 12);
+    const oliveMat = new THREE.MeshStandardMaterial({ color: 0x59662a, roughness: 0.5 });
+    const olive = new THREE.Mesh(oliveGeo, oliveMat);
+    olive.position.set(-0.012, MARTINI_APEX_Y + 0.052, 0.02);
+    const pickGeo = new THREE.CylinderGeometry(0.0045, 0.0045, 0.30, 8);
+    const pickMat = new THREE.MeshStandardMaterial({
+      color: 0xd8b978,
+      roughness: 0.3,
+      metalness: 0.7,
+    });
+    const pick = new THREE.Mesh(pickGeo, pickMat);
+    pick.position.set(0.05, MARTINI_APEX_Y + 0.14, 0.03);
+    pick.rotation.z = -0.44;
+
+    const body = new THREE.Group();
+    body.add(glass, liquidPivot, olive, pick);
+    // Nothing here casts: a transmissive material still writes an opaque
+    // silhouette into the shadow map, and a solid black disc under a clear
+    // glass looks far worse than no shadow at all.
+
+    const group = new THREE.Group();
+    group.add(body);
+
+    // Generous invisible tap target around the whole glass.
+    const hit = new THREE.Mesh(hitGeo, hitMat);
+    hit.visible = false; // still raycastable — Raycaster ignores `visible`
+    hit.userData.target = { kind: "martini" } satisfies HitTarget;
+
+    martiniDisposables.push(glassGeo, glassMat, liquidGeo, liquidMat, oliveGeo, oliveMat, pickGeo, pickMat);
+
+    const sips = readMartiniSips();
+    return {
+      group,
+      body,
+      liquidPivot,
+      hit,
+      glassMat,
+      sips,
+      fill: sips / MARTINI_SIPS,
+      pour: 0,
+      hovered: false,
+      hover: 0,
+      slosh: 0,
+      sloshVel: 0,
+    };
+  }
+
+  const martini = buildMartini();
+  scene.add(martini.group, martini.hit);
+  placeMartini();
+
+  /** Re-seat the glass after a layout change. */
+  function placeMartini() {
+    const spot = layout.martini;
+    const m = layout.metrics;
+    martini.group.position.set(spot.x, m.top, spot.z);
+    martini.group.scale.setScalar(spot.scale);
+    const r = MARTINI_RIM_R * spot.scale * 1.25;
+    const h = (MARTINI_RIM_Y + 0.05) * spot.scale;
+    martini.hit.scale.set(r, h / 0.6, r); // hitGeo is a unit-radius, 0.6-tall cylinder
+    martini.hit.position.set(spot.x, m.top + h / 2, spot.z);
+  }
+
+  /** Take a sip — or, on an empty glass, pour another round. */
+  function sipMartini() {
+    const refill = martini.sips <= 0;
+    martini.sips = refill ? MARTINI_SIPS : martini.sips - 1;
+    writeMartiniSips(martini.sips);
+    const from = martini.fill;
+    const to = martini.sips / MARTINI_SIPS;
+    if (reduced) {
+      martini.fill = to;
+      martini.slosh = 0;
+      martini.sloshVel = 0;
+      return;
+    }
+    const pour = ++martini.pour;
+    tween(0, refill ? POUR_SECONDS : SIP_SECONDS, (e) => {
+      // stepTweens runs newest-first, so a stale tween would otherwise win.
+      if (martini.pour !== pour) return;
+      martini.fill = from + (to - from) * e;
+    });
+    martini.sloshVel += refill ? -2.6 : 3.4;
+  }
+
+  /** Per-frame: hover tick, level, and the damped slosh. */
+  function stepMartini(dt: number) {
+    const want = martini.hovered ? 1 : 0;
+    const ease = reduced ? 1 : Math.min(1, dt * 11);
+    martini.hover += (want - martini.hover) * ease;
+    if (Math.abs(martini.hover - want) < 0.002) martini.hover = want;
+    martini.body.scale.setScalar(1 + martini.hover * 0.03);
+    martini.glassMat.emissiveIntensity = martini.hover * 0.3;
+
+    if (reduced) {
+      martini.slosh = 0;
+      martini.sloshVel = 0;
+    } else {
+      // Damped spring back to level.
+      martini.sloshVel += (-46 * martini.slosh - 5.2 * martini.sloshVel) * dt;
+      martini.slosh += martini.sloshVel * dt;
+      if (Math.abs(martini.slosh) < 1e-4 && Math.abs(martini.sloshVel) < 1e-3) {
+        martini.slosh = 0;
+        martini.sloshVel = 0;
+      }
+    }
+    const fill = Math.max(0.0001, martini.fill);
+    martini.liquidPivot.scale.setScalar(fill);
+    martini.liquidPivot.visible = martini.fill > 0.004;
+    martini.liquidPivot.rotation.x = martini.slosh * 0.16;
+    martini.liquidPivot.rotation.z = martini.slosh * 0.09;
   }
 
   /* ── Pointer interaction ──────────────────────────────────────────────── */
@@ -1873,17 +2533,17 @@ function createController(mount: HTMLDivElement): Controller {
   }
 
   const onPointerMove = (ev: PointerEvent) => {
-    if (phase !== "BETTING") {
-      setHover(null);
-      return;
-    }
     setHover(pick(ev.clientX, ev.clientY));
   };
   const onPointerLeave = () => setHover(null);
   const onClick = (ev: MouseEvent) => {
-    if (phase !== "BETTING") return;
     const target = pick(ev.clientX, ev.clientY);
     if (!target) return;
+    if (target.kind === "martini") {
+      sipMartini();
+      return;
+    }
+    if (phase !== "BETTING") return;
     if (target.kind === "bet") {
       if (lastBet > 0) onClearBet();
       return;
@@ -1955,8 +2615,8 @@ function createController(mount: HTMLDivElement): Controller {
     // winning side's cards. The SETTLED banner itself stays DOM.
     if (outcome !== "push") {
       const winnerRow = won ? rows.player : rows.dealer;
-      const peak = won ? 9 : 3.5;
-      pulse.position.set(0, 1.15, won ? layout.playerZ : layout.dealerZ);
+      const peak = (won ? 9 : 3.5) * LS * LS; // PointLight decay 2
+      pulse.position.set(0, 1.15 * LS, won ? layout.playerZ : layout.dealerZ);
       tween(
         0.1,
         0.9,
@@ -2072,7 +2732,7 @@ function createController(mount: HTMLDivElement): Controller {
     }
 
     refreshRackState();
-    if (phase !== "BETTING") setHover(null);
+    if (phase !== "BETTING" && hovered !== null && hovered.kind !== "martini") setHover(null);
 
     // Settlement animations fire exactly once per SETTLED.
     if (p.phase === "SETTLED" && p.outcome && !settledHandled) {
@@ -2096,6 +2756,7 @@ function createController(mount: HTMLDivElement): Controller {
     stepTweens();
     for (const mixer of activeMixers) mixer.update(dt); // glb clip instances
     stepRack(dt);
+    stepMartini(dt);
 
     // Betting circle breathes while the player is deciding.
     ringMat.opacity =
@@ -2139,9 +2800,11 @@ function createController(mount: HTMLDivElement): Controller {
     if (w === 0 || h === 0) return;
     const aspect = w / h;
     camera.aspect = aspect;
-    // Narrow viewports pull the camera back so the whole table still fits.
-    const f = THREE.MathUtils.clamp(1.5 / aspect, 1, 1.9);
-    camBase.copy(CAM_BASE).multiplyScalar(1 + (f - 1) * 0.55);
+    // Narrow viewports pull the camera back so both card rows, the rack, the
+    // shoe and the martini all stay in frame (the table's outer left/right
+    // rails are deliberately allowed to crop — that IS the close framing).
+    const f = THREE.MathUtils.clamp(1.55 / aspect, 1, 2);
+    camBase.copy(CAM_BASE).multiplyScalar(1 + (f - 1) * 0.9);
     camera.updateProjectionMatrix();
     renderer.setSize(w, h, false);
   };
@@ -2220,6 +2883,9 @@ function createController(mount: HTMLDivElement): Controller {
     clearBetStack();
     clearTransients();
     disposeRack();
+    scene.remove(martini.group, martini.hit);
+    for (const d of martiniDisposables) d.dispose();
+    martiniDisposables.length = 0;
     if (glbEnv) scene.remove(glbEnv);
     glbEnv = null;
     glbChipTemplate = null;

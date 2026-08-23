@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import Martini from "@/components/Martini";
 import TableScene from "@/components/TableScene";
 import { tableAudio } from "@/lib/table-audio";
 import {
@@ -99,6 +98,7 @@ export default function TableGame() {
   // Table dressing: mute toggle + the house-rules panel. Neither touches play.
   const [muted, setMuted] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [rollersOpen, setRollersOpen] = useState(false);
   /** Bumped on every reshuffle so the scene can play ShoeRefill + `shuffle`. */
   const [shuffleSeq, setShuffleSeq] = useState(0);
 
@@ -483,87 +483,215 @@ export default function TableGame() {
     dealerHand.length ? describeHand(dealerHand, holeRevealed ? -1 : 1) : "no cards"
   }. You: ${playerHand.length ? describeHand(playerHand, -1) : "no cards"}.`;
 
-  return (
-    <div className="suite7-table-wrap">
-      <section className="suite7-felt" aria-label="Blackjack table">
-        {/* What the House just paid you for course progress since last visit. */}
-        {grants.length > 0 ? (
-          <div className="suite7-grants" role="status">
-            <div className="suite7-grants-head">
-              <span>The House settles up</span>
+  /* The action cluster — the same buttons whether they float over the 3D
+     stage or sit in flow under the DOM fallback. */
+  const controls = (
+    <>
+      {phase === "BETTING" ? (
+        <>
+          <div
+            className="suite7-denoms"
+            role="group"
+            aria-label="Chip denominations — or click the chips on the felt"
+          >
+            {CHIP_DENOMS.map((value) => (
               <button
+                key={value}
                 type="button"
-                onClick={() => setGrants([])}
-                aria-label="Dismiss earnings"
+                className="suite7-chip-btn"
+                onClick={() => addChip(value)}
+                disabled={bankroll === null || bet + value > bankroll}
+                aria-label={`Add ${value} to bet`}
+                style={{
+                  background:
+                    value === 500
+                      ? `radial-gradient(circle at 35% 30%, #d4526f, ${CRIMSON} 55%, #5f0f20)`
+                      : value === 100
+                        ? "radial-gradient(circle at 35% 30%, #f7e8ac, #b8934a 65%, #6f5320)"
+                        : "radial-gradient(circle at 35% 30%, #fdfaf0, #cfc4a8 65%, #8d8368)",
+                  color: value === 500 ? CREAM : "#0a0805",
+                }}
               >
-                ×
+                {value}
               </button>
-            </div>
-            {grants.map((g) => (
-              <p key={g.grantKey}>
-                <span>{g.label}</span>
-                <span className="suite7-grants-amt">+{formatChips(g.amount)}</span>
-              </p>
             ))}
           </div>
-        ) : null}
-        {/* Bankroll — chip stack + tabular count */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-            flexWrap: "wrap",
-            marginBottom: 26,
-            paddingBottom: 18,
-            borderBottom: "1px solid rgba(231,192,113,0.12)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <ChipStack bankroll={bankroll} />
-            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-              <span
-                style={{
-                  fontSize: 9,
-                  letterSpacing: 3,
-                  textTransform: "uppercase",
-                  fontFamily: "Georgia, serif",
-                  color: "rgba(231,192,113,0.6)",
-                }}
-              >
-                Bankroll
-              </span>
-              <span
-                style={{
-                  fontFamily: "Georgia, serif",
-                  fontVariantNumeric: "tabular-nums",
-                  fontSize: 20,
-                  color: CREAM,
-                }}
-              >
-                {bankroll === null ? "—" : formatChips(bankroll)}
-              </span>
-            </div>
-          </div>
 
-          {shuffleNote && phase === "BETTING" ? (
-            <span
-              style={{
-                fontFamily: "Georgia, serif",
-                fontStyle: "italic",
-                fontSize: 11,
-                color: "rgba(245,240,240,0.45)",
-              }}
-            >
-              shuffling the shoe…
-            </span>
+          <button
+            type="button"
+            className="suite7-btn suite7-btn-quiet"
+            onClick={clearBet}
+            disabled={bet === 0}
+            aria-label={bet > 0 ? `Bet ${bet} — click to clear` : "No bet placed"}
+            title={bet > 0 ? "Click to clear the bet" : undefined}
+          >
+            Bet {formatChips(bet)}
+            {bet > 0 ? <span aria-hidden> ✕</span> : null}
+          </button>
+
+          <button
+            type="button"
+            className="suite7-btn suite7-btn-primary"
+            onClick={deal}
+            disabled={bankroll === null || bet < MIN_BET}
+          >
+            Deal
+          </button>
+
+          {broke ? (
+            <button type="button" className="suite7-btn" onClick={takeStake}>
+              The House stakes you.
+            </button>
           ) : null}
-        </div>
+        </>
+      ) : null}
 
-        {/* The table itself: 3D scene with a DOM HUD; DOM card rows only if
-            WebGL init fails. reduced-motion still gets 3D (snap animations). */}
-        {webglFailed ? (
+      {phase === "PLAYER" ? (
+        <>
+          <button type="button" className="suite7-btn suite7-btn-primary" onClick={hit}>
+            Hit
+          </button>
+          <button type="button" className="suite7-btn" onClick={stand}>
+            Stand
+          </button>
+          <button type="button" className="suite7-btn" onClick={doubleDown} disabled={!canDouble}>
+            Double
+          </button>
+          <span className="suite7-keyhint">H — hit · S — stand</span>
+        </>
+      ) : null}
+
+      {phase === "SETTLED" ? (
+        <button type="button" className="suite7-btn suite7-btn-primary" onClick={nextHand}>
+          Next hand
+        </button>
+      ) : null}
+    </>
+  );
+
+  /* Bankroll + live bet, as a corner readout over the felt. */
+  const bankReadout = (
+    <div className="suite7-bank">
+      <ChipStack bankroll={bankroll} />
+      <div className="suite7-bank-figures">
+        <span className="suite7-bank-label">Bankroll</span>
+        <span className="suite7-bank-value">
+          {bankroll === null ? "—" : formatChips(bankroll)}
+        </span>
+      </div>
+      <div className="suite7-bank-figures suite7-bank-bet">
+        <span className="suite7-bank-label">Bet</span>
+        <span className="suite7-bank-value">{bet === 0 ? "—" : formatChips(bet)}</span>
+      </div>
+      {shuffleNote && phase === "BETTING" ? (
+        <span className="suite7-bank-note">shuffling the shoe…</span>
+      ) : null}
+    </div>
+  );
+
+  const tools = (
+    <div className="suite7-stage-tools">
+      <button
+        type="button"
+        className="suite7-tool"
+        onClick={toggleMute}
+        aria-pressed={muted}
+        aria-label={muted ? "Unmute table sound" : "Mute table sound"}
+        title={muted ? "Sound off" : "Sound on"}
+      >
+        <SpeakerIcon muted={muted} />
+      </button>
+      <button
+        type="button"
+        className="suite7-tool suite7-tool-wide"
+        data-suite7-panel-toggle="rules"
+        onClick={() => {
+          setRollersOpen(false);
+          setRulesOpen((v) => !v);
+        }}
+        aria-expanded={rulesOpen}
+        aria-controls="suite7-house-rules"
+      >
+        House Rules
+      </button>
+      <button
+        type="button"
+        className="suite7-tool suite7-tool-wide"
+        data-suite7-panel-toggle="rollers"
+        onClick={() => {
+          setRulesOpen(false);
+          setRollersOpen((v) => !v);
+        }}
+        aria-expanded={rollersOpen}
+        aria-controls="suite7-high-rollers"
+      >
+        High Rollers
+      </button>
+    </div>
+  );
+
+  /* What the House just paid you for course progress since last visit. */
+  const earnings =
+    grants.length > 0 ? (
+      <div className="suite7-grants" role="status">
+        <div className="suite7-grants-head">
+          <span>The House settles up</span>
+          <button type="button" onClick={() => setGrants([])} aria-label="Dismiss earnings">
+            ×
+          </button>
+        </div>
+        {grants.map((g) => (
+          <p key={g.grantKey}>
+            <span>{g.label}</span>
+            <span className="suite7-grants-amt">+{formatChips(g.amount)}</span>
+          </p>
+        ))}
+      </div>
+    ) : null;
+
+  const panels = (
+    <>
+      {rulesOpen ? (
+        <OverlayPanel
+          id="suite7-house-rules"
+          label="House rules"
+          title="House Rules"
+          toggle="rules"
+          onClose={() => setRulesOpen(false)}
+        >
+          <ul className="suite7-rules-list">
+            {HOUSE_RULES.map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ul>
+        </OverlayPanel>
+      ) : null}
+      {rollersOpen ? (
+        <OverlayPanel
+          id="suite7-high-rollers"
+          label="High rollers"
+          title="High Rollers"
+          toggle="rollers"
+          wide
+          onClose={() => setRollersOpen(false)}
+        >
+          <ChipLeaderboard />
+        </OverlayPanel>
+      ) : null}
+    </>
+  );
+
+  // WebGL init failed: no stage, just the old DOM table in flow. Everything
+  // still plays; it simply stops being a room and goes back to being a panel.
+  if (webglFailed) {
+    return (
+      <div className="suite7-fallback">
+        <section className="suite7-felt" aria-label="Blackjack table">
+          {earnings}
+          <div className="suite7-fallback-head">
+            {bankReadout}
+            {tools}
+          </div>
           <DomCardTable
             playerHand={playerHand}
             dealerHand={dealerHand}
@@ -572,180 +700,64 @@ export default function TableGame() {
             playerTotalText={playerTotalText}
             centerStrip={centerStrip}
           />
-        ) : (
-          <div className="suite7-scene">
-            {/* role="img" wraps ONLY the canvas so the tool buttons below stay
-                reachable by assistive tech. */}
-            <div className="suite7-scene-canvas" role="img" aria-label={sceneLabel}>
-              <TableScene
-                playerHand={playerHand}
-                dealerHand={dealerHand}
-                holeCardHidden={!holeRevealed}
-                phase={phase}
-                betChips={bet}
-                bankroll={bankroll}
-                shuffleSeq={shuffleSeq}
-                outcome={result?.outcome ?? null}
-                reducedMotion={reducedMotion}
-                onPlaceBet={addChip}
-                onClearBet={clearBet}
-                onFallback={handleGlFallback}
-              />
-            </div>
-            <div className="suite7-scene-hud suite7-scene-hud-top" aria-hidden>
-              <HudTag label="Dealer" totalText={dealerTotalText} />
-            </div>
-            <div className="suite7-scene-hud suite7-scene-hud-bottom" aria-hidden>
-              <HudTag label="You" totalText={playerTotalText} />
-            </div>
-
-            <div className="suite7-scene-tools">
-              <button
-                type="button"
-                className="suite7-tool"
-                onClick={toggleMute}
-                aria-pressed={muted}
-                aria-label={muted ? "Unmute table sound" : "Mute table sound"}
-                title={muted ? "Sound off" : "Sound on"}
-              >
-                <SpeakerIcon muted={muted} />
-              </button>
-              <button
-                type="button"
-                className="suite7-tool suite7-tool-wide"
-                data-suite7-rules-toggle=""
-                onClick={() => setRulesOpen((v) => !v)}
-                aria-expanded={rulesOpen}
-                aria-controls="suite7-house-rules"
-              >
-                House Rules
-              </button>
-            </div>
-            {rulesOpen ? <RulesPanel onClose={() => setRulesOpen(false)} /> : null}
-
-            {/* Result / dealer note overlaid on the lower scene edge so nothing
-                below the table shifts when a hand settles. */}
-            <div className="suite7-scene-banner" aria-live="polite">
-              {phase === "SETTLED" && result ? <ResultBanner result={result} /> : null}
-              {phase === "DEALER" ? (
-                <span className="suite7-scene-note">
-                  {doubled ? `doubled to ${formatChips(bet)} — ` : ""}the dealer plays…
-                </span>
-              ) : null}
-            </div>
-          </div>
-        )}
-
-        {/* Controls */}
-        <div style={{ marginTop: 24 }}>
-          {phase === "BETTING" ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-              <div
-                style={{ display: "flex", gap: 8 }}
-                role="group"
-                aria-label="Chip denominations — or click the chips on the felt"
-              >
-                {CHIP_DENOMS.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className="suite7-chip-btn"
-                    onClick={() => addChip(value)}
-                    disabled={bankroll === null || bet + value > bankroll}
-                    aria-label={`Add ${value} to bet`}
-                    style={{
-                      background:
-                        value === 500
-                          ? `radial-gradient(circle at 35% 30%, #d4526f, ${CRIMSON} 55%, #5f0f20)`
-                          : value === 100
-                            ? "radial-gradient(circle at 35% 30%, #f7e8ac, #b8934a 65%, #6f5320)"
-                            : "radial-gradient(circle at 35% 30%, #fdfaf0, #cfc4a8 65%, #8d8368)",
-                      color: value === 500 ? CREAM : "#0a0805",
-                    }}
-                  >
-                    {value}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={clearBet}
-                disabled={bet === 0}
-                aria-label={bet > 0 ? `Bet ${bet} — click to clear` : "No bet placed"}
-                title={bet > 0 ? "Click to clear the bet" : undefined}
-                style={{
-                  background: "none",
-                  border: "1px solid rgba(231,192,113,0.25)",
-                  padding: "9px 16px",
-                  cursor: bet > 0 ? "pointer" : "default",
-                  fontFamily: "Georgia, serif",
-                  color: bet > 0 ? GOLD : "rgba(245,240,240,0.35)",
-                  fontSize: 12,
-                  letterSpacing: 1,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                Bet {formatChips(bet)}
-                {bet > 0 ? (
-                  <span style={{ marginLeft: 8, fontSize: 9, color: "rgba(245,240,240,0.4)" }}>✕</span>
-                ) : null}
-              </button>
-
-              <button
-                type="button"
-                className="suite7-btn suite7-btn-primary"
-                onClick={deal}
-                disabled={bankroll === null || bet < MIN_BET}
-              >
-                Deal
-              </button>
-
-              {broke ? (
-                <button type="button" className="suite7-btn" onClick={takeStake}>
-                  The House stakes you.
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {phase === "PLAYER" ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <button type="button" className="suite7-btn suite7-btn-primary" onClick={hit}>
-                Hit
-              </button>
-              <button type="button" className="suite7-btn" onClick={stand}>
-                Stand
-              </button>
-              <button type="button" className="suite7-btn" onClick={doubleDown} disabled={!canDouble}>
-                Double
-              </button>
-              <span
-                style={{
-                  fontFamily: "Georgia, serif",
-                  fontSize: 10,
-                  letterSpacing: 1.5,
-                  color: "rgba(245,240,240,0.35)",
-                }}
-              >
-                H — hit · S — stand
-              </span>
-            </div>
-          ) : null}
-
-          {phase === "SETTLED" ? (
-            <button type="button" className="suite7-btn suite7-btn-primary" onClick={nextHand}>
-              Next hand
-            </button>
-          ) : null}
-        </div>
-
-      </section>
-
-      <div className="suite7-martini-slot">
-        <Martini />
-        <ChipLeaderboard />
+          <div className="suite7-fallback-controls">{controls}</div>
+          {panels}
+        </section>
       </div>
+    );
+  }
+
+  return (
+    <div className="suite7-stage">
+      {/* The room. role="img" wraps ONLY the canvas so every overlay control
+          below stays reachable by assistive tech. */}
+      <div className="suite7-stage-canvas" role="img" aria-label={sceneLabel}>
+        <TableScene
+          playerHand={playerHand}
+          dealerHand={dealerHand}
+          holeCardHidden={!holeRevealed}
+          phase={phase}
+          betChips={bet}
+          bankroll={bankroll}
+          shuffleSeq={shuffleSeq}
+          outcome={result?.outcome ?? null}
+          reducedMotion={reducedMotion}
+          onPlaceBet={addChip}
+          onClearBet={clearBet}
+          onFallback={handleGlFallback}
+        />
+      </div>
+
+      <div className="suite7-hud suite7-hud-bank">{bankReadout}</div>
+
+      <div className="suite7-hud suite7-hud-dealer" aria-hidden>
+        <HudTag label="Dealer" totalText={dealerTotalText} />
+      </div>
+      <div className="suite7-hud suite7-hud-player" aria-hidden>
+        <HudTag label="You" totalText={playerTotalText} />
+      </div>
+
+      <div className="suite7-hud suite7-hud-tools">{tools}</div>
+      {panels}
+
+      <div className="suite7-hud suite7-stage-banner" aria-live="polite">
+        {phase === "SETTLED" && result ? <ResultBanner result={result} /> : null}
+        {phase === "DEALER" ? (
+          <span className="suite7-scene-note">
+            {doubled ? `doubled to ${formatChips(bet)} — ` : ""}the dealer plays…
+          </span>
+        ) : null}
+      </div>
+
+      {/* Nothing to act on while the dealer draws — the cluster gets out of
+          the way rather than floating empty over the felt. */}
+      {phase === "DEALER" ? null : (
+        <div className="suite7-hud suite7-stage-controls">
+          <div className="suite7-controls-scrim">{controls}</div>
+        </div>
+      )}
+
+      {earnings ? <div className="suite7-hud suite7-hud-grants">{earnings}</div> : null}
     </div>
   );
 }
@@ -776,11 +788,29 @@ function SpeakerIcon({ muted }: { muted: boolean }) {
 }
 
 /**
- * The house rules, in the DOM instead of printed on the felt (the 3D scene
- * hides the `S7_FeltPrint` material). Dismisses on Esc and on a click outside;
- * the toggle button itself is excluded so a second click just closes it.
+ * A floating panel over the stage — the house rules (which used to be printed
+ * on the felt; the 3D scene hides the `S7_FeltPrint` material) and the high-
+ * roller board. Dismisses on Esc and on a click outside; its own toggle button
+ * is excluded so a second click just closes it.
  */
-function RulesPanel({ onClose }: { onClose: () => void }) {
+function OverlayPanel({
+  id,
+  label,
+  title,
+  toggle,
+  wide,
+  onClose,
+  children,
+}: {
+  id: string;
+  label: string;
+  title: string;
+  /** Value of the data-suite7-panel-toggle attribute on this panel's button. */
+  toggle: string;
+  wide?: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -793,7 +823,7 @@ function RulesPanel({ onClose }: { onClose: () => void }) {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (ref.current?.contains(target)) return;
-      if (target.closest("[data-suite7-rules-toggle]")) return; // its own toggle
+      if (target.closest(`[data-suite7-panel-toggle="${toggle}"]`)) return; // its own toggle
       onClose();
     };
     document.addEventListener("keydown", onKey);
@@ -803,23 +833,19 @@ function RulesPanel({ onClose }: { onClose: () => void }) {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onDown);
     };
-  }, [onClose]);
+  }, [onClose, toggle]);
 
   return (
     <div
-      id="suite7-house-rules"
+      id={id}
       ref={ref}
-      className="suite7-rules-pop"
+      className={`suite7-panel-pop${wide ? " suite7-panel-wide" : ""}`}
       role="dialog"
-      aria-label="House rules"
+      aria-label={label}
       tabIndex={-1}
     >
-      <div className="suite7-rules-title">House Rules</div>
-      <ul className="suite7-rules-list">
-        {HOUSE_RULES.map((rule) => (
-          <li key={rule}>{rule}</li>
-        ))}
-      </ul>
+      <div className="suite7-rules-title">{title}</div>
+      <div className="suite7-panel-body">{children}</div>
       <button type="button" className="suite7-rules-close" onClick={onClose}>
         Close
       </button>

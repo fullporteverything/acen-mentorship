@@ -228,8 +228,8 @@ export default async function LessonPage({
                 {isCoreLesson(lesson)
                   ? "Complete the previous CORE lesson’s homework to unlock this lesson."
                   : curriculum.supplementalGateLesson
-                    ? `Complete CORE Lecture 04 — ${curriculum.supplementalGateLesson.title} to unlock this category.`
-                    : "This category unlocks after CORE Lecture 04 is available and completed."}
+                    ? `Complete CORE Floor 04 — ${curriculum.supplementalGateLesson.title} to unlock this category.`
+                    : "This category unlocks after CORE Floor 04 is available and completed."}
               </p>
               <div style={{ marginTop: "22px" }}>
                 <SupportLink>Need help with lesson access?</SupportLink>

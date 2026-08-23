@@ -198,7 +198,7 @@ export default async function JournalPage() {
                 style={{
                   fontSize: 9,
                   letterSpacing: 3,
-                  color: "rgba(232,160,160,0.6)",
+                  color: "rgba(231,192,113,0.6)",
                   textTransform: "uppercase",
                   fontFamily: "Georgia, serif",
                   marginBottom: 12,

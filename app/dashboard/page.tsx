@@ -25,13 +25,13 @@ import { listHomeworkArchive } from "@/lib/homework-archive";
 
 export const dynamic = "force-dynamic";
 
-// Subtle kanji used as decorative corner/accent elements
-const KANJI_ACCENTS = ["道", "剣", "心", "武", "礼", "修", "練", "気"];
+// Subtle card-suit motifs used as decorative corner/accent elements
+const KANJI_ACCENTS = ["♠", "♥", "♦", "♣", "♠", "♥", "♦", "♣"];
 
 // Where each overview stat card sends you when tapped.
 const STAT_CARD_HREFS: Record<string, string> = {
-  Lectures: "/dashboard/lessons",
-  Journal: "/dashboard/journal",
+  Floors: "/dashboard/lessons",
+  "The Log": "/dashboard/journal",
   Homework: "/dashboard/homework",
 };
 
@@ -165,14 +165,15 @@ export default async function DashboardPage() {
                 overflow: "hidden",
               }}
             >
-              {/* Kanji watermark */}
+              {/* Card-suit watermark */}
               <span
+                aria-hidden
                 style={{
                   position: "absolute",
                   bottom: "-4px",
                   right: "12px",
                   fontSize: "52px",
-                  color: "rgba(232,160,160,0.06)",
+                  color: "rgba(231,192,113,0.06)",
                   fontFamily: "serif",
                   userSelect: "none",
                   lineHeight: 1,
@@ -184,7 +185,7 @@ export default async function DashboardPage() {
                 style={{
                   fontSize: "10px",
                   letterSpacing: "3px",
-                  color: "rgba(232,160,160,0.6)",
+                  color: "var(--gold)",
                   textTransform: "uppercase",
                   fontFamily: "Georgia, serif",
                   marginBottom: "12px",
@@ -230,7 +231,7 @@ export default async function DashboardPage() {
             <p>
               {coreProgress.nextLesson
                 ? coreProgress.nextLesson.title
-                : `${coreProgress.completedLessons} of ${coreProgress.totalLessons} core lectures complete`}
+                : `${coreProgress.completedLessons} of ${coreProgress.totalLessons} core floors complete`}
             </p>
           </div>
           <div className="overview-progress-action">
@@ -238,7 +239,7 @@ export default async function DashboardPage() {
             <div
               className="overview-progress-track"
               role="progressbar"
-              aria-label="Core lectures completed"
+              aria-label="Core floors completed"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={coreProgress.percent}
@@ -253,7 +254,7 @@ export default async function DashboardPage() {
                   : "/dashboard/lessons"
               }
             >
-              {coreProgress.nextLesson ? "Continue learning" : "View lectures"} →
+              {coreProgress.nextLesson ? "Continue learning" : "View the floors"} →
             </Link>
           </div>
         </section>
@@ -265,18 +266,19 @@ export default async function DashboardPage() {
 
         <footer className="dashboard-footer">
         <SupportLink>Support and access appeals</SupportLink>
-        {/* Kanji footer accent */}
+        {/* Card-suit footer accent */}
         <div
+          aria-hidden
           style={{
             marginTop: "64px",
             fontSize: "13px",
-            color: "rgba(232,160,160,0.18)",
+            color: "rgba(231,192,113,0.18)",
             fontFamily: "serif",
             letterSpacing: "12px",
             userSelect: "none",
           }}
         >
-          道剣心武礼修練気
+          ♠♥♦♣♠♥♦♣
         </div>
         </footer>
       </main>

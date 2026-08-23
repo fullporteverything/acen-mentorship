@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { signIn } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import PhiLogo from "@/components/PhiLogo";
 import ThresholdOverlay from "@/components/ThresholdOverlay";
 import CrackedGate from "@/components/CrackedGate";
@@ -10,6 +10,27 @@ import SupportLink from "@/components/SupportLink";
 
 // Idle time before the login card slips into meditation mode.
 const MEDITATION_IDLE_MS = 30_000;
+
+/** The "7♠" index that sits in a playing card's corner (top-left, and
+ *  bottom-right rotated 180° so it reads right-way-up from either end). */
+function cornerIndex(pos: "tl" | "br"): CSSProperties {
+  const base: CSSProperties = {
+    position: "absolute",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    lineHeight: 0.82,
+    fontFamily: "Georgia, serif",
+    fontSize: 19,
+    fontWeight: 700,
+    color: "var(--gold)",
+    userSelect: "none",
+    zIndex: 21,
+  };
+  return pos === "tl"
+    ? { ...base, top: 16, left: 18 }
+    : { ...base, bottom: 16, right: 18, transform: "rotate(180deg)" };
+}
 
 export default function LoginCard({
   errorCode,
@@ -135,7 +156,27 @@ export default function LoginCard({
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+      style={{
+        // Styled as a playing card: gold rule, rounded corners, and the
+        // "7♠" indices in opposite corners like a real card.
+        border: "1px solid rgba(231,192,113,0.45)",
+        borderRadius: 18,
+        background:
+          "radial-gradient(130% 90% at 50% 0%, #160a10 0%, #0a0407 55%, #000 100%)",
+        boxShadow:
+          "0 40px 90px -40px rgba(0,0,0,0.9), inset 0 1px 0 rgba(247,232,172,0.10)",
+      }}
     >
+      {/* Playing-card corner indices — 7 of spades, mirrored corner to corner */}
+      <span aria-hidden style={cornerIndex("tl")}>
+        <span>7</span>
+        <span style={{ fontSize: 15 }}>♠</span>
+      </span>
+      <span aria-hidden style={cornerIndex("br")}>
+        <span>7</span>
+        <span style={{ fontSize: 15 }}>♠</span>
+      </span>
+
       <motion.div
         variants={containerVariants}
         initial="hidden"
@@ -171,7 +212,7 @@ export default function LoginCard({
           style={{
             fontSize: "10px",
             letterSpacing: "5px",
-            color: "#E8A0A0",
+            color: "var(--gold)",
             textTransform: "uppercase",
             marginBottom: "16px",
             fontFamily: "Georgia, serif",
@@ -202,7 +243,7 @@ export default function LoginCard({
           style={{
             width: "48px",
             height: "1px",
-            background: "linear-gradient(90deg, transparent, #E8A0A0, transparent)",
+            background: "linear-gradient(90deg, transparent, #e3c071, transparent)",
             marginBottom: "24px",
             transformOrigin: "center",
           }}
@@ -214,7 +255,7 @@ export default function LoginCard({
           style={{
             fontSize: "10px",
             letterSpacing: "4px",
-            color: "#E8A0A0",
+            color: "var(--gold)",
             textTransform: "uppercase",
             marginBottom: "16px",
             fontFamily: "Georgia, serif",
@@ -303,7 +344,7 @@ export default function LoginCard({
           style={{
             width: "48px",
             height: "1px",
-            background: "linear-gradient(90deg, transparent, #E8A0A0, transparent)",
+            background: "linear-gradient(90deg, transparent, #e3c071, transparent)",
             transformOrigin: "center",
           }}
         />

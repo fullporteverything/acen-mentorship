@@ -47,7 +47,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
       <a
         className="topnav-brand"
         href="/dashboard"
-        aria-label="Return to overview"
+        aria-label="Return to the lobby"
         style={{
           display: "flex",
           alignItems: "center",

@@ -20,7 +20,7 @@ export default function MyHomeworkCard({ items, error = false }: { items: Homewo
         </div>
       ) : items.length === 0 ? (
         <div className="homework-archive-empty">
-          <span aria-hidden="true">文</span>
+          <span aria-hidden="true">♦</span>
           <p>Your submitted homework will appear here.</p>
         </div>
       ) : (

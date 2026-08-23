@@ -19,20 +19,21 @@ export default async function AdminPage() {
           position: "relative",
         }}
       >
-        {/* Kanji corner accent — top right */}
+        {/* Card-suit corner accent — top right */}
         <div
+          aria-hidden
           style={{
             position: "absolute",
             top: "24px",
             right: "40px",
             fontSize: "64px",
-            color: "rgba(232,160,160,0.07)",
+            color: "rgba(231,192,113,0.07)",
             fontFamily: "serif",
             userSelect: "none",
             lineHeight: 1,
           }}
         >
-          武
+          ♠
         </div>
 
         {/* Header */}

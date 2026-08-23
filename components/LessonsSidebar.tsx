@@ -294,7 +294,7 @@ export default function LessonsSidebar({
                       letterSpacing: "0.5px",
                     }}
                   >
-                    Locked until CORE Lecture 04 is passed.
+                    Locked until CORE Floor 04 is passed.
                   </p>
                 )}
 

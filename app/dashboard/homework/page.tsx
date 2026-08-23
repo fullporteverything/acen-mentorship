@@ -46,7 +46,7 @@ export default async function HomeworkArchivePage({
             <h1>My Homework</h1>
             <span>Every submitted PDF and review stays here for you.</span>
           </div>
-          <Link href="/dashboard">← Back to Overview</Link>
+          <Link href="/dashboard">← Back to The Lobby</Link>
         </div>
         {page ? (
           <HomeworkArchive

@@ -54,7 +54,7 @@ export default function HomeworkArchive({
 
       {groups.size === 0 ? (
         <div className="homework-archive-page-empty">
-          <span aria-hidden="true">文</span>
+          <span aria-hidden="true">♦</span>
           <h2>No homework matches these filters.</h2>
           <p>Your submitted PDFs and review history will stay available here.</p>
         </div>

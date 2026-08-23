@@ -53,26 +53,27 @@ export default function AnnouncementsFeed({
           overflow: "hidden",
         }}
       >
-        {/* Kanji accent — same 気 the placeholder had */}
+        {/* Card-suit accent — faint gold spade */}
         <span
+          aria-hidden
           style={{
             position: "absolute",
             top: 8,
             right: 20,
             fontSize: 48,
-            color: "rgba(232,160,160,0.06)",
+            color: "rgba(231,192,113,0.06)",
             fontFamily: "serif",
             userSelect: "none",
             lineHeight: 1,
           }}
         >
-          気
+          ♠
         </span>
         <p
           style={{
             fontSize: 9,
             letterSpacing: 4,
-            color: "rgba(232,160,160,0.6)",
+            color: "rgba(231,192,113,0.6)",
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
             marginBottom: 16,
@@ -109,7 +110,7 @@ export default function AnnouncementsFeed({
         style={{
           fontSize: 9,
           letterSpacing: 4,
-          color: "rgba(232,160,160,0.6)",
+          color: "rgba(231,192,113,0.6)",
           textTransform: "uppercase",
           fontFamily: "Georgia, serif",
         }}

@@ -144,7 +144,7 @@ export default async function LessonsPage() {
                 style={{
                   fontSize: "9px",
                   letterSpacing: "4px",
-                  color: "rgba(232,160,160,0.6)",
+                  color: "rgba(231,192,113,0.6)",
                   textTransform: "uppercase",
                   fontFamily: "Georgia, serif",
                   marginBottom: "16px",
@@ -210,7 +210,7 @@ export default async function LessonsPage() {
               style={{
                 fontSize: "9px",
                 letterSpacing: "4px",
-                color: "rgba(232,160,160,0.6)",
+                color: "rgba(231,192,113,0.6)",
                 textTransform: "uppercase",
                 fontFamily: "Georgia, serif",
                 marginBottom: "16px",
@@ -265,7 +265,7 @@ export default async function LessonsPage() {
                       </span>
                       <span
                         className={`lesson-card-status ${s.unlocked && s.completed ? "completed" : ""}`}
-                        aria-label={locked ? "Locked until CORE Lecture 04 is passed" : s.completed ? "Completed" : s.current ? "Current lesson" : undefined}
+                        aria-label={locked ? "Locked until CORE Floor 04 is passed" : s.completed ? "Completed" : s.current ? "Current lesson" : undefined}
                         title={s.completed ? "Completed" : undefined}
                       >
                         {locked ? "🔒" : s.completed ? "✓" : s.current ? "→" : ""}
@@ -315,7 +315,7 @@ export default async function LessonsPage() {
                           lineHeight: 1.5,
                         }}
                       >
-                        Locked until CORE Lecture 04 is passed.
+                        Locked until CORE Floor 04 is passed.
                       </p>
                     )}
                   </Link>

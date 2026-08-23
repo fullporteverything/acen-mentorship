@@ -87,22 +87,22 @@ export function buildOverviewStats({
 
   return [
     {
-      label: "Lectures",
+      label: "Floors",
       value: String(total),
       sub: `${completed} completed`,
-      kanji: "修",
+      kanji: "♠",
     },
     {
-      label: "Journal",
+      label: "The Log",
       value: String(entries),
       sub: entries === 1 ? "entry" : "entries",
-      kanji: "念",
+      kanji: "♥",
     },
     {
       label: "Homework",
       value: String(pending),
       sub: pending === 0 ? "all reviewed" : "awaiting review",
-      kanji: "文",
+      kanji: "♦",
     },
   ];
 }

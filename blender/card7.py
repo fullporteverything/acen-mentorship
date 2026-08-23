@@ -1,155 +1,154 @@
-# card7.py — build and render the Suite 7 playing card (7 of spades)
-#
-# Run in a NEW scene (File → New → General is fine; the script clears it).
-# Builds a rounded-corner card with a near-black face, gold edge, mirrored
-# "7♠" corner indices and a large center spade, then renders a transparent
-# //renders/card.png (portrait). Copy to  public/brand/card.png  and set
-#   textureUrl: "/brand/card.png"
-# on the card entry of the "deck" variant in components/ThreeBackground.tsx.
-#
-# Styling matches the site: gold #e3c071 / highlight #f7e8ac on near-black.
+"""card7.py -- render out/card.png, the 7 of spades sprite (Priority 2).
+
+708 x 1024 transparent RGBA, toon look to match the approved chip. Unblocks
+the site's falling chips+cards background.
+
+    blender --background --python card7.py
+
+Rewritten 2026-08-23. The original built its OWN simpler card, which meant
+the falling-background art and the card in table-assets.glb would drift
+apart the moment either changed. This renders the canonical
+s7_props.build_card() instead, so there is exactly one Card7S design.
+
+Three bugs the original carried:
+  * bpy.ops.object.origin_set silently no-ops without a 3D-view context, so
+    every glyph sat at its font-metric offset (see s7_common.glyph).
+  * OUT pointed at ...\\Downloads\\suite7\\out\\, a different project.
+  * Blender 5.2 gates image vs video: image_settings.media_type must be set
+    to 'IMAGE' BEFORE file_format = 'PNG'.
+
+The toon treatment (flat emission + inverted-hull outline) lives ONLY here.
+It relies on use_backface_culling, which is EEVEE-only and does not survive
+glTF -- it must never touch anything destined for table-assets.glb.
+"""
 
 import os
+import sys
+import math
 
 import bpy
 
-GEORGIA = r"C:\Windows\Fonts\georgiab.ttf"
-SEGUISYM = r"C:\Windows\Fonts\seguisym.ttf"  # has ♠ U+2660 (Georgia's is unreliable)
-OUT = bpy.path.abspath("//renders/card.png")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import s7_common as C
+import s7_props as P
 
-W, H, T = 0.62, 0.90, 0.012   # card proportions (matches the site's 0.62x0.90 plane)
-CORNER = 0.06                  # corner radius
-GOLD = (0.890, 0.753, 0.443, 1.0)      # #e3c071
-GOLD_HI = (0.969, 0.910, 0.675, 1.0)   # #f7e8ac
-FACE = (0.012, 0.008, 0.006, 1.0)      # warm near-black (matches #171207 world)
+RES_X, RES_Y = 708, 1024
+OUTLINE = 0.0055
+
+# flat toon bands, keyed to the material slots build_card() produces
+TOON = {
+    "S7_CardFace":      (C.srgb("#171207"), 1.0),
+    "S7_CardBack":      (C.srgb("#241a0c"), 1.0),
+    "S7_CardGold":      (C.GOLD,            1.0),
+    "S7_CardPip":       (C.GOLD_HI,         1.0),
+    "S7_CardBackGold":  (C.GOLD_DK,         1.0),
+    "S7_CardBackFaint": (C.srgb("#5d4926"), 1.0),
+}
 
 
 def emission(name, color, strength=1.0):
-    mat = bpy.data.materials.new(name)
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    out = nodes.new("ShaderNodeOutputMaterial")
-    emit = nodes.new("ShaderNodeEmission")
-    emit.inputs["Color"].default_value = color
-    emit.inputs["Strength"].default_value = strength
-    mat.node_tree.links.new(emit.outputs[0], out.inputs[0])
-    return mat
+    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    e = nt.nodes.new("ShaderNodeEmission")
+    e.inputs["Color"].default_value = color
+    e.inputs["Strength"].default_value = strength
+    nt.links.new(e.outputs[0], out.inputs[0])
+    m.diffuse_color = color
+    return m
 
 
-def glyph(body, font_path, name, height, mat):
-    """Text → mesh, ink-centered (origin BOUNDS — the em-box gotcha)."""
-    curve = bpy.data.curves.new(type="FONT", name=f"{name}_c")
-    curve.body = body
+def toonify(obj):
+    """Swap each Principled slot for a flat emission of the same hue."""
+    for i, slot in enumerate(obj.data.materials):
+        if slot is None:
+            continue
+        col, s = TOON.get(slot.name, (C.CREAM, 1.0))
+        obj.data.materials[i] = emission("Toon_" + slot.name, col, s)
+
+
+def add_outline(obj, thickness=OUTLINE):
+    """Inverted hull: solidify outward, flip the normals, cull backfaces so
+    only the silhouette rim survives. EEVEE only -- see module docstring."""
+    hull = obj.copy()
+    hull.data = obj.data.copy()
+    hull.name = obj.name + "_Outline"
+    C.link(hull)
+    md = hull.modifiers.new("hull", "SOLIDIFY")
+    md.thickness = thickness
+    md.offset = 1.0
+    md.use_flip_normals = True
+    md.use_rim = False
+    ink = emission("ToonInk", (0.0, 0.0, 0.0, 1.0), 1.0)
+    ink.use_backface_culling = True
+    hull.data.materials.clear()
+    hull.data.materials.append(ink)
+    for p in hull.data.polygons:
+        p.material_index = 0
+    return hull
+
+
+def setup_render(scene, filepath):
+    # The EEVEE enum identifier has moved twice: BLENDER_EEVEE ->
+    # BLENDER_EEVEE_NEXT (4.2) -> BLENDER_EEVEE again (5.x). Read the enum
+    # off this build rather than hardcoding a name that will be wrong.
+    avail = [i.identifier for i in
+             scene.render.bl_rna.properties["engine"].enum_items]
+    for want in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE"):
+        if want in avail:
+            scene.render.engine = want
+            break
+    else:
+        raise RuntimeError("no EEVEE engine in %s" % avail)
     try:
-        curve.font = bpy.data.fonts.load(font_path)
-    except RuntimeError:
-        print(f"WARN: no font at {font_path}, using default")
-    curve.extrude = 0.004
-    obj = bpy.data.objects.new(name, curve)
-    bpy.context.scene.collection.objects.link(obj)
-    bpy.ops.object.select_all(action="DESELECT")
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-    bpy.ops.object.convert(target="MESH")
-    obj = bpy.context.view_layer.objects.active
-    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
-    h = obj.dimensions.y
-    if h > 0:
-        s = height / h
-        obj.scale = (s, s, s)
-        bpy.ops.object.transform_apply(scale=True)
-    obj.data.materials.clear()
-    obj.data.materials.append(mat)
-    for p in obj.data.polygons:
-        p.material_index = 0
-    return obj
-
-
-def main():
-    # Clean scene.
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete()
-
-    gold = emission("CardGold", GOLD, 1.2)
-    gold_hi = emission("CardGoldHi", GOLD_HI, 1.4)
-    face = emission("CardFace", FACE, 1.0)
-
-    # Card body: rounded-rect via a beveled cube.
-    bpy.ops.mesh.primitive_cube_add(size=1)
-    card = bpy.context.active_object
-    card.name = "Card"
-    card.scale = (W / 2, H / 2, T / 2)
-    bpy.ops.object.transform_apply(scale=True)
-    bev = card.modifiers.new("corner", "BEVEL")
-    bev.affect = "EDGES"
-    bev.limit_method = "ANGLE"
-    bev.width = CORNER
-    bev.segments = 8
-    bpy.ops.object.modifier_apply(modifier=bev.name)
-    # Bevel/boolean slot gotcha: reset materials cleanly.
-    card.data.materials.clear()
-    card.data.materials.append(face)
-    for p in card.data.polygons:
-        p.material_index = 0
-
-    # Gold edge: slightly larger flat frame behind the card reads as a border.
-    bpy.ops.mesh.primitive_cube_add(size=1)
-    frame = bpy.context.active_object
-    frame.name = "CardEdge"
-    frame.scale = ((W + 0.02) / 2, (H + 0.02) / 2, T / 2 * 0.9)
-    frame.location = (0, 0, -0.002)
-    bpy.ops.object.transform_apply(scale=True)
-    fbev = frame.modifiers.new("corner", "BEVEL")
-    fbev.limit_method = "ANGLE"
-    fbev.width = CORNER
-    fbev.segments = 8
-    bpy.ops.object.modifier_apply(modifier=fbev.name)
-    frame.data.materials.clear()
-    frame.data.materials.append(gold)
-    for p in frame.data.polygons:
-        p.material_index = 0
-
-    z = T / 2 + 0.003  # glyph rest height on the face
-
-    # Center spade.
-    spade = glyph("\u2660", SEGUISYM, "CenterSpade", 0.34, gold)
-    spade.location = (0, 0.01, z)
-
-    # Corner indices — 7 over ♠; bottom-right pair rotated 180°.
-    ix, iy = W / 2 - 0.085, H / 2 - 0.10
-    seven_tl = glyph("7", GEORGIA, "Idx7_tl", 0.105, gold_hi)
-    seven_tl.location = (-ix, iy, z)
-    spade_tl = glyph("\u2660", SEGUISYM, "IdxS_tl", 0.07, gold)
-    spade_tl.location = (-ix, iy - 0.10, z)
-    seven_br = glyph("7", GEORGIA, "Idx7_br", 0.105, gold_hi)
-    seven_br.location = (ix, -iy, z)
-    seven_br.rotation_euler = (0, 0, 3.14159)
-    spade_br = glyph("\u2660", SEGUISYM, "IdxS_br", 0.07, gold)
-    spade_br.location = (ix, -iy + 0.10, z)
-    spade_br.rotation_euler = (0, 0, 3.14159)
-
-    # Camera: straight-on orthographic portrait.
-    bpy.ops.object.camera_add(location=(0, 0, 3))
-    cam = bpy.context.active_object
-    cam.data.type = "ORTHO"
-    cam.data.ortho_scale = H + 0.16
-    bpy.context.scene.camera = cam
-
-    # Render settings: transparent RGBA portrait PNG.
-    scene = bpy.context.scene
-    scene.render.engine = "BLENDER_EEVEE_NEXT" if hasattr(bpy.types, "SceneEEVEE") else scene.render.engine
+        scene.eevee.use_shadows = False          # nothing to shadow: all emission
+    except AttributeError:
+        pass
     scene.render.film_transparent = True
-    scene.render.resolution_x = 708   # W/H aspect of 0.62/0.90 at 1024 tall
-    scene.render.resolution_y = 1024
+    scene.render.resolution_x = RES_X
+    scene.render.resolution_y = RES_Y
+    scene.render.resolution_percentage = 100
+    # Blender 5.2 gates the format enum on media_type -- set it to IMAGE
+    # first or 'PNG' is not in the enum yet and this throws.
+    try:
+        scene.render.image_settings.media_type = "IMAGE"
+    except (AttributeError, TypeError):
+        pass
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
-    scene.view_settings.view_transform = "Standard"  # keep the golds true
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    scene.render.filepath = OUT
+    scene.view_settings.view_transform = "Standard"   # keep the golds true
+    scene.render.filepath = filepath
+
+
+def build_and_render(filepath=None):
+    filepath = filepath or C.outpath("card.png")
+    C.clear_scene()
+
+    card = P.build_card()
+    card.rotation_euler = (0.0, 0.0, 0.0)
+    toonify(card)
+    add_outline(card)
+
+    cam_data = bpy.data.cameras.new("CardCam")
+    cam_data.type = "ORTHO"
+    cam_data.ortho_scale = P.CARD_H + 0.055     # a hair of margin for the ink
+    cam = bpy.data.objects.new("CardCam", cam_data)
+    C.link(cam)
+    cam.location = (0.0, 0.0, 3.0)
+    cam.rotation_euler = (0.0, 0.0, 0.0)
+    bpy.context.scene.camera = cam
+
+    setup_render(bpy.context.scene, filepath)
     bpy.ops.render.render(write_still=True)
+    return filepath
 
-    print(f"Done: {OUT}  →  copy to public/brand/card.png in the site repo")
+
+def _main():
+    p = build_and_render()
+    print("card.png ->", p, os.path.getsize(p), "bytes")
 
 
-main()
+if __name__ == "__main__":
+    sys.exit(C.run(_main, "card7"))

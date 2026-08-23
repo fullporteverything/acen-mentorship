@@ -11,10 +11,16 @@
 # reflect (the same trick that made the coin's gold read as metal).
 
 import os
+import sys
 
 import bpy
 
-OUT = bpy.path.abspath("//renders/martini.png")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import s7_common as C
+
+# was hard-coded at ...\Downloads\suite7\out\ -- a DIFFERENT project, so
+# every run wrote outside this build (the same bug card7.py carried)
+OUT = C.outpath("martini.png")
 
 # Glass silhouette (radius, z) — cone bowl, thin stem, foot.
 PROFILE = [
@@ -52,7 +58,7 @@ def material_liquid():
     bsdf.inputs["Roughness"].default_value = 0.08
     bsdf.inputs["IOR"].default_value = 1.33
     # pale gold — reads "martini", matches the site palette
-    bsdf.inputs["Base Color"].default_value = (0.93, 0.85, 0.62, 1)
+    bsdf.inputs["Base Color"].default_value = (0.86, 0.62, 0.20, 1)
     return m
 
 
@@ -66,8 +72,7 @@ def material_olive():
 
 
 def main():
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete()
+    C.clear_scene()
 
     # Glass: profile polyline spun with a Screw modifier.
     mesh = bpy.data.meshes.new("glass_profile")
@@ -80,6 +85,8 @@ def main():
     screw.axis = "Z"
     screw.steps = 96
     screw.use_smooth_shade = True
+    bpy.ops.object.select_all(action="DESELECT")
+    glass.select_set(True)
     bpy.context.view_layer.objects.active = glass
     bpy.ops.object.modifier_apply(modifier=screw.name)
     glass.data.materials.append(material_glass())
@@ -121,8 +128,29 @@ def main():
     dark = nt.nodes.new("ShaderNodeBackground")
     dark.inputs["Color"].default_value = (0, 0, 0, 1)
     lit = nt.nodes.new("ShaderNodeBackground")
-    lit.inputs["Color"].default_value = (0.7, 0.68, 0.6, 1)
-    lit.inputs["Strength"].default_value = 1.2
+    lit.inputs["Strength"].default_value = 1.7
+    # A FLAT grey here is what the coin used, and it is wrong for glass:
+    # metal only needs something bright to reflect, but glass is read
+    # through, so a uniform environment refracts to a uniform wash and the
+    # bowl comes out looking like opaque plastic. A vertical gradient gives
+    # refraction something with structure to bend.
+    texco = nt.nodes.new("ShaderNodeTexCoord")
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    mr = nt.nodes.new("ShaderNodeMapRange")
+    mr.inputs["From Min"].default_value = -0.6
+    mr.inputs["From Max"].default_value = 0.9
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    cr = ramp.color_ramp
+    cr.elements[0].position = 0.0
+    cr.elements[0].color = (0.015, 0.013, 0.010, 1.0)
+    cr.elements[1].position = 1.0
+    cr.elements[1].color = (1.0, 0.96, 0.86, 1.0)
+    mid = cr.elements.new(0.42)
+    mid.color = (0.20, 0.18, 0.15, 1.0)
+    nt.links.new(texco.outputs["Generated"], sep.inputs["Vector"])
+    nt.links.new(sep.outputs["Z"], mr.inputs["Value"])
+    nt.links.new(mr.outputs["Result"], ramp.inputs["Fac"])
+    nt.links.new(ramp.outputs["Color"], lit.inputs["Color"])
     nt.links.new(lp.outputs["Is Camera Ray"], mix.inputs["Fac"])
     nt.links.new(lit.outputs[0], mix.inputs[1])   # reflections see light
     nt.links.new(dark.outputs[0], mix.inputs[2])  # camera sees black/alpha
@@ -135,6 +163,14 @@ def main():
     key.data.size = 2.2
     key.rotation_euler = (0.7, 0.35, 0.9)
 
+    # rim from behind: on a transparent film the silhouette has no backdrop
+    # to separate it from, so the edges need their own highlight
+    bpy.ops.object.light_add(type="AREA", location=(-1.5, 2.2, 1.9))
+    rim = bpy.context.active_object
+    rim.data.energy = 320
+    rim.data.size = 2.6
+    rim.rotation_euler = (1.15, 0.0, -2.5)
+
     # Camera — portrait, slight downward tilt.
     bpy.ops.object.camera_add(location=(0, -3.1, 1.25), rotation=(1.47, 0, 0))
     cam = bpy.context.active_object
@@ -142,13 +178,37 @@ def main():
 
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
-    scene.cycles.samples = 160
+    # push it onto the 3060 -- Cycles defaults to CPU and glass is the whole
+    # point of this render
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        for backend in ("OPTIX", "CUDA"):
+            try:
+                prefs.compute_device_type = backend
+            except TypeError:
+                continue
+            prefs.get_devices()
+            if any(d.type == backend for d in prefs.devices):
+                for d in prefs.devices:
+                    d.use = (d.type == backend)
+                scene.cycles.device = "GPU"
+                break
+    except Exception as exc:
+        print("WARN: falling back to CPU Cycles (%s)" % exc)
+    scene.cycles.samples = 320
     scene.cycles.use_denoising = True
     scene.render.film_transparent = True
     scene.render.resolution_x = 640
     scene.render.resolution_y = 1024
+    # Blender 5.2 gates the format enum on media_type -- set it to IMAGE
+    # first or 'PNG' is not in the enum yet and this throws
+    try:
+        scene.render.image_settings.media_type = "IMAGE"
+    except (AttributeError, TypeError):
+        pass
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
+    scene.view_settings.view_transform = "AgX"
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     scene.render.filepath = OUT
     bpy.ops.render.render(write_still=True)

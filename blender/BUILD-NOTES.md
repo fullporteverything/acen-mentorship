@@ -375,3 +375,128 @@ The atlas is a **separate pipeline** from the .glb — it is not referenced by
 the site's re-UV path to the atlas is a website-side change; if you later want
 the 3D `Card7S` to use the atlas too, its face would need UVs mapped to a cell
 and the geometric pips removed.
+
+---
+---
+
+# Sprint 2 · WORKORDER-2 — the dealer, the bigger table
+
+Built live over MCP against Blender 5.2.0 LTS. **Final tri count: 47,490**
+of the raised ~140,000 budget (34%). Nothing renamed; everything from
+sprint 1 keeps its name and stays in the file.
+
+## Contract now in `table-assets.glb`
+
+```
+objects (8)  Table  Shoe  DiscardTray  ChipTray  Card7S  Chip7  Table5  Dealer
+clips  (12)  CardDeal CardFlip CardDiscard ChipToss ChipPayout ChipSweep
+             ShoeRefill TableIntro
+             DealerIdle DealerDeal DealerFlip DealerSweep
+```
+
+**`DealerIdle` IS A LOOP** — play it on repeat. Every other clip plays once.
+`s7_build.LOOPING` carries this flag in code.
+
+Verified twice: by re-import into a fresh scene (8/8 objects, 12/12 clips),
+and by reading the .glb's own JSON — 8 meshes, 20 nodes, 1 skin
+(`DealerRig`), 12 animations. Do not trust the re-import object list alone:
+this session's Blender adds a stray `Icosphere` on import that is **not in
+the file**. Reading the glTF JSON is the check that actually settles it.
+
+## Priority 1 — the Dealer
+
+`Dealer` is one skinned mesh (3,292 tris) on an 11-bone `DealerRig`.
+Faceless and neck-down: the top of the torso is a flat dark disc reading as
+collar shadow. Shoulders 1.38 (23% of the table's width), neck 1.64 above
+the felt, hands resting at the felt edge at y = 1.00.
+
+**Rigid skinning, no weight painting.** Each part is weighted 1.0 to exactly
+one bone via a vertex group named after it, then the parts are joined —
+vertex groups survive a join. This cannot produce the soft-weight artefacts
+a quick auto-weight would.
+
+`bpy.ops.object.mode_set` **does** work over MCP — verified before relying on
+it. That matters because bones can only be created in edit mode, and the
+sprint-1 lesson was that `origin_set` fails *silently* here. Test the
+operator before you build on it; do not assume either way.
+
+Three passes were needed, and the first two were wrong in instructive ways:
+
+1. **Lampshade.** Shoulders 1.28 across a 1.11-tall torso — wider than the
+   body was tall — with a hard shoulder ring and a steep cone to the neck.
+   It rendered as a flared bucket with a domed lid.
+2. **Bib.** Replacing the vest with a closed dark shell just made a barrel.
+   What makes a suit legible at a glance is the *opening*: the jacket is now
+   an open-front shell (front arc omitted, solidified for real thickness)
+   with lapels framing a V of shirt and gold tie, plus sleeves, contrast
+   cuffs and gold links. The first lapel attempt displaced the tip along -Y,
+   which stood them off the chest like a shelf and lit them as two pale
+   triangles; walking *around the body* instead keeps them flat, which is
+   what a lapel is.
+3. **Undersized.** At the site's real 41 deg framing he read as a doll. A
+   standing dealer meets a table at the waist, so the neck belongs ~1.7
+   above the felt, not 1.0. Scaled to human proportions, and `DY` moved
+   1.62 -> 1.70 because at the wider shoulder the torso front landed at
+   y 1.29 against a notch boundary of 1.302 — just inside the tabletop.
+
+Clip checks mirror the sprint-1 ones but split by kind: `rest_check` asserts
+non-looping clips start and end in the rest pose, and `loop_check` asserts
+`DealerIdle` matches in **value and slope** at the seam. Every term in the
+idle pose is periodic with a whole number of cycles, which is what makes the
+loop seamless rather than merely continuous.
+
+**Deviation.** `DealerDeal` *gestures* toward the Shoe; the hand does not
+literally reach it. The shoe mouth is ~1.27 from the shoulder against ~1.0
+of arm, so contact needs IK and a longer arm. At 41 deg pitch the gesture
+reads, and the reach peaks at frame 8 — exactly when `CardDeal`'s card
+clears the shoe lip — so firing them together lands the timing the work
+order asked for.
+
+## Priority 3 — Table5
+
+7.395 x 3.900, five circles fanned along the player arc, centre seat exactly
+on Table's `(0, -0.90) r 0.34`. Built as a **separate module** importing
+`s7_table` rather than a refactor of it: `build_table()` is what produced
+the Table already wired into the site, and the surest way to keep it
+untouched is not to edit the file.
+
+Furniture is deliberately **not** moved and the tray pocket is cut in the
+same place, so the site swaps one mesh and repositions nothing.
+
+Two things the layout checker caught before they shipped:
+
+- The centre seat first landed at -1.160. The inset had been derived from
+  `Y_BACK - DEPTH`, but the felt's front edge is
+  `(Y_BACK - RAIL_W) - (DEPTH - 2*RAIL_W)` = -1.69. `BET_INSET` is now
+  derived from the real edge, not typed.
+- With that corrected the seats fanned up through the insurance row. Seat
+  spread widened to 30 deg and Table5's inherited print lifted by 0.20 —
+  same content, same curvature, only the arc centre moves, so the radii are
+  untouched.
+
+## Priority 4
+
+- **ChipTray recess: done** (sprint 1, carried forward). Real 0.050 pocket,
+  boolean. The usual `C.set_material` fix would have been *wrong* here —
+  Table carries five materials and that helper forces every polygon onto one.
+  The cutter gets a real material, transferred, and `build_table` audits the
+  result and raises if any slot is empty or any polygon points at one.
+- **Dealer-row nudge: no longer needed.** With the tray recessed 0.050 into
+  the felt, a card at the `CardDeal` end pose (spanning y -0.45..0.45)
+  clears the tray footprint (0.52..0.92) by 0.07 *and* sits above a tray
+  that is now sunk rather than proud. Left as authored.
+- **`martini.png`: done** (sprint 1). It had the same two bugs `card7.py`
+  did — output path pointing at a different project, and `file_format` set
+  before `media_type` — plus it rendered on CPU and, once fixed, came out as
+  opaque grey plastic. It had inherited the coin's flat-grey Light-Path
+  world, which is right for metal (needs something to reflect) and wrong for
+  glass (gets read *through* — a uniform environment refracts to a uniform
+  wash). A gradient world fixed it.
+
+## Pipeline now lives in the repo
+
+`blender/` previously held pre-sprint-1 copies of `s7_common`/`s7_table` and
+none of the newer modules, while `public/brand/` held assets those files
+could not produce. Everything that builds the assets is now committed:
+`s7_common s7_table s7_table5 s7_props s7_clips s7_dealer s7_build
+cards_atlas card7 martini render_chips`. No more zipping.

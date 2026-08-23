@@ -1,0 +1,4 @@
+# build artefacts -- regenerate with:  blender --background --python s7_build.py
+out/
+__pycache__/
+*.pyc

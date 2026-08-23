@@ -20,20 +20,29 @@ import s7_common as C
 import s7_table as T
 import s7_props as P
 import s7_clips as K
+import s7_table5 as T5
+import s7_dealer as DL
 
-OBJECTS = ("Table", "Shoe", "DiscardTray", "ChipTray", "Card7S", "Chip7")
+OBJECTS = ("Table", "Shoe", "DiscardTray", "ChipTray", "Card7S", "Chip7",
+           "Table5", "Dealer")
 CLIPS = ("CardDeal", "CardFlip", "CardDiscard", "ChipToss",
-         "ChipPayout", "ChipSweep", "ShoeRefill", "TableIntro")
+         "ChipPayout", "ChipSweep", "ShoeRefill", "TableIntro",
+         "DealerIdle", "DealerDeal", "DealerFlip", "DealerSweep")
+
+# clips the site must loop rather than play once
+LOOPING = ("DealerIdle",)
 GLB = "table-assets.glb"
 
-TRI_BUDGET = 80000
+TRI_BUDGET = 140000   # raised by WORKORDER-2
 
 
 def build_all():
     C.clear_scene()
     T.build_table()
+    T5.build_table5()
     P.build_props()
     K.build_clips()
+    DL.build_all()
     bpy.data.objects["Card7S"].location = (0.0, 0.0, K.CARD_REST_Z)
     bpy.data.objects["Chip7"].location = (T.BET_CIRCLE[0], T.BET_CIRCLE[1],
                                           K.CHIP_REST_Z)

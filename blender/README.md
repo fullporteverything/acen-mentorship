@@ -14,6 +14,7 @@ Run order:
 | 2 | `render_sprites.py` | the updated .blend open | `chip.png` (1024², transparent) → copy to `public/brand/chip.png` |
 | 3 | `card7.py` | any empty/new scene | Builds a 7♠ card + renders `card.png` (transparent) → `public/brand/card.png` |
 | 4 | `martini.py` (optional) | new scene | 3D martini glass + olive, renders `martini.png` (for a future 3D upgrade of the site's SVG martini) |
+| 5 | `table_assets.py` | new scene | Card + chip models **with baked animations** (`CardDeal` / `CardFlip` / `ChipToss`) exported as `table-assets.glb` → copy to `public/brand/table-assets.glb` for the 3D blackjack table |
 
 After copying the PNGs into `public/brand/`, flip the falling background to
 the chips+cards mix by setting `textureUrl` on the two "deck" entries in

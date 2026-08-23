@@ -1323,6 +1323,43 @@ a.topnav-rank:hover {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(0, 0, 0, 0.3);
 }
 
+/* 3D table scene (components/TableScene.tsx). The canvas is transparent over
+   this ground; the DOM HUD tags float above it. */
+.suite7-scene {
+  position: relative;
+  width: 100%;
+  height: clamp(340px, 48vw, 520px);
+  border: 1px solid rgba(231, 192, 113, 0.25);
+  border-radius: 14px;
+  overflow: hidden;
+  background: radial-gradient(
+    120% 100% at 50% 0%,
+    rgba(231, 192, 113, 0.05),
+    rgba(10, 8, 5, 0.9) 55%,
+    #000
+  );
+}
+.suite7-scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.suite7-scene-hud {
+  position: absolute;
+  left: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 1;
+}
+.suite7-scene-hud-top {
+  top: 12px;
+}
+.suite7-scene-hud-bottom {
+  bottom: 12px;
+}
+
 /* Phone tier: smaller cards, tighter overlap; never any horizontal scroll. */
 @media (max-width: 480px) {
   .suite7-card,

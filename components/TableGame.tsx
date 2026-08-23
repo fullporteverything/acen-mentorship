@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Martini from "@/components/Martini";
+import TableScene from "@/components/TableScene";
 import {
   RESHUFFLE_BELOW,
   buildShoe,
@@ -67,6 +68,10 @@ export default function TableGame() {
   const [doubled, setDoubled] = useState(false);
   const [result, setResult] = useState<Settlement | null>(null);
   const [shuffleNote, setShuffleNote] = useState(false);
+  // 3D scene support: reduced motion snaps the scene's animations; only a
+  // WebGL init failure drops back to the DOM card rows.
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [webglFailed, setWebglFailed] = useState(false);
 
   // Synchronous truth for guards + timer callbacks (state lags a render).
   const phaseRef = useRef<Phase>("BETTING");
@@ -121,8 +126,10 @@ export default function TableGame() {
     try {
       const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
       reducedRef.current = mq.matches;
+      setReducedMotion(mq.matches);
       const onChange = () => {
         reducedRef.current = mq.matches;
+        setReducedMotion(mq.matches);
       };
       mq.addEventListener("change", onChange);
       return () => mq.removeEventListener("change", onChange);
@@ -301,6 +308,8 @@ export default function TableGame() {
     return () => window.removeEventListener("keydown", onKey);
   }, [hit, stand]);
 
+  const handleGlFallback = useCallback(() => setWebglFailed(true), []);
+
   // ── Derived display values ─────────────────────────────────────────────
   const playerValue = playerHand.length ? handValue(playerHand) : null;
   const dealerValue = dealerHand.length ? handValue(dealerHand) : null;
@@ -310,6 +319,51 @@ export default function TableGame() {
     bankroll !== null &&
     bankroll >= bet * 2;
   const broke = phase === "BETTING" && bankroll !== null && bankroll < MIN_BET;
+
+  const dealerTotalText =
+    dealerHand.length === 0 ? "" : holeRevealed && dealerValue ? String(dealerValue.total) : "?";
+  const playerTotalText = playerValue
+    ? `${playerValue.total}${playerValue.soft ? " soft" : ""}`
+    : "";
+
+  // Center strip (result banner / dealer note) — shared by 3D and DOM paths.
+  const centerStrip = (
+    <div
+      style={{
+        minHeight: 44,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        margin: "10px 0",
+      }}
+      aria-live="polite"
+    >
+      {phase === "SETTLED" && result ? <ResultBanner result={result} /> : null}
+      {phase === "DEALER" ? (
+        <span
+          style={{
+            fontFamily: "Georgia, serif",
+            fontStyle: "italic",
+            fontSize: 11,
+            color: "rgba(245,240,240,0.45)",
+          }}
+        >
+          {doubled ? `doubled to ${formatChips(bet)} — ` : ""}the dealer plays…
+        </span>
+      ) : null}
+    </div>
+  );
+
+  // Screen-reader description of the 3D table (canvas pixels aren't readable).
+  const describeHand = (hand: Card[], hiddenIndex: number) =>
+    hand
+      .map((card, i) =>
+        i === hiddenIndex ? "a face-down card" : `${card.rank} of ${SUIT_NAMES[card.suit]}`
+      )
+      .join(", ");
+  const sceneLabel = `Blackjack table. Dealer: ${
+    dealerHand.length ? describeHand(dealerHand, holeRevealed ? -1 : 1) : "no cards"
+  }. You: ${playerHand.length ? describeHand(playerHand, -1) : "no cards"}.`;
 
   return (
     <div className="suite7-table-wrap">
@@ -368,53 +422,40 @@ export default function TableGame() {
           ) : null}
         </div>
 
-        {/* Dealer */}
-        <HandRow
-          label="Dealer"
-          hand={dealerHand}
-          holeIndex={1}
-          holeRevealed={holeRevealed}
-          totalText={
-            dealerHand.length === 0 ? "" : holeRevealed && dealerValue ? String(dealerValue.total) : "?"
-          }
-        />
-
-        {/* Center strip: result banner / dealer note */}
-        <div
-          style={{
-            minHeight: 44,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "10px 0",
-          }}
-          aria-live="polite"
-        >
-          {phase === "SETTLED" && result ? <ResultBanner result={result} /> : null}
-          {phase === "DEALER" ? (
-            <span
-              style={{
-                fontFamily: "Georgia, serif",
-                fontStyle: "italic",
-                fontSize: 11,
-                color: "rgba(245,240,240,0.45)",
-              }}
-            >
-              {doubled ? `doubled to ${formatChips(bet)} — ` : ""}the dealer plays…
-            </span>
-          ) : null}
-        </div>
-
-        {/* Player */}
-        <HandRow
-          label="You"
-          hand={playerHand}
-          holeIndex={-1}
-          holeRevealed
-          totalText={
-            playerValue ? `${playerValue.total}${playerValue.soft ? " soft" : ""}` : ""
-          }
-        />
+        {/* The table itself: 3D scene with a DOM HUD; DOM card rows only if
+            WebGL init fails. reduced-motion still gets 3D (snap animations). */}
+        {webglFailed ? (
+          <DomCardTable
+            playerHand={playerHand}
+            dealerHand={dealerHand}
+            holeRevealed={holeRevealed}
+            dealerTotalText={dealerTotalText}
+            playerTotalText={playerTotalText}
+            centerStrip={centerStrip}
+          />
+        ) : (
+          <>
+            <div className="suite7-scene" role="img" aria-label={sceneLabel}>
+              <TableScene
+                playerHand={playerHand}
+                dealerHand={dealerHand}
+                holeCardHidden={!holeRevealed}
+                phase={phase}
+                betChips={bet}
+                outcome={result?.outcome ?? null}
+                reducedMotion={reducedMotion}
+                onFallback={handleGlFallback}
+              />
+              <div className="suite7-scene-hud suite7-scene-hud-top" aria-hidden>
+                <HudTag label="Dealer" totalText={dealerTotalText} />
+              </div>
+              <div className="suite7-scene-hud suite7-scene-hud-bottom" aria-hidden>
+                <HudTag label="You" totalText={playerTotalText} />
+              </div>
+            </div>
+            {centerStrip}
+          </>
+        )}
 
         {/* Controls */}
         <div style={{ marginTop: 24 }}>
@@ -539,6 +580,82 @@ export default function TableGame() {
 }
 
 /* ── Presentational pieces ─────────────────────────────────────────────── */
+
+/** Label + total pill overlaid on the 3D scene (same look as the HandRow header). */
+function HudTag({ label, totalText }: { label: string; totalText: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+      <span
+        style={{
+          fontSize: 9,
+          letterSpacing: 3,
+          textTransform: "uppercase",
+          fontFamily: "Georgia, serif",
+          color: "rgba(231,192,113,0.6)",
+        }}
+      >
+        {label}
+      </span>
+      {totalText ? (
+        <span
+          style={{
+            fontFamily: "Georgia, serif",
+            fontVariantNumeric: "tabular-nums",
+            fontSize: 12,
+            color: "rgba(245,240,240,0.75)",
+            border: "1px solid rgba(231,192,113,0.2)",
+            padding: "1px 8px",
+            borderRadius: 999,
+            background: "rgba(5,4,2,0.55)",
+          }}
+        >
+          {totalText}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * FALLBACK path: the original DOM-rendered card rows, used only when WebGL
+ * init fails (TableScene calls onFallback). Kept intact so the game never
+ * loses its table.
+ */
+function DomCardTable({
+  playerHand,
+  dealerHand,
+  holeRevealed,
+  dealerTotalText,
+  playerTotalText,
+  centerStrip,
+}: {
+  playerHand: Card[];
+  dealerHand: Card[];
+  holeRevealed: boolean;
+  dealerTotalText: string;
+  playerTotalText: string;
+  centerStrip: ReactNode;
+}) {
+  return (
+    <>
+      <HandRow
+        label="Dealer"
+        hand={dealerHand}
+        holeIndex={1}
+        holeRevealed={holeRevealed}
+        totalText={dealerTotalText}
+      />
+      {centerStrip}
+      <HandRow
+        label="You"
+        hand={playerHand}
+        holeIndex={-1}
+        holeRevealed
+        totalText={playerTotalText}
+      />
+    </>
+  );
+}
 
 function ResultBanner({ result }: { result: Settlement }) {
   let text: string;

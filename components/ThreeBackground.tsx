@@ -127,9 +127,9 @@ const VARIANTS: Record<Variant, FallingKind[]> = {
     { drawKind: drawPetal, size: [0.4, 0.65], count: 250, vy: [-0.035, -0.015], spin: 0.01 },
   ],
   deck: [
-    // textureUrl: "/brand/chip.png"  ← set once the Blender render exists
-    { drawKind: drawChip, size: [0.7, 0.7], count: 70, vy: [-0.03, -0.014], spin: 0.02 },
-    // textureUrl: "/brand/card.png"
+    // Real Blender render (toon look). chip-photoreal.png is the alternate.
+    { textureUrl: "/brand/chip.png", drawKind: drawChip, size: [0.7, 0.7], count: 70, vy: [-0.03, -0.014], spin: 0.02 },
+    // textureUrl: "/brand/card.png"  ← set once the Blender card render exists
     { drawKind: drawCard, size: [0.62, 0.9], count: 70, vy: [-0.026, -0.012], spin: 0.018 },
   ],
 };

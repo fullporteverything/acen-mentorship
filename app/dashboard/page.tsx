@@ -83,20 +83,25 @@ export default async function DashboardPage() {
           position: "relative",
         }}
       >
-        {/* Kanji corner accent — top right */}
+        {/* Card corner accent — top right: faint gold "7♥" playing-card motif */}
         <div
+          aria-hidden
           style={{
             position: "absolute",
             top: "24px",
             right: "40px",
-            fontSize: "64px",
-            color: "rgba(232,160,160,0.07)",
-            fontFamily: "serif",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            fontSize: "44px",
+            color: "rgba(231,192,113,0.07)",
+            fontFamily: "Georgia, serif",
             userSelect: "none",
-            lineHeight: 1,
+            lineHeight: 0.85,
           }}
         >
-          武
+          <span>7</span>
+          <span>♥</span>
         </div>
 
         {/* Header */}
@@ -111,13 +116,13 @@ export default async function DashboardPage() {
             style={{
               fontSize: "10px",
               letterSpacing: "4px",
-              color: "#E8A0A0",
+              color: "var(--gold)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginBottom: "10px",
             }}
           >
-            Overview
+            The Lobby
           </p>
           <h1
             style={{

@@ -308,7 +308,7 @@ export default function ProfileCard({
                 fontFamily: "Georgia, serif",
               }}
             >
-              Dojo Member
+              Suite 7 Member
             </div>
           </div>
 

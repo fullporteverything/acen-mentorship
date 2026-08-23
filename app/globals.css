@@ -11,6 +11,12 @@
   --burgundy-subtle: rgba(232, 160, 160, 0.08);
   --void: #000000;
   --cream: #F5F0F0;
+  /* High-Roller Noir gold accents (hero); rose above kept as the supporting glow. */
+  --gold: #e3c071;
+  --gold-hi: #f7e8ac;
+  --gold-mid: #b8934a;
+  --gold-lo: #6f5320;
+  --crimson: #b21d3b;
 }
 
 * {
@@ -62,8 +68,8 @@ body {
 .btn-discord {
   display: inline-block;
   padding: 16px 40px;
-  border: 1px solid rgba(232, 160, 160, 0.4);
-  color: #E8A0A0;
+  border: 1px solid rgba(231, 192, 113, 0.4);
+  color: var(--gold);
   background: transparent;
   font-family: Georgia, serif;
   font-size: 13px;
@@ -79,7 +85,7 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: var(--burgundy-subtle);
+  background: rgba(231, 192, 113, 0.09);
   opacity: 0;
   transition: opacity 0.35s ease;
 }
@@ -89,7 +95,8 @@ body {
 }
 
 .btn-discord:hover {
-  border-color: rgba(232, 160, 160, 0.6);
+  border-color: rgba(231, 192, 113, 0.65);
+  color: var(--gold-hi);
   letter-spacing: 3px;
 }
 
@@ -170,7 +177,7 @@ body {
   background: rgba(0, 0, 0, 0.88);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(232, 160, 160, 0.12);
+  border-bottom: 1px solid rgba(231, 192, 113, 0.15);
   position: fixed;
   top: 0;
   left: 0;
@@ -218,7 +225,7 @@ body {
   right: 18px;
   bottom: 6px;
   height: 1px;
-  background: var(--burgundy);
+  background: var(--gold);
   transform: scaleX(0);
   transform-origin: center;
   transition: transform 0.3s ease;
@@ -234,7 +241,7 @@ body {
 }
 
 .topnav-link.active {
-  color: var(--burgundy-bright);
+  color: var(--gold);
 }
 
 /* Narrow-window tuck: hide the username past ~900px so the nav still fits. */

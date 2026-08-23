@@ -152,11 +152,11 @@ export default async function JournalPage() {
                   fontSize: 34,
                   fontWeight: 500,
                   letterSpacing: 1,
-                  color: "#E8A0A0",
+                  color: "var(--gold)",
                   marginBottom: 11,
                 }}
               >
-                My Journal
+                The Log
               </h1>
 
               <div

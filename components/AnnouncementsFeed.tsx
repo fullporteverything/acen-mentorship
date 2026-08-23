@@ -78,7 +78,7 @@ export default function AnnouncementsFeed({
             marginBottom: 16,
           }}
         >
-          Announcements
+          House Calls
         </p>
         <p
           style={{
@@ -89,7 +89,7 @@ export default function AnnouncementsFeed({
             fontStyle: "italic",
           }}
         >
-          Nothing new right now. Announcements will appear here.
+          Nothing new right now. House Calls will appear here.
         </p>
         <div
           style={{

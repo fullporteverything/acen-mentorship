@@ -1,5 +1,4 @@
 import { auth, signOut } from "@/auth";
-import PhiLogo from "@/components/PhiLogo";
 import JournalNavBadge from "@/components/JournalNavBadge";
 import ProfileTrigger from "@/components/ProfileTrigger";
 import NotificationCenter from "@/components/NotificationCenter";
@@ -11,9 +10,9 @@ interface TopNavProps {
 }
 
 const NAV_LINKS: { label: string; href: string }[] = [
-  { label: "Overview", href: "/dashboard" },
-  { label: "Lessons", href: "/dashboard/lessons" },
-  { label: "Journal", href: "/dashboard/journal" },
+  { label: "The Lobby", href: "/dashboard" },
+  { label: "The Floors", href: "/dashboard/lessons" },
+  { label: "The Log", href: "/dashboard/journal" },
   { label: "Homework", href: "/dashboard/homework" },
 ];
 
@@ -43,7 +42,8 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
   return (
     <>
     <header className="topnav">
-      {/* Left cluster: Phi mark + wordmark — click returns to /dashboard */}
+      {/* Left cluster: text wordmark — click returns to /dashboard. No icon
+         chip: the wordmark is the "SUITE 7™" text alone. */}
       <a
         className="topnav-brand"
         href="/dashboard"
@@ -57,12 +57,6 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
           cursor: "pointer",
         }}
       >
-        {/* PhiLogo takes a numeric size and this is a server component, so the
-           phone shrink happens in CSS: the wrapper clamps the box, the inner
-           mark is scaled to match. */}
-        <div className="topnav-logo">
-          <PhiLogo size={52} />
-        </div>
         <div
           className="topnav-brand-text"
           style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}
@@ -71,12 +65,22 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
             style={{
               fontSize: 12,
               letterSpacing: 6,
-              color: "#E8A0A0",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
             }}
           >
-            Dojo
+            <span
+              style={{
+                background: "linear-gradient(180deg,#f7e8ac,#b8934a)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                color: "#e3c071",
+              }}
+            >
+              SUITE 7
+            </span>
+            <span style={{ color: "var(--burgundy)" }}>™</span>
           </span>
           <span
             className="topnav-brand-sub"

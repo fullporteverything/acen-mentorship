@@ -38,7 +38,7 @@ export default async function LoginPage({
 
       {/* Fixed vertical brand text — left side */}
       <div className="brand-vertical">
-        Dojo&nbsp;&nbsp;Mentorship
+        Suite 7&nbsp;&nbsp;Mentorship
       </div>
 
       {/* Center login card (also renders CrackedGate overlay when errorCode is present) */}

@@ -161,7 +161,7 @@ describe("curriculum ordering overrides", () => {
     ]);
     // Data untouched — only positions move.
     const one = result.find((l) => l.id === "lesson-1");
-    expect(one?.title).toBe("Introduction to Dojo");
+    expect(one?.title).toBe("Introduction to Suite 7");
     expect(one?.group).toBe("CORE CONTENT");
   });
 

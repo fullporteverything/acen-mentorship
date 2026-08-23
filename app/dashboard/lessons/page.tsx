@@ -82,20 +82,25 @@ export default async function LessonsPage() {
             minWidth: 0,
           }}
         >
-          {/* Kanji corner accent — top right */}
+          {/* Card corner accent — top right: faint gold "7♠" playing-card motif */}
           <div
+            aria-hidden
             style={{
               position: "absolute",
               top: "24px",
               right: "40px",
-              fontSize: "64px",
-              color: "rgba(232,160,160,0.07)",
-              fontFamily: "serif",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              fontSize: "44px",
+              color: "rgba(231,192,113,0.07)",
+              fontFamily: "Georgia, serif",
               userSelect: "none",
-              lineHeight: 1,
+              lineHeight: 0.85,
             }}
           >
-            修
+            <span>7</span>
+            <span>♠</span>
           </div>
 
           {/* Header */}
@@ -110,13 +115,13 @@ export default async function LessonsPage() {
               style={{
                 fontSize: "10px",
                 letterSpacing: "4px",
-                color: "#E8A0A0",
+                color: "var(--gold)",
                 textTransform: "uppercase",
                 fontFamily: "Georgia, serif",
                 marginBottom: "10px",
               }}
             >
-              Lessons
+              Suite 7
             </p>
             <h1
               style={{
@@ -128,7 +133,7 @@ export default async function LessonsPage() {
                 fontFamily: "Georgia, serif",
               }}
             >
-              The Curriculum
+              The Floors
             </h1>
           </div>
 
@@ -145,7 +150,7 @@ export default async function LessonsPage() {
                   marginBottom: "16px",
                 }}
               >
-                Announcements
+                House Calls
               </p>
 
               <div
@@ -232,7 +237,7 @@ export default async function LessonsPage() {
                       display: "block",
                       padding: "20px 22px",
                       border: s.current
-                        ? "1px solid rgba(232,160,160,0.35)"
+                        ? "1px solid rgba(231,192,113,0.35)"
                         : "1px solid rgba(232,160,160,0.12)",
                       background: "rgba(232,160,160,0.04)",
                       textDecoration: "none",

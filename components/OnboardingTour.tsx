@@ -16,7 +16,7 @@ interface TourStep {
 const STEPS: TourStep[] = [
   {
     kicker: "The Threshold",
-    title: "Welcome to the Dojo",
+    title: "Welcome to Suite 7",
     body: "A short walk-through — four beats, then the floor is yours.",
   },
   {
@@ -82,7 +82,7 @@ export default function OnboardingTour() {
   const last = step === STEPS.length - 1;
 
   return (
-    <div className="tour-overlay" role="dialog" aria-modal="true" aria-label="Dojo tour">
+    <div className="tour-overlay" role="dialog" aria-modal="true" aria-label="Suite 7 tour">
       {/* Nav highlight — a burgundy wash over the topnav strip instead of a
          real spotlight cut-out. Cheap, and it reads clearly enough. */}
       {current.pointsAtNav ? <div aria-hidden className="tour-nav-glow" /> : null}

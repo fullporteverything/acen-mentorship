@@ -156,7 +156,7 @@ function NdaStep({
       <p style={label}>Step 1 of 2 &middot; Confidentiality</p>
       <h1 style={{ ...heading, marginTop: 18 }}>Before you enter, a word kept.</h1>
       <p style={{ ...body, marginTop: 16 }}>
-        Everything within this dojo is private. Read the agreement below in full, then sign it
+        Everything within Suite 7 is private. Read the agreement below in full, then sign it
         electronically. {operator} is the Provider named in this agreement.
       </p>
 
@@ -275,7 +275,7 @@ function IdentityStep({
         <p style={{ ...body, marginTop: 16 }}>Your identity has been confirmed. The way is open.</p>
         <div style={{ marginTop: 30 }}>
           <button type="button" className="btn-discord" onClick={onEnter}>
-            Enter the Dojo
+            Enter Suite 7
           </button>
         </div>
       </div>

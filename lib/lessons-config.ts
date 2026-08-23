@@ -21,7 +21,7 @@ export interface Lesson {
 export const LESSONS: Lesson[] = [
   {
     id: "lesson-1",
-    title: "Introduction to Dojo",
+    title: "Introduction to Suite 7",
     description: "Welcome and overview.",
     videoId: "",
     homeworkPrompt:

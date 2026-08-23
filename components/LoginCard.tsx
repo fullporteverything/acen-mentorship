@@ -193,7 +193,7 @@ export default function LoginCard({
             marginBottom: "20px",
           }}
         >
-          Dojo
+          Suite 7
         </motion.h1>
 
         {/* Top rule */}

@@ -36,7 +36,7 @@ export default function PhiLogo({ size = 56 }: { size?: number }) {
           inset: -14,
           borderRadius: "50%",
           background:
-            "radial-gradient(circle, rgba(232,160,160,0.55) 0%, rgba(232,160,160,0) 65%)",
+            "radial-gradient(circle, rgba(231,192,113,0.55) 0%, rgba(231,192,113,0) 65%)",
           filter: "blur(6px)",
           pointerEvents: "none",
         }}
@@ -63,15 +63,15 @@ export default function PhiLogo({ size = 56 }: { size?: number }) {
         >
           <defs>
             <radialGradient id="phi-halo" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#FFD8D8" stopOpacity={0.35} />
-              <stop offset="50%" stopColor="#E8A0A0" stopOpacity={0.15} />
-              <stop offset="100%" stopColor="#E8A0A0" stopOpacity={0} />
+              <stop offset="0%" stopColor="#FFF0C8" stopOpacity={0.35} />
+              <stop offset="50%" stopColor="#e3c071" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#e3c071" stopOpacity={0} />
             </radialGradient>
 
             <linearGradient id="phi-fill" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#F0B0B0" />
-              <stop offset="55%" stopColor="#E8A0A0" />
-              <stop offset="100%" stopColor="#B26060" />
+              <stop offset="0%" stopColor="#f7e8ac" />
+              <stop offset="55%" stopColor="#e3c071" />
+              <stop offset="100%" stopColor="#9b7c37" />
             </linearGradient>
 
             <filter id="phi-glow" x="-60%" y="-60%" width="220%" height="220%">
@@ -99,7 +99,7 @@ export default function PhiLogo({ size = 56 }: { size?: number }) {
             cy={50}
             r={44}
             fill="none"
-            stroke="rgba(232,160,160,0.45)"
+            stroke="rgba(231,192,113,0.45)"
             strokeWidth={0.6}
             strokeDasharray="1000"
             initial={{ strokeDashoffset: 1000 }}
@@ -123,7 +123,7 @@ export default function PhiLogo({ size = 56 }: { size?: number }) {
                   y1={4}
                   x2={50}
                   y2={i % 3 === 0 ? 10 : 7}
-                  stroke="#E8A0A0"
+                  stroke="#e3c071"
                   strokeOpacity={i % 3 === 0 ? 0.85 : 0.4}
                   strokeWidth={i % 3 === 0 ? 1.2 : 0.7}
                   strokeLinecap="round"
@@ -139,7 +139,7 @@ export default function PhiLogo({ size = 56 }: { size?: number }) {
             cy={50}
             r={36}
             fill="none"
-            stroke="rgba(232,160,160,0.25)"
+            stroke="rgba(231,192,113,0.25)"
             strokeWidth={0.4}
             strokeDasharray="3 4"
             style={{ transformOrigin: "50px 50px" }}
@@ -153,14 +153,14 @@ export default function PhiLogo({ size = 56 }: { size?: number }) {
             animate={{ rotate: 360 }}
             transition={{ duration: 9, repeat: Infinity, ease: "linear" }}
           >
-            <circle cx={50} cy={12} r={1.6} fill="#F0B0B0" filter="url(#phi-glow)" />
+            <circle cx={50} cy={12} r={1.6} fill="#f7e8ac" filter="url(#phi-glow)" />
           </motion.g>
           <motion.g
             style={{ transformOrigin: "50px 50px" }}
             animate={{ rotate: -360 }}
             transition={{ duration: 13, repeat: Infinity, ease: "linear" }}
           >
-            <circle cx={50} cy={88} r={1.2} fill="#F0B0B0" filter="url(#phi-glow)" opacity={0.75} />
+            <circle cx={50} cy={88} r={1.2} fill="#f7e8ac" filter="url(#phi-glow)" opacity={0.75} />
           </motion.g>
 
           {/* Phi glyph — Greek capital Φ. On-mount fade-up + subtle glow pulse. */}

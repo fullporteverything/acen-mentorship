@@ -26,9 +26,9 @@ export default function AvatarImg({
           width: 30,
           height: 30,
           borderRadius: "50%",
-          border: "1px solid rgba(232,160,160,0.35)",
-          background: "rgba(232,160,160,0.08)",
-          color: "#E8A0A0",
+          border: "1px solid rgba(231,192,113,0.35)",
+          background: "rgba(231,192,113,0.08)",
+          color: "#e3c071",
           fontFamily: "Georgia, serif",
           fontSize: 13,
           display: "flex",
@@ -53,7 +53,7 @@ export default function AvatarImg({
       onError={() => setFailed(true)}
       style={{
         borderRadius: "50%",
-        border: "1px solid rgba(232,160,160,0.35)",
+        border: "1px solid rgba(231,192,113,0.35)",
       }}
     />
   );

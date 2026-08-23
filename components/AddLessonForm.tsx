@@ -192,8 +192,8 @@ const triggerStyle: React.CSSProperties = {
   margin: "8px 28px",
   padding: "8px 12px",
   background: "transparent",
-  border: "1px dashed rgba(232,160,160,0.35)",
-  color: "#E8A0A0",
+  border: "1px dashed rgba(231,192,113,0.35)",
+  color: "#e3c071",
   fontFamily: "Georgia, serif",
   fontSize: "10px",
   letterSpacing: "2px",
@@ -208,7 +208,7 @@ const formStyle: React.CSSProperties = {
   gap: "8px",
   margin: "8px 28px",
   padding: "14px",
-  border: "1px solid rgba(232,160,160,0.2)",
+  border: "1px solid rgba(231,192,113,0.2)",
   background: "rgba(0,0,0,0.35)",
 };
 
@@ -216,7 +216,7 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "8px 10px",
   background: "rgba(0,0,0,0.4)",
-  border: "1px solid rgba(232,160,160,0.2)",
+  border: "1px solid rgba(231,192,113,0.2)",
   color: "#F5F0F0",
   fontFamily: "Georgia, serif",
   fontSize: "12px",
@@ -225,7 +225,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const primaryBtn: React.CSSProperties = {
-  background: "#E8A0A0",
+  background: "#e3c071",
   color: "#000",
   border: "none",
   padding: "8px 16px",
@@ -239,7 +239,7 @@ const primaryBtn: React.CSSProperties = {
 const cancelBtn: React.CSSProperties = {
   background: "transparent",
   color: "rgba(245,240,240,0.5)",
-  border: "1px solid rgba(232,160,160,0.2)",
+  border: "1px solid rgba(231,192,113,0.2)",
   padding: "8px 16px",
   cursor: "pointer",
   fontFamily: "Georgia, serif",

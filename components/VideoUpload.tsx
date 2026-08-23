@@ -254,8 +254,8 @@ export default function VideoUpload() {
           style={{
             display: "block",
             textAlign: "center",
-            border: `1px dashed ${dragActive ? "rgba(232,160,160,0.75)" : "rgba(232,160,160,0.3)"}`,
-            background: dragActive ? "rgba(232,160,160,0.10)" : "rgba(232,160,160,0.03)",
+            border: `1px dashed ${dragActive ? "rgba(231,192,113,0.75)" : "rgba(231,192,113,0.3)"}`,
+            background: dragActive ? "rgba(231,192,113,0.10)" : "rgba(231,192,113,0.03)",
             padding: "26px 20px",
             cursor: uploading ? "default" : "pointer",
             fontFamily: "Georgia, serif",
@@ -288,7 +288,7 @@ export default function VideoUpload() {
                 fontSize: "10px",
                 letterSpacing: "2px",
                 textTransform: "uppercase",
-                color: "rgba(232,160,160,0.55)",
+                color: "rgba(231,192,113,0.55)",
               }}
             >
               or drag &amp; drop here
@@ -315,7 +315,7 @@ export default function VideoUpload() {
               style={{
                 height: "2px",
                 width: "100%",
-                background: "rgba(232,160,160,0.15)",
+                background: "rgba(231,192,113,0.15)",
                 marginBottom: "8px",
               }}
             >
@@ -323,7 +323,7 @@ export default function VideoUpload() {
                 style={{
                   height: "100%",
                   width: `${progress}%`,
-                  background: "#E8A0A0",
+                  background: "#e3c071",
                   transition: "width 0.2s ease",
                 }}
               />
@@ -358,7 +358,7 @@ export default function VideoUpload() {
         {uid && (
           <div
             style={{
-              border: "1px solid rgba(232,160,160,0.25)",
+              border: "1px solid rgba(231,192,113,0.25)",
               background: "rgba(0,0,0,0.3)",
               padding: "16px 18px",
               marginBottom: "18px",
@@ -368,7 +368,7 @@ export default function VideoUpload() {
               style={{
                 fontSize: "10px",
                 letterSpacing: "3px",
-                color: "rgba(232,160,160,0.7)",
+                color: "rgba(231,192,113,0.7)",
                 textTransform: "uppercase",
                 fontFamily: "Georgia, serif",
                 marginBottom: "10px",
@@ -398,7 +398,7 @@ export default function VideoUpload() {
                 type="button"
                 onClick={copyUid}
                 style={{
-                  background: "#E8A0A0",
+                  background: "#e3c071",
                   color: "#000",
                   border: "none",
                   padding: "8px 16px",
@@ -431,7 +431,7 @@ export default function VideoUpload() {
               style={{
                 fontSize: "10px",
                 letterSpacing: "1px",
-                color: "rgba(232,160,160,0.7)",
+                color: "rgba(231,192,113,0.7)",
                 fontFamily: "Georgia, serif",
                 fontStyle: "italic",
                 marginTop: "8px",
@@ -449,7 +449,7 @@ export default function VideoUpload() {
               style={{
                 marginTop: "16px",
                 paddingTop: "16px",
-                borderTop: "1px solid rgba(232,160,160,0.15)",
+                borderTop: "1px solid rgba(231,192,113,0.15)",
               }}
             >
               <p style={{ ...tinyLabel, display: "block", marginBottom: "10px" }}>
@@ -473,7 +473,7 @@ export default function VideoUpload() {
                     padding: "8px 10px",
                     background: "#080606",
                     color: "#F5F0F0",
-                    border: "1px solid rgba(232,160,160,0.25)",
+                    border: "1px solid rgba(231,192,113,0.25)",
                     fontFamily: "Georgia, serif",
                   }}
                 >
@@ -510,7 +510,7 @@ export default function VideoUpload() {
           type="submit"
           disabled={uploading}
           style={{
-            background: "#E8A0A0",
+            background: "#e3c071",
             color: "#000",
             border: "none",
             padding: "8px 16px",
@@ -532,7 +532,7 @@ export default function VideoUpload() {
 const sectionLabel: React.CSSProperties = {
   fontSize: "10px",
   letterSpacing: "4px",
-  color: "#E8A0A0",
+  color: "#e3c071",
   textTransform: "uppercase",
   fontFamily: "Georgia, serif",
   marginBottom: "18px",
@@ -541,7 +541,7 @@ const sectionLabel: React.CSSProperties = {
 const tinyLabel: React.CSSProperties = {
   fontSize: "10px",
   letterSpacing: "3px",
-  color: "rgba(232,160,160,0.7)",
+  color: "rgba(231,192,113,0.7)",
   textTransform: "uppercase",
   fontFamily: "Georgia, serif",
 };
@@ -557,8 +557,8 @@ const uploadNote: React.CSSProperties = {
 const secondaryButton: React.CSSProperties = {
   padding: "8px 12px",
   background: "transparent",
-  color: "#E8A0A0",
-  border: "1px solid rgba(232,160,160,0.35)",
+  color: "#e3c071",
+  border: "1px solid rgba(231,192,113,0.35)",
   fontFamily: "Georgia, serif",
   fontSize: "9px",
   letterSpacing: "1px",
@@ -568,8 +568,8 @@ const secondaryButton: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   padding: "28px 32px",
-  border: "1px solid rgba(232,160,160,0.12)",
-  background: "rgba(232,160,160,0.02)",
+  border: "1px solid rgba(231,192,113,0.12)",
+  background: "rgba(231,192,113,0.02)",
   maxWidth: "760px",
   marginBottom: "40px",
 };

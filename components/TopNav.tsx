@@ -15,8 +15,8 @@ interface TopNavProps {
 
 const NAV_LINKS: { label: string; href: string }[] = [
   { label: "The Lobby", href: "/dashboard" },
-  { label: "The Floors", href: "/dashboard/lessons" },
-  { label: "The Log", href: "/dashboard/journal" },
+  { label: "Lectures", href: "/dashboard/lessons" },
+  { label: "Journal", href: "/dashboard/journal" },
   { label: "Homework", href: "/dashboard/homework" },
 ];
 
@@ -126,7 +126,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
             style={{
               fontSize: 9,
               letterSpacing: 3,
-              color: "rgba(232,160,160,0.5)",
+              color: "rgba(231,192,113,0.5)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginTop: 3,
@@ -205,11 +205,11 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
             style={{
               fontSize: 9,
               letterSpacing: 3,
-              color: "rgba(232,160,160,0.6)",
+              color: "rgba(231,192,113,0.6)",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               background: "none",
-              border: "1px solid rgba(232,160,160,0.2)",
+              border: "1px solid rgba(231,192,113,0.2)",
               cursor: "pointer",
               padding: "8px 14px",
               transition: "color 0.2s, border-color 0.2s",

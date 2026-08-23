@@ -135,7 +135,7 @@ export default function NotificationCenter() {
                   : itemStyle;
                 const inner = (
                   <>
-                    <p style={{ color: "#E8A0A0", fontSize: 11, marginBottom: 4 }}>
+                    <p style={{ color: "#e3c071", fontSize: 11, marginBottom: 4 }}>
                       {item.title}
                     </p>
                     <p style={{ ...mutedStyle, margin: 0, whiteSpace: "pre-wrap" }}>{item.body}</p>
@@ -180,9 +180,9 @@ export default function NotificationCenter() {
 }
 
 const triggerStyle: React.CSSProperties = {
-  border: "1px solid rgba(232,160,160,0.28)",
+  border: "1px solid rgba(231,192,113,0.28)",
   background: "rgba(0,0,0,0.65)",
-  color: "#E8A0A0",
+  color: "#e3c071",
   padding: "8px 10px",
   fontFamily: "Georgia, serif",
   fontSize: 9,
@@ -199,15 +199,15 @@ const panelStyle: React.CSSProperties = {
   maxHeight: "70vh",
   overflowY: "auto",
   padding: 16,
-  border: "1px solid rgba(232,160,160,0.24)",
+  border: "1px solid rgba(231,192,113,0.24)",
   background: "rgba(5,3,3,0.98)",
   boxShadow: "0 18px 50px rgba(0,0,0,0.6)",
   zIndex: 80,
 };
-const labelStyle: React.CSSProperties = { color: "#E8A0A0", fontSize: 10, letterSpacing: 2, textTransform: "uppercase" };
+const labelStyle: React.CSSProperties = { color: "#e3c071", fontSize: 10, letterSpacing: 2, textTransform: "uppercase" };
 const mutedStyle: React.CSSProperties = { color: "rgba(245,240,240,0.58)", fontFamily: "Georgia, serif", fontSize: 11, lineHeight: 1.55 };
-const itemStyle: React.CSSProperties = { padding: 11, border: "1px solid rgba(232,160,160,0.1)", background: "rgba(232,160,160,0.035)" };
+const itemStyle: React.CSSProperties = { padding: 11, border: "1px solid rgba(231,192,113,0.1)", background: "rgba(231,192,113,0.035)" };
 /** Unread marker — a single burgundy rule down the left edge. */
-const unreadItemStyle: React.CSSProperties = { borderLeft: "1px solid #E8A0A0" };
-const stampStyle: React.CSSProperties = { marginTop: 7, color: "rgba(232,160,160,0.5)", fontFamily: "Georgia, serif", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase" };
+const unreadItemStyle: React.CSSProperties = { borderLeft: "1px solid #e3c071" };
+const stampStyle: React.CSSProperties = { marginTop: 7, color: "rgba(231,192,113,0.5)", fontFamily: "Georgia, serif", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase" };
 const retryStyle: React.CSSProperties = { border: 0, background: "transparent", color: "rgba(245,240,240,0.55)", fontSize: 10, cursor: "pointer" };

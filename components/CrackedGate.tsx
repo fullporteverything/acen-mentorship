@@ -61,7 +61,7 @@ export default function CrackedGate({
             marginTop: copy.showArt ? 44 : 0,
             fontSize: 11,
             letterSpacing: 5,
-            color: "rgba(232,160,160,0.55)",
+            color: "rgba(231,192,113,0.55)",
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
           }}

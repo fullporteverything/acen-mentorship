@@ -39,7 +39,7 @@ export default async function AdminPage() {
         {/* Header */}
         <div
           style={{
-            borderBottom: "1px solid rgba(232,160,160,0.15)",
+            borderBottom: "1px solid rgba(231,192,113,0.15)",
             paddingBottom: "32px",
             marginBottom: "48px",
           }}
@@ -48,7 +48,7 @@ export default async function AdminPage() {
             style={{
               fontSize: "10px",
               letterSpacing: "4px",
-              color: "#E8A0A0",
+              color: "#e3c071",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginBottom: "10px",
@@ -76,15 +76,15 @@ export default async function AdminPage() {
           <div
             style={{
               padding: "48px 40px",
-              border: "1px solid rgba(232,160,160,0.15)",
-              background: "rgba(232,160,160,0.02)",
+              border: "1px solid rgba(231,192,113,0.15)",
+              background: "rgba(231,192,113,0.02)",
               maxWidth: "480px",
             }}
           >
             <p
               style={{
                 fontSize: "44px",
-                color: "#E8A0A0",
+                color: "#e3c071",
                 fontFamily: "Georgia, serif",
                 fontWeight: 300,
                 marginBottom: "12px",

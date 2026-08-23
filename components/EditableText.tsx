@@ -106,7 +106,7 @@ export default function EditableText({
       ...style,
       width: "100%",
       background: "rgba(0,0,0,0.4)",
-      border: "1px solid rgba(232,160,160,0.4)",
+      border: "1px solid rgba(231,192,113,0.4)",
       color: "#F5F0F0",
       fontFamily: "Georgia, serif",
       padding: "6px 10px",

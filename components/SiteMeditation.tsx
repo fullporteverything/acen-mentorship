@@ -156,15 +156,15 @@ function MeditationPhi() {
         >
           <defs>
             <radialGradient id="med-halo" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#FFD8D8" stopOpacity={0.4} />
-              <stop offset="50%" stopColor="#E8A0A0" stopOpacity={0.18} />
-              <stop offset="100%" stopColor="#E8A0A0" stopOpacity={0} />
+              <stop offset="0%" stopColor="#FFF0C8" stopOpacity={0.4} />
+              <stop offset="50%" stopColor="#e3c071" stopOpacity={0.18} />
+              <stop offset="100%" stopColor="#e3c071" stopOpacity={0} />
             </radialGradient>
 
             <linearGradient id="med-fill" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#F0B0B0" />
-              <stop offset="55%" stopColor="#E8A0A0" />
-              <stop offset="100%" stopColor="#B26060" />
+              <stop offset="0%" stopColor="#f7e8ac" />
+              <stop offset="55%" stopColor="#e3c071" />
+              <stop offset="100%" stopColor="#9b7c37" />
             </linearGradient>
 
             <filter id="med-glow" x="-70%" y="-70%" width="240%" height="240%">
@@ -193,7 +193,7 @@ function MeditationPhi() {
             cy={50}
             r={44}
             fill="none"
-            stroke="rgba(232,160,160,0.5)"
+            stroke="rgba(231,192,113,0.5)"
             strokeWidth={0.6}
             strokeDasharray={300}
             initial={{ strokeDashoffset: 300 }}
@@ -221,7 +221,7 @@ function MeditationPhi() {
                   y1={4}
                   x2={50}
                   y2={major ? 10 : 7}
-                  stroke="#E8A0A0"
+                  stroke="#e3c071"
                   strokeOpacity={major ? 0.85 : 0.4}
                   strokeWidth={major ? 1.2 : 0.7}
                   strokeLinecap="round"
@@ -242,7 +242,7 @@ function MeditationPhi() {
               cy={50}
               r={36}
               fill="none"
-              stroke="rgba(232,160,160,0.28)"
+              stroke="rgba(231,192,113,0.28)"
               strokeWidth={0.4}
               strokeDasharray="3 4"
               initial={{ opacity: 0 }}
@@ -261,7 +261,7 @@ function MeditationPhi() {
               rotate: { duration: 10, repeat: Infinity, ease: "linear", delay: 1.1 },
             }}
           >
-            <circle cx={50} cy={12} r={1.6} fill="#F0B0B0" filter="url(#med-glow)" />
+            <circle cx={50} cy={12} r={1.6} fill="#f7e8ac" filter="url(#med-glow)" />
           </motion.g>
           <motion.g
             style={{ transformOrigin: "50px 50px" }}
@@ -272,7 +272,7 @@ function MeditationPhi() {
               rotate: { duration: 15, repeat: Infinity, ease: "linear", delay: 1.3 },
             }}
           >
-            <circle cx={50} cy={88} r={1.2} fill="#F0B0B0" filter="url(#med-glow)" />
+            <circle cx={50} cy={88} r={1.2} fill="#f7e8ac" filter="url(#med-glow)" />
           </motion.g>
 
           {/* Solid serif Φ — fades in amid the ring build, then shimmers forever. */}
@@ -315,7 +315,7 @@ function MeditationCaption() {
         style={{
           fontSize: 11,
           letterSpacing: 6,
-          color: "rgba(232,160,160,0.75)",
+          color: "rgba(231,192,113,0.75)",
           textTransform: "uppercase",
           fontFamily: "Georgia, serif",
         }}

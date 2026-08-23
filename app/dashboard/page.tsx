@@ -35,8 +35,8 @@ const KANJI_ACCENTS = ["♠", "♥", "♦", "♣", "♠", "♥", "♦", "♣"];
 
 // Where each overview stat card sends you when tapped.
 const STAT_CARD_HREFS: Record<string, string> = {
-  Floors: "/dashboard/lessons",
-  "The Log": "/dashboard/journal",
+  Lectures: "/dashboard/lessons",
+  Journal: "/dashboard/journal",
   Homework: "/dashboard/homework",
 };
 
@@ -127,7 +127,7 @@ export default async function DashboardPage() {
         {/* Header */}
         <div
           style={{
-            borderBottom: "1px solid rgba(232,160,160,0.15)",
+            borderBottom: "1px solid rgba(231,192,113,0.15)",
             paddingBottom: "32px",
             marginBottom: "48px",
           }}
@@ -166,8 +166,8 @@ export default async function DashboardPage() {
               fontFamily: "Georgia, serif",
             }}
           >
-            You&apos;re checked in. The Floor&apos;s running — pick up where you
-            left off, or see what the House is calling.
+            You&apos;re checked in — pick up where you left off, or see what the
+            House is calling.
           </p>
         </div>
 
@@ -201,8 +201,8 @@ export default async function DashboardPage() {
               className="overview-stat-card"
               style={{
                 padding: "28px 24px",
-                border: "1px solid rgba(232,160,160,0.12)",
-                background: "rgba(232,160,160,0.02)",
+                border: "1px solid rgba(231,192,113,0.12)",
+                background: "rgba(231,192,113,0.02)",
                 position: "relative",
                 overflow: "hidden",
               }}
@@ -238,7 +238,7 @@ export default async function DashboardPage() {
               <p
                 style={{
                   fontSize: "32px",
-                  color: "#E8A0A0",
+                  color: "#e3c071",
                   fontFamily: "Georgia, serif",
                   fontWeight: 300,
                   marginBottom: "8px",
@@ -273,7 +273,7 @@ export default async function DashboardPage() {
             <p>
               {coreProgress.nextLesson
                 ? coreProgress.nextLesson.title
-                : `${coreProgress.completedLessons} of ${coreProgress.totalLessons} core floors complete`}
+                : `${coreProgress.completedLessons} of ${coreProgress.totalLessons} core lectures complete`}
             </p>
           </div>
           <div className="overview-progress-action">
@@ -281,7 +281,7 @@ export default async function DashboardPage() {
             <div
               className="overview-progress-track"
               role="progressbar"
-              aria-label="Core floors completed"
+              aria-label="Core lectures completed"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={coreProgress.percent}
@@ -296,7 +296,7 @@ export default async function DashboardPage() {
                   : "/dashboard/lessons"
               }
             >
-              {coreProgress.nextLesson ? "Continue learning" : "View the floors"} →
+              {coreProgress.nextLesson ? "Continue learning" : "View lectures"} →
             </Link>
           </div>
         </section>
@@ -304,7 +304,7 @@ export default async function DashboardPage() {
         {/* The Floors — a card preview of the member's current + upcoming
            floors. Distinct from the CORE PROGRESS bar above it. */}
         {floorsPreview.length > 0 && (
-          <section aria-label="The Floors" style={{ marginBottom: "48px" }}>
+          <section aria-label="Lectures" style={{ marginBottom: "48px" }}>
             <div
               style={{
                 display: "flex",
@@ -323,7 +323,7 @@ export default async function DashboardPage() {
                   fontFamily: "Georgia, serif",
                 }}
               >
-                The Floors
+                Lectures
               </p>
               <Link
                 href="/dashboard/lessons"
@@ -337,7 +337,7 @@ export default async function DashboardPage() {
                   whiteSpace: "nowrap",
                 }}
               >
-                See all floors →
+                See all lectures →
               </Link>
             </div>
 
@@ -361,8 +361,8 @@ export default async function DashboardPage() {
                       padding: "20px 22px",
                       border: s.current
                         ? "1px solid rgba(231,192,113,0.35)"
-                        : "1px solid rgba(232,160,160,0.12)",
-                      background: "rgba(232,160,160,0.02)",
+                        : "1px solid rgba(231,192,113,0.12)",
+                      background: "rgba(231,192,113,0.02)",
                       textDecoration: "none",
                       opacity: locked ? 0.5 : 1,
                     }}
@@ -400,7 +400,7 @@ export default async function DashboardPage() {
                           fontFamily: "Georgia, serif",
                         }}
                       >
-                        {isCoreLesson(s.lesson) ? "Core" : s.lesson.group} · Floor{" "}
+                        {isCoreLesson(s.lesson) ? "Core" : s.lesson.group} · Lecture{" "}
                         {String(
                           sectionLessonNumber(s.lesson.id, lessons)
                         ).padStart(2, "0")}
@@ -413,7 +413,7 @@ export default async function DashboardPage() {
                             : s.completed
                               ? "Cleared"
                               : s.current
-                                ? "Current floor"
+                                ? "Current lecture"
                                 : undefined
                         }
                         title={s.completed ? "Cleared" : undefined}

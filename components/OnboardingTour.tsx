@@ -22,18 +22,18 @@ const STEPS: TourStep[] = [
   {
     kicker: "The Map",
     title: "Everything lives up here",
-    body: "The Lobby is your homepage — Lessons, The Log, and Homework live up here.",
+    body: "The Lobby is your homepage — Lessons, Journal, and Homework live up here.",
     pointsAtNav: true,
   },
   {
     kicker: "The Loop",
     title: "How a lesson closes",
-    body: "Watch the lesson, submit your homework PDF, your mentor approves, the next floor unlocks.",
+    body: "Watch the lesson, submit your homework PDF, your mentor approves, the next lecture unlocks.",
   },
   {
     kicker: "The Practice",
     title: "Write daily",
-    body: "The Log is private between you and your mentor — write daily, keep the streak.",
+    body: "Your Journal is private between you and your mentor — write daily, keep the streak.",
   },
 ];
 

@@ -46,8 +46,8 @@ export default function AnnouncementsFeed({
       <div
         style={{
           padding: "36px 32px",
-          border: "1px solid rgba(232,160,160,0.10)",
-          background: "rgba(232,160,160,0.02)",
+          border: "1px solid rgba(231,192,113,0.10)",
+          background: "rgba(231,192,113,0.02)",
           maxWidth: 640,
           position: "relative",
           overflow: "hidden",
@@ -96,7 +96,7 @@ export default function AnnouncementsFeed({
           style={{
             width: 32,
             height: 1,
-            background: "linear-gradient(90deg, #E8A0A0, transparent)",
+            background: "linear-gradient(90deg, #e3c071, transparent)",
             marginTop: 24,
           }}
         />
@@ -131,8 +131,8 @@ export default function AnnouncementsFeed({
             style={{
               position: "relative",
               padding: "22px 24px",
-              border: "1px solid rgba(232,160,160,0.15)",
-              background: "rgba(232,160,160,0.03)",
+              border: "1px solid rgba(231,192,113,0.15)",
+              background: "rgba(231,192,113,0.03)",
               cursor: isUnread ? "pointer" : "default",
               overflow: "hidden",
             }}
@@ -147,10 +147,10 @@ export default function AnnouncementsFeed({
                   right: 14,
                   fontSize: 8,
                   letterSpacing: 3,
-                  color: "#F0B0B0",
+                  color: "#f7e8ac",
                   textTransform: "uppercase",
                   fontFamily: "Georgia, serif",
-                  border: "1px solid rgba(232,160,160,0.55)",
+                  border: "1px solid rgba(231,192,113,0.55)",
                   padding: "2px 7px",
                 }}
               >
@@ -161,7 +161,7 @@ export default function AnnouncementsFeed({
             <p
               style={{
                 fontSize: 15,
-                color: "#E8A0A0",
+                color: "#e3c071",
                 fontFamily: "Georgia, serif",
                 letterSpacing: 1,
                 marginBottom: 8,

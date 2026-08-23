@@ -34,7 +34,7 @@ interface Announcement {
 const sectionLabel: React.CSSProperties = {
   fontSize: "10px",
   letterSpacing: "4px",
-  color: "#E8A0A0",
+  color: "#e3c071",
   textTransform: "uppercase",
   fontFamily: "Georgia, serif",
   marginBottom: "18px",
@@ -42,8 +42,8 @@ const sectionLabel: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   padding: "28px 32px",
-  border: "1px solid rgba(232,160,160,0.12)",
-  background: "rgba(232,160,160,0.02)",
+  border: "1px solid rgba(231,192,113,0.12)",
+  background: "rgba(231,192,113,0.02)",
   maxWidth: "760px",
   marginBottom: "40px",
 };
@@ -59,7 +59,7 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
   background: "rgba(0,0,0,0.35)",
-  border: "1px solid rgba(232,160,160,0.2)",
+  border: "1px solid rgba(231,192,113,0.2)",
   color: "#F5F0F0",
   fontFamily: "Georgia, serif",
   fontSize: "13px",
@@ -73,8 +73,8 @@ const smallBtn: React.CSSProperties = {
   fontFamily: "Georgia, serif",
   padding: "8px 16px",
   background: "transparent",
-  border: "1px solid rgba(232,160,160,0.4)",
-  color: "#E8A0A0",
+  border: "1px solid rgba(231,192,113,0.4)",
+  color: "#e3c071",
   cursor: "pointer",
 };
 
@@ -208,7 +208,7 @@ function SkeletonBar({ width = "140px" }: { width?: string }) {
         width,
         height: "12px",
         borderRadius: "3px",
-        background: "rgba(232,160,160,0.08)",
+        background: "rgba(231,192,113,0.08)",
         animation: "dojoPulse 1.4s ease-in-out infinite",
       }}
     />
@@ -343,8 +343,8 @@ function AdminPanelBody() {
             }
             style={{
               ...smallBtn,
-              background: activeTab === id ? "#E8A0A0" : "transparent",
-              color: activeTab === id ? "#000" : "#E8A0A0",
+              background: activeTab === id ? "#e3c071" : "transparent",
+              color: activeTab === id ? "#000" : "#e3c071",
             }}
           >
             {label}
@@ -352,7 +352,7 @@ function AdminPanelBody() {
               <sup
                 style={{
                   ...pendingBadgeStyle,
-                  color: activeTab === id ? "#000" : "#F0B0B0",
+                  color: activeTab === id ? "#000" : "#f7e8ac",
                 }}
               >
                 {pendingCount}
@@ -453,7 +453,7 @@ function AdminPanelBody() {
                 key={i}
                 style={{
                   padding: "14px 16px",
-                  border: "1px solid rgba(232,160,160,0.10)",
+                  border: "1px solid rgba(231,192,113,0.10)",
                   background: "rgba(0,0,0,0.25)",
                   fontFamily: "Georgia, serif",
                 }}
@@ -555,9 +555,9 @@ function AutoApproveSection() {
             width: "48px",
             height: "24px",
             borderRadius: "12px",
-            border: "1px solid rgba(232,160,160,0.4)",
+            border: "1px solid rgba(231,192,113,0.4)",
             background: autoApprove
-              ? "rgba(232,160,160,0.4)"
+              ? "rgba(231,192,113,0.4)"
               : "rgba(0,0,0,0.4)",
             cursor: loading || saving ? "default" : "pointer",
             transition: "background 0.25s ease",
@@ -572,7 +572,7 @@ function AutoApproveSection() {
               width: "18px",
               height: "18px",
               borderRadius: "50%",
-              background: autoApprove ? "#E8A0A0" : "rgba(245,240,240,0.5)",
+              background: autoApprove ? "#e3c071" : "rgba(245,240,240,0.5)",
               transition: "left 0.25s ease, background 0.25s ease",
             }}
           />
@@ -583,7 +583,7 @@ function AutoApproveSection() {
             letterSpacing: "2px",
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
-            color: autoApprove ? "#E8A0A0" : "rgba(245,240,240,0.45)",
+            color: autoApprove ? "#e3c071" : "rgba(245,240,240,0.45)",
           }}
         >
           {loading ? "…" : autoApprove ? "On" : "Off"}
@@ -694,7 +694,7 @@ function HomeworkQueueSection({
                 key={key}
                 style={{
                   padding: "16px 18px",
-                  border: "1px solid rgba(232,160,160,0.12)",
+                  border: "1px solid rgba(231,192,113,0.12)",
                   background: "rgba(0,0,0,0.25)",
                   fontFamily: "Georgia, serif",
                 }}
@@ -733,7 +733,7 @@ function HomeworkQueueSection({
                   style={{
                     display: "inline-block",
                     fontSize: "12px",
-                    color: "#E8A0A0",
+                    color: "#e3c071",
                     letterSpacing: "1px",
                     marginBottom: "14px",
                     textDecoration: "none",
@@ -901,13 +901,13 @@ function AnnouncementsSection() {
                 alignItems: "flex-start",
                 gap: "16px",
                 padding: "14px 16px",
-                borderLeft: "3px solid #E8A0A0",
-                background: "rgba(232,160,160,0.06)",
+                borderLeft: "3px solid #e3c071",
+                background: "rgba(231,192,113,0.06)",
                 fontFamily: "Georgia, serif",
               }}
             >
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: "13px", color: "#E8A0A0", marginBottom: "4px" }}>
+                <p style={{ fontSize: "13px", color: "#e3c071", marginBottom: "4px" }}>
                   {a.title}
                 </p>
                 <p

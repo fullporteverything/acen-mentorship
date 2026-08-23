@@ -87,13 +87,13 @@ export function buildOverviewStats({
 
   return [
     {
-      label: "Floors",
+      label: "Lectures",
       value: String(total),
       sub: `${completed} completed`,
       kanji: "♠",
     },
     {
-      label: "The Log",
+      label: "Journal",
       value: String(entries),
       sub: entries === 1 ? "entry" : "entries",
       kanji: "♥",

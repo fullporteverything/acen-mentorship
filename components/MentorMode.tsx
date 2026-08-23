@@ -165,9 +165,9 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
           textTransform: "uppercase",
           fontFamily: "Georgia, serif",
           padding: "9px 18px",
-          background: active ? "rgba(232,160,160,0.12)" : "rgba(0,0,0,0.6)",
-          border: "1px solid rgba(232,160,160,0.45)",
-          color: "#E8A0A0",
+          background: active ? "rgba(231,192,113,0.12)" : "rgba(0,0,0,0.6)",
+          border: "1px solid rgba(231,192,113,0.45)",
+          color: "#e3c071",
           cursor: "pointer",
           backdropFilter: "blur(6px)",
           WebkitBackdropFilter: "blur(6px)",
@@ -201,7 +201,7 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                 style={{
                   fontSize: 10,
                   letterSpacing: 4,
-                  color: "#E8A0A0",
+                  color: "#e3c071",
                   textTransform: "uppercase",
                   fontFamily: "Georgia, serif",
                   marginBottom: 10,
@@ -249,8 +249,8 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                   style={{
                     width: selected ? 236 : 440,
                     flex: "0 0 auto",
-                    border: "1px solid rgba(232,160,160,0.12)",
-                    background: "rgba(232,160,160,0.02)",
+                    border: "1px solid rgba(231,192,113,0.12)",
+                    background: "rgba(231,192,113,0.02)",
                   }}
                 >
                   {loading ? (
@@ -269,7 +269,7 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                           style={{
                             height: 14,
                             borderRadius: 3,
-                            background: "rgba(232,160,160,0.08)",
+                            background: "rgba(231,192,113,0.08)",
                             animation: "dojoPulse 1.4s ease-in-out infinite",
                           }}
                         />
@@ -298,11 +298,11 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                           animate={{
                             boxShadow: pulsing
                               ? [
-                                  "0px 0px 0px rgba(232,160,160,0)",
-                                  "0px 0px 18px rgba(232,160,160,0.55)",
-                                  "0px 0px 0px rgba(232,160,160,0)",
+                                  "0px 0px 0px rgba(231,192,113,0)",
+                                  "0px 0px 18px rgba(231,192,113,0.55)",
+                                  "0px 0px 0px rgba(231,192,113,0)",
                                 ]
-                              : "0px 0px 0px rgba(232,160,160,0)",
+                              : "0px 0px 0px rgba(231,192,113,0)",
                           }}
                           transition={
                             pulsing
@@ -317,15 +317,15 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                             gap: 12,
                             padding: "14px 18px",
                             background: isSel
-                              ? "rgba(232,160,160,0.08)"
+                              ? "rgba(231,192,113,0.08)"
                               : pulsing
-                              ? "rgba(232,160,160,0.05)"
+                              ? "rgba(231,192,113,0.05)"
                               : "transparent",
                             border: "none",
                             borderLeft: isSel
-                              ? "2px solid #E8A0A0"
+                              ? "2px solid #e3c071"
                               : "2px solid transparent",
-                            borderBottom: "1px solid rgba(232,160,160,0.08)",
+                            borderBottom: "1px solid rgba(231,192,113,0.08)",
                             color: isSel ? "#F5F0F0" : "rgba(245,240,240,0.7)",
                             fontFamily: "Georgia, serif",
                             fontSize: 13,
@@ -347,7 +347,7 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                             style={{
                               flex: "0 0 auto",
                               fontSize: 10,
-                              color: pulsing ? "#F0B0B0" : "rgba(232,160,160,0.6)",
+                              color: pulsing ? "#f7e8ac" : "rgba(231,192,113,0.6)",
                             }}
                           >
                             {s.entries.length}
@@ -389,7 +389,7 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                               <div
                                 key={entry.id}
                                 style={{
-                                  border: "1px solid rgba(232,160,160,0.12)",
+                                  border: "1px solid rgba(231,192,113,0.12)",
                                   background: "rgba(0,0,0,0.5)",
                                   padding: "16px 19px 18px",
                                   fontFamily: "Georgia, serif",
@@ -436,7 +436,7 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                                           display: "block",
                                           width: 120,
                                           height: 88,
-                                          border: "1px solid rgba(232,160,160,0.15)",
+                                          border: "1px solid rgba(231,192,113,0.15)",
                                         }}
                                       >
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -469,7 +469,7 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                                     width: "100%",
                                     padding: "10px 12px",
                                     background: "rgba(0,0,0,0.4)",
-                                    border: "1px solid rgba(232,160,160,0.2)",
+                                    border: "1px solid rgba(231,192,113,0.2)",
                                     color: "#F5F0F0",
                                     fontFamily: "Georgia, serif",
                                     fontSize: 12,
@@ -496,8 +496,8 @@ export default function MentorMode({ isAdmin }: { isAdmin: boolean }) {
                                       fontFamily: "Georgia, serif",
                                       padding: "8px 16px",
                                       background: "transparent",
-                                      border: "1px solid rgba(232,160,160,0.4)",
-                                      color: "#E8A0A0",
+                                      border: "1px solid rgba(231,192,113,0.4)",
+                                      color: "#e3c071",
                                       cursor: busy || !dirty ? "default" : "pointer",
                                       opacity: busy || !dirty ? 0.5 : 1,
                                     }}

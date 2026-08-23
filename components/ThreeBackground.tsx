@@ -42,9 +42,10 @@ const rand = (min: number, max: number) => min + Math.random() * (max - min);
 /* ── Procedural placeholder textures ─────────────────────────────────────── */
 
 function drawPetal(ctx: CanvasRenderingContext2D, s: number) {
+  // Champagne-gold petals for the black + gold noir theme (was rose).
   const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  g.addColorStop(0, "rgba(255, 182, 193, 1.0)");
-  g.addColorStop(1, "rgba(255, 160, 180, 0)");
+  g.addColorStop(0, "rgba(247, 232, 172, 0.95)");
+  g.addColorStop(1, "rgba(231, 192, 113, 0)");
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.ellipse(s / 2, s / 2, s * 0.31, s * 0.47, 0, 0, Math.PI * 2);
@@ -109,7 +110,7 @@ function drawCard(ctx: CanvasRenderingContext2D, s: number) {
   ctx.lineWidth = s * 0.02;
   ctx.stroke();
   // center suit + rank
-  ctx.fillStyle = "#e8a0a0";
+  ctx.fillStyle = "#e3c071";
   ctx.font = `bold ${s * 0.26}px Georgia, serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";

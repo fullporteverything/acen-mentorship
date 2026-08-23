@@ -14,10 +14,10 @@ function dayKey(d: Date): string {
 }
 
 const LEVELS = [
-  "rgba(232,160,160,0.08)",
-  "rgba(232,160,160,0.30)",
-  "rgba(232,160,160,0.58)",
-  "#E8A0A0",
+  "rgba(231,192,113,0.08)",
+  "rgba(231,192,113,0.30)",
+  "rgba(231,192,113,0.58)",
+  "#e3c071",
 ];
 
 export default function JournalHeatmap({ dates, weeks = 13 }: JournalHeatmapProps) {

@@ -161,7 +161,7 @@ export default function LessonsSidebar({
         width: "240px",
         flex: "0 0 240px",
         background: "#000000",
-        borderRight: "1px solid rgba(232,160,160,0.12)",
+        borderRight: "1px solid rgba(231,192,113,0.12)",
         padding: "40px 0",
         minHeight: "100vh",
       }}
@@ -172,7 +172,7 @@ export default function LessonsSidebar({
           style={{
             fontSize: "11px",
             letterSpacing: "5px",
-            color: "#E8A0A0",
+            color: "#e3c071",
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
           }}
@@ -187,7 +187,7 @@ export default function LessonsSidebar({
           style={{
             height: "2px",
             width: "100%",
-            background: "rgba(232,160,160,0.15)",
+            background: "rgba(231,192,113,0.15)",
             marginBottom: "10px",
           }}
         >
@@ -195,7 +195,7 @@ export default function LessonsSidebar({
             style={{
               height: "100%",
               width: `${pct}%`,
-              background: "#E8A0A0",
+              background: "#e3c071",
               transition: "width 0.3s ease",
             }}
           />
@@ -209,7 +209,7 @@ export default function LessonsSidebar({
           }}
         >
           {done} / {total} lessons completed
-          <span style={{ color: "rgba(232,160,160,0.6)" }}> · {pct}%</span>
+          <span style={{ color: "rgba(231,192,113,0.6)" }}> · {pct}%</span>
         </p>
       </div>
 
@@ -239,8 +239,8 @@ export default function LessonsSidebar({
                   justifyContent: "space-between",
                   alignItems: "center",
                   padding: "10px 28px",
-                  borderTop: "1px solid rgba(232,160,160,0.08)",
-                  borderBottom: "1px solid rgba(232,160,160,0.08)",
+                  borderTop: "1px solid rgba(231,192,113,0.08)",
+                  borderBottom: "1px solid rgba(231,192,113,0.08)",
                   gap: 8,
                 }}
               >
@@ -266,7 +266,7 @@ export default function LessonsSidebar({
                     style={{
                       fontSize: "9px",
                       letterSpacing: "1px",
-                      color: "rgba(232,160,160,0.55)",
+                      color: "rgba(231,192,113,0.55)",
                       fontFamily: "Georgia, serif",
                     }}
                   >
@@ -289,12 +289,12 @@ export default function LessonsSidebar({
                       padding: "0 28px 10px",
                       fontSize: "9px",
                       lineHeight: 1.5,
-                      color: "rgba(232,160,160,0.55)",
+                      color: "rgba(231,192,113,0.55)",
                       fontFamily: "Georgia, serif",
                       letterSpacing: "0.5px",
                     }}
                   >
-                    Locked until CORE Floor 04 is passed.
+                    Locked until CORE Lecture 04 is passed.
                   </p>
                 )}
 
@@ -366,16 +366,16 @@ export default function LessonsSidebar({
                       display: "flex",
                       alignItems: "stretch",
                       background: isActive
-                        ? "rgba(232,160,160,0.06)"
+                        ? "rgba(231,192,113,0.06)"
                         : "transparent",
                       borderLeft: isActive
-                        ? "2px solid #E8A0A0"
+                        ? "2px solid #e3c071"
                         : "2px solid transparent",
                       // Insertion line is an inset shadow so nothing reflows.
                       boxShadow: isDropTarget
                         ? dropsBelow
-                          ? "inset 0 -2px 0 #E8A0A0"
-                          : "inset 0 2px 0 #E8A0A0"
+                          ? "inset 0 -2px 0 #e3c071"
+                          : "inset 0 2px 0 #e3c071"
                         : undefined,
                       opacity: isDragged ? 0.4 : isSaving && isAdmin ? 0.6 : 1,
                       transition: "opacity 0.15s ease",
@@ -408,13 +408,13 @@ export default function LessonsSidebar({
                             : s.completed
                             ? "rgba(245,240,240,0.75)"
                             : isActive
-                            ? "#F0B0B0"
+                            ? "#f7e8ac"
                             : "rgba(245,240,240,0.6)",
                         }}
                       >
                         <span
                           style={{
-                            color: "rgba(232,160,160,0.5)",
+                            color: "rgba(231,192,113,0.5)",
                             marginRight: "8px",
                           }}
                         >
@@ -426,7 +426,7 @@ export default function LessonsSidebar({
                             style={{
                               display: "block",
                               marginTop: "2px",
-                              color: "rgba(232,160,160,0.5)",
+                              color: "rgba(231,192,113,0.5)",
                               fontSize: "9px",
                             }}
                           >
@@ -442,7 +442,7 @@ export default function LessonsSidebar({
                           color: !s.unlocked
                             ? "rgba(245,240,240,0.25)"
                             : s.completed
-                              ? "#E8A0A0"
+                              ? "#e3c071"
                               : "rgba(245,240,240,0.25)",
                         }}
                       >

@@ -18,8 +18,8 @@ export default function StreakPill({ dates }: { dates: string[] }) {
   return (
     <div
       style={{
-        border: "1px solid rgba(232,160,160,0.25)",
-        background: "rgba(232,160,160,0.04)",
+        border: "1px solid rgba(231,192,113,0.25)",
+        background: "rgba(231,192,113,0.04)",
         padding: "10px 14px",
         display: "flex",
         alignItems: "center",

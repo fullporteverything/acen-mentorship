@@ -106,7 +106,7 @@ export default async function LessonsPage() {
           {/* Header */}
           <div
             style={{
-              borderBottom: "1px solid rgba(232,160,160,0.15)",
+              borderBottom: "1px solid rgba(231,192,113,0.15)",
               paddingBottom: "32px",
               marginBottom: "40px",
             }}
@@ -133,7 +133,7 @@ export default async function LessonsPage() {
                 fontFamily: "Georgia, serif",
               }}
             >
-              The Floors
+              Lectures
             </h1>
           </div>
 
@@ -160,15 +160,15 @@ export default async function LessonsPage() {
                   <div
                     key={a.id}
                     style={{
-                      borderLeft: "3px solid #E8A0A0",
-                      background: "rgba(232,160,160,0.06)",
+                      borderLeft: "3px solid #e3c071",
+                      background: "rgba(231,192,113,0.06)",
                       padding: "16px 20px",
                     }}
                   >
                     <p
                       style={{
                         fontSize: "14px",
-                        color: "#E8A0A0",
+                        color: "#e3c071",
                         fontFamily: "Georgia, serif",
                         letterSpacing: "1px",
                         marginBottom: "6px",
@@ -238,8 +238,8 @@ export default async function LessonsPage() {
                       padding: "20px 22px",
                       border: s.current
                         ? "1px solid rgba(231,192,113,0.35)"
-                        : "1px solid rgba(232,160,160,0.12)",
-                      background: "rgba(232,160,160,0.04)",
+                        : "1px solid rgba(231,192,113,0.12)",
+                      background: "rgba(231,192,113,0.04)",
                       textDecoration: "none",
                       opacity: locked ? 0.5 : 1,
                     }}
@@ -256,7 +256,7 @@ export default async function LessonsPage() {
                         style={{
                           fontSize: "9px",
                           letterSpacing: "3px",
-                          color: "rgba(232,160,160,0.6)",
+                          color: "rgba(231,192,113,0.6)",
                           textTransform: "uppercase",
                           fontFamily: "Georgia, serif",
                         }}
@@ -265,7 +265,7 @@ export default async function LessonsPage() {
                       </span>
                       <span
                         className={`lesson-card-status ${s.unlocked && s.completed ? "completed" : ""}`}
-                        aria-label={locked ? "Locked until CORE Floor 04 is passed" : s.completed ? "Completed" : s.current ? "Current lesson" : undefined}
+                        aria-label={locked ? "Locked until CORE Lecture 04 is passed" : s.completed ? "Completed" : s.current ? "Current lesson" : undefined}
                         title={s.completed ? "Completed" : undefined}
                       >
                         {locked ? "🔒" : s.completed ? "✓" : s.current ? "→" : ""}
@@ -298,7 +298,7 @@ export default async function LessonsPage() {
                         style={{
                           marginTop: "9px",
                           fontSize: "10px",
-                          color: "rgba(232,160,160,0.7)",
+                          color: "rgba(231,192,113,0.7)",
                           fontFamily: "Georgia, serif",
                         }}
                       >
@@ -310,12 +310,12 @@ export default async function LessonsPage() {
                         style={{
                           marginTop: "10px",
                           fontSize: "10px",
-                          color: "rgba(232,160,160,0.65)",
+                          color: "rgba(231,192,113,0.65)",
                           fontFamily: "Georgia, serif",
                           lineHeight: 1.5,
                         }}
                       >
-                        Locked until CORE Floor 04 is passed.
+                        Locked until CORE Lecture 04 is passed.
                       </p>
                     )}
                   </Link>

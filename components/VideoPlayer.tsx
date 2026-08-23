@@ -199,7 +199,7 @@ export default function VideoPlayer({
           width: "100%",
           aspectRatio: "16 / 9",
           background: "#000",
-          border: "1px solid rgba(232,160,160,0.15)",
+          border: "1px solid rgba(231,192,113,0.15)",
           overflow: "hidden",
         }}
       >

@@ -65,12 +65,12 @@ export default function SupportTicket() {
           target="_blank"
           rel="noopener noreferrer"
           style={{
-            color: "#E8A0A0",
+            color: "#e3c071",
             fontFamily: "Georgia, serif",
             fontSize: 14,
             letterSpacing: 1,
             textDecoration: "none",
-            borderBottom: "1px solid rgba(232,160,160,0.4)",
+            borderBottom: "1px solid rgba(231,192,113,0.4)",
           }}
         >
           Go to your ticket &rarr;
@@ -91,7 +91,7 @@ export default function SupportTicket() {
           width: "100%",
           padding: "10px 12px",
           background: "rgba(0,0,0,0.4)",
-          border: "1px solid rgba(232,160,160,0.2)",
+          border: "1px solid rgba(231,192,113,0.2)",
           color: "#F5F0F0",
           fontFamily: "Georgia, serif",
           fontSize: 13,
@@ -118,8 +118,8 @@ export default function SupportTicket() {
           style={{
             padding: "11px 22px",
             background: "transparent",
-            border: "1px solid rgba(232,160,160,0.45)",
-            color: "#E8A0A0",
+            border: "1px solid rgba(231,192,113,0.45)",
+            color: "#e3c071",
             fontFamily: "Georgia, serif",
             fontSize: 10,
             letterSpacing: 2,
@@ -153,7 +153,7 @@ export default function SupportTicket() {
 
 const kicker: React.CSSProperties = {
   marginBottom: 14,
-  color: "#E8A0A0",
+  color: "#e3c071",
   fontFamily: "Georgia, serif",
   fontSize: 10,
   letterSpacing: 2.5,

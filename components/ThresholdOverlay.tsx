@@ -47,7 +47,7 @@ export default function ThresholdOverlay() {
           bottom: "18%",
           fontSize: 10,
           letterSpacing: 6,
-          color: "rgba(232,160,160,0.7)",
+          color: "rgba(231,192,113,0.7)",
           textTransform: "uppercase",
           fontFamily: "Georgia, serif",
         }}

@@ -67,8 +67,8 @@ export default function JournalNavBadge() {
         width: 6,
         height: 6,
         borderRadius: "50%",
-        background: "#E8A0A0",
-        boxShadow: "0 0 6px rgba(232,160,160,0.9)",
+        background: "#e3c071",
+        boxShadow: "0 0 6px rgba(231,192,113,0.9)",
       }}
     />
   );

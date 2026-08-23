@@ -90,13 +90,13 @@ export default function HomeworkUpload({ lessonId }: HomeworkUploadProps) {
         {submitted && (
           <p
             style={{
-              border: "1px solid rgba(232,160,160,0.45)",
-              background: "rgba(232,160,160,0.05)",
+              border: "1px solid rgba(231,192,113,0.45)",
+              background: "rgba(231,192,113,0.05)",
               padding: "12px 16px",
               marginBottom: "20px",
               fontSize: "12px",
               letterSpacing: "1px",
-              color: "#E8A0A0",
+              color: "#e3c071",
               fontFamily: "Georgia, serif",
             }}
           >
@@ -122,8 +122,8 @@ export default function HomeworkUpload({ lessonId }: HomeworkUploadProps) {
         <label
           style={{
             display: "block",
-            border: "1px dashed rgba(232,160,160,0.3)",
-            background: "rgba(232,160,160,0.03)",
+            border: "1px dashed rgba(231,192,113,0.3)",
+            background: "rgba(231,192,113,0.03)",
             padding: "18px 20px",
             cursor: "pointer",
             fontFamily: "Georgia, serif",

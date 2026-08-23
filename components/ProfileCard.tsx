@@ -174,7 +174,7 @@ export default function ProfileCard({
           width: CARD_WIDTH,
           maxWidth: "calc(100vw - 32px)",
           background: "#000",
-          border: "1px solid rgba(232,160,160,0.2)",
+          border: "1px solid rgba(231,192,113,0.2)",
           borderRadius: 14,
           overflow: "hidden",
           boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
@@ -248,9 +248,9 @@ export default function ProfileCard({
                     height: AVATAR_SIZE,
                     borderRadius: "50%",
                     border: "2px solid #000",
-                    outline: "1px solid rgba(232,160,160,0.35)",
-                    background: "rgba(232,160,160,0.08)",
-                    color: "#E8A0A0",
+                    outline: "1px solid rgba(231,192,113,0.35)",
+                    background: "rgba(231,192,113,0.08)",
+                    color: "#e3c071",
                     fontFamily: "'Cormorant Garamond', Georgia, serif",
                     fontSize: 40,
                     display: "flex",
@@ -303,7 +303,7 @@ export default function ProfileCard({
                 marginTop: 6,
                 fontSize: 9,
                 letterSpacing: 3,
-                color: "rgba(232,160,160,0.6)",
+                color: "rgba(231,192,113,0.6)",
                 textTransform: "uppercase",
                 fontFamily: "Georgia, serif",
               }}
@@ -318,7 +318,7 @@ export default function ProfileCard({
               height: 1,
               margin: "16px 24px 0",
               background:
-                "linear-gradient(90deg, rgba(232,160,160,0) 0%, rgba(232,160,160,0.3) 50%, rgba(232,160,160,0) 100%)",
+                "linear-gradient(90deg, rgba(231,192,113,0) 0%, rgba(231,192,113,0.3) 50%, rgba(231,192,113,0) 100%)",
             }}
           />
 
@@ -348,7 +348,7 @@ export default function ProfileCard({
                   style={{
                     fontSize: 8,
                     letterSpacing: 2,
-                    color: "rgba(232,160,160,0.5)",
+                    color: "rgba(231,192,113,0.5)",
                     textTransform: "uppercase",
                     fontFamily: "Georgia, serif",
                     animation: "profileShimmer 1.2s ease-in-out infinite",
@@ -376,11 +376,11 @@ export default function ProfileCard({
                       gap: 6,
                       padding: "8px 4px",
                       background: active
-                        ? "rgba(232,160,160,0.1)"
+                        ? "rgba(231,192,113,0.1)"
                         : "transparent",
                       border: active
-                        ? "1px solid rgba(232,160,160,0.45)"
-                        : "1px solid rgba(232,160,160,0.15)",
+                        ? "1px solid rgba(231,192,113,0.45)"
+                        : "1px solid rgba(231,192,113,0.15)",
                       borderRadius: 8,
                       cursor: "pointer",
                       transition:
@@ -393,7 +393,7 @@ export default function ProfileCard({
                         fontSize: 8,
                         letterSpacing: 1.5,
                         color: active
-                          ? "#E8A0A0"
+                          ? "#e3c071"
                           : "rgba(245,240,240,0.5)",
                         textTransform: "uppercase",
                         fontFamily: "Georgia, serif",
@@ -439,7 +439,7 @@ function EffectLayer({ effect }: { effect: ProfileEffect }) {
                 width: size,
                 height: size,
                 borderRadius: "60% 60% 60% 0",
-                background: "#F0B0B0",
+                background: "#f7e8ac",
                 opacity: 0.75,
                 animation: `profileSakura ${duration}s linear ${delay}s infinite`,
               }}
@@ -494,7 +494,7 @@ function EffectLayer({ effect }: { effect: ProfileEffect }) {
             fontFamily: "'Cormorant Garamond', Georgia, serif",
             fontSize: 220,
             lineHeight: 1,
-            color: "rgba(232,160,160,0.08)",
+            color: "rgba(231,192,113,0.08)",
             animation: "profilePhi 3.6s ease-in-out infinite",
           }}
         >
@@ -524,7 +524,7 @@ function SwatchGlyph({ effect }: { effect: ProfileEffect }) {
           borderRadius: "60% 60% 60% 0",
           width: 10,
           height: 10,
-          background: "#F0B0B0",
+          background: "#f7e8ac",
         }}
       />
     );
@@ -550,7 +550,7 @@ function SwatchGlyph({ effect }: { effect: ProfileEffect }) {
           ...base,
           fontFamily: "'Cormorant Garamond', Georgia, serif",
           fontSize: 15,
-          color: "#E8A0A0",
+          color: "#e3c071",
           lineHeight: 1,
         }}
       >

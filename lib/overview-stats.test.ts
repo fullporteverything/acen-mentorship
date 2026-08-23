@@ -74,8 +74,8 @@ describe("buildOverviewStats", () => {
         pendingHomework: 2,
       })
     ).toEqual([
-      { label: "Floors", value: "12", sub: "4 completed", kanji: "♠" },
-      { label: "The Log", value: "3", sub: "entries", kanji: "♥" },
+      { label: "Lectures", value: "12", sub: "4 completed", kanji: "♠" },
+      { label: "Journal", value: "3", sub: "entries", kanji: "♥" },
       { label: "Homework", value: "2", sub: "awaiting review", kanji: "♦" },
     ]);
   });
@@ -89,8 +89,8 @@ describe("buildOverviewStats", () => {
         pendingHomework: -3,
       })
     ).toEqual([
-      { label: "Floors", value: "2", sub: "2 completed", kanji: "♠" },
-      { label: "The Log", value: "1", sub: "entry", kanji: "♥" },
+      { label: "Lectures", value: "2", sub: "2 completed", kanji: "♠" },
+      { label: "Journal", value: "1", sub: "entry", kanji: "♥" },
       { label: "Homework", value: "0", sub: "all reviewed", kanji: "♦" },
     ]);
   });

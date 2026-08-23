@@ -182,7 +182,7 @@ function VideoRow({
     <div
       style={{
         padding: "14px 16px",
-        border: "1px solid rgba(232,160,160,0.10)",
+        border: "1px solid rgba(231,192,113,0.10)",
         background: "rgba(0,0,0,0.25)",
         fontFamily: "Georgia, serif",
       }}
@@ -207,7 +207,7 @@ function VideoRow({
             {" "}· {video.error}
           </span>
         ) : !video.ready ? (
-          <span style={{ color: "rgba(232,160,160,0.7)", fontStyle: "italic" }}>
+          <span style={{ color: "rgba(231,192,113,0.7)", fontStyle: "italic" }}>
             {" "}· {video.status}
             {video.progress !== null ? ` (${Math.round(video.progress)}%)` : ""}
           </span>
@@ -240,7 +240,7 @@ function VideoRow({
           type="button"
           onClick={copyUid}
           style={{
-            background: "#E8A0A0",
+            background: "#e3c071",
             color: "#000",
             border: "none",
             padding: "8px 16px",
@@ -275,7 +275,7 @@ function VideoRow({
             padding: "8px 10px",
             background: "#080606",
             color: "#F5F0F0",
-            border: "1px solid rgba(232,160,160,0.25)",
+            border: "1px solid rgba(231,192,113,0.25)",
             fontFamily: "Georgia, serif",
           }}
         >
@@ -315,8 +315,8 @@ function VideoRow({
 const secondaryButton: React.CSSProperties = {
   padding: "8px 12px",
   background: "transparent",
-  color: "#E8A0A0",
-  border: "1px solid rgba(232,160,160,0.35)",
+  color: "#e3c071",
+  border: "1px solid rgba(231,192,113,0.35)",
   fontFamily: "Georgia, serif",
   fontSize: "9px",
   letterSpacing: "1px",
@@ -348,7 +348,7 @@ function SkeletonBar({ width = "140px" }: { width?: string }) {
         width,
         height: "12px",
         borderRadius: "3px",
-        background: "rgba(232,160,160,0.08)",
+        background: "rgba(231,192,113,0.08)",
         animation: "dojoPulse 1.4s ease-in-out infinite",
       }}
     />
@@ -358,7 +358,7 @@ function SkeletonBar({ width = "140px" }: { width?: string }) {
 const sectionLabel: React.CSSProperties = {
   fontSize: "10px",
   letterSpacing: "4px",
-  color: "#E8A0A0",
+  color: "#e3c071",
   textTransform: "uppercase",
   fontFamily: "Georgia, serif",
   marginBottom: "18px",
@@ -366,8 +366,8 @@ const sectionLabel: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   padding: "28px 32px",
-  border: "1px solid rgba(232,160,160,0.12)",
-  background: "rgba(232,160,160,0.02)",
+  border: "1px solid rgba(231,192,113,0.12)",
+  background: "rgba(231,192,113,0.02)",
   maxWidth: "760px",
   marginBottom: "40px",
 };

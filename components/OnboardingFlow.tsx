@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 type IdentityStatus = "pending" | "verified" | "requires_input" | "canceled" | null;
 
-const BURGUNDY = "#E8A0A0";
+const BURGUNDY = "#e3c071";
 
 const label: React.CSSProperties = {
   fontSize: 10,
@@ -40,7 +40,7 @@ const cardShell: React.CSSProperties = {
   margin: "0 auto",
   padding: "56px 48px",
   background: "#000000",
-  border: "1px solid rgba(232,160,160,0.15)",
+  border: "1px solid rgba(231,192,113,0.15)",
 };
 
 /**
@@ -168,8 +168,8 @@ function NdaStep({
           maxHeight: 320,
           overflowY: "auto",
           padding: "22px 24px",
-          border: "1px solid rgba(232,160,160,0.15)",
-          background: "rgba(232,160,160,0.02)",
+          border: "1px solid rgba(231,192,113,0.15)",
+          background: "rgba(231,192,113,0.02)",
           fontFamily: "Georgia, serif",
           fontSize: 13,
           lineHeight: 1.85,
@@ -180,7 +180,7 @@ function NdaStep({
         {ndaText}
       </div>
       {!scrolledToEnd && (
-        <p style={{ ...label, marginTop: 12, color: "rgba(232,160,160,0.5)", letterSpacing: 3 }}>
+        <p style={{ ...label, marginTop: 12, color: "rgba(231,192,113,0.5)", letterSpacing: 3 }}>
           Scroll to the end to continue
         </p>
       )}
@@ -198,8 +198,8 @@ function NdaStep({
           style={{
             width: "100%",
             padding: "12px 14px",
-            background: "rgba(232,160,160,0.03)",
-            border: "1px solid rgba(232,160,160,0.2)",
+            background: "rgba(231,192,113,0.03)",
+            border: "1px solid rgba(231,192,113,0.2)",
             color: "#F5F0F0",
             fontFamily: "Georgia, serif",
             fontSize: 14,
@@ -295,7 +295,7 @@ function IdentityStep({
       </p>
 
       {isPending && (
-        <p style={{ ...body, marginTop: 18, color: "rgba(232,160,160,0.75)" }}>
+        <p style={{ ...body, marginTop: 18, color: "rgba(231,192,113,0.75)" }}>
           Your verification is being reviewed. This can take a moment — refresh this page once
           you&rsquo;ve completed the Stripe steps.
         </p>
@@ -326,7 +326,7 @@ function IdentityStep({
             type="button"
             className="btn-discord"
             onClick={() => window.location.reload()}
-            style={{ borderColor: "rgba(232,160,160,0.25)" }}
+            style={{ borderColor: "rgba(231,192,113,0.25)" }}
           >
             Refresh Status
           </button>

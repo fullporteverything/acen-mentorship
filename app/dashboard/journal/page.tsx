@@ -156,7 +156,7 @@ export default async function JournalPage() {
                   marginBottom: 11,
                 }}
               >
-                The Log
+                My Journal
               </h1>
 
               <div
@@ -172,7 +172,7 @@ export default async function JournalPage() {
                     display: "inline-block",
                     width: 38,
                     height: 1,
-                    background: "rgba(232,160,160,0.55)",
+                    background: "rgba(231,192,113,0.55)",
                   }}
                 />
                 <p
@@ -220,7 +220,7 @@ export default async function JournalPage() {
             {entries.length === 0 ? (
               <div
                 style={{
-                  border: "1px dashed rgba(232,160,160,0.18)",
+                  border: "1px dashed rgba(231,192,113,0.18)",
                   padding: "35px 22px",
                   textAlign: "center",
                   color: "rgba(245,240,240,0.4)",
@@ -260,7 +260,7 @@ function EntryCard({
       className="journal-entry"
       style={{
         position: "relative",
-        border: "1px solid rgba(232,160,160,0.12)",
+        border: "1px solid rgba(231,192,113,0.12)",
         background: "rgba(0,0,0,0.5)",
         padding: "16px 19px 18px",
       }}
@@ -295,8 +295,8 @@ function EntryCard({
                   letterSpacing: 2,
                   textTransform: "uppercase",
                   fontFamily: "Georgia, serif",
-                  color: "#E8A0A0",
-                  border: "1px solid rgba(232,160,160,0.35)",
+                  color: "#e3c071",
+                  border: "1px solid rgba(231,192,113,0.35)",
                   padding: "1px 7px",
                   lineHeight: 1.6,
                 }}
@@ -343,7 +343,7 @@ function EntryCard({
                 display: "block",
                 width: 132,
                 height: 96,
-                border: "1px solid rgba(232,160,160,0.15)",
+                border: "1px solid rgba(231,192,113,0.15)",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -362,14 +362,14 @@ function EntryCard({
           style={{
             marginTop: 16,
             paddingLeft: 14,
-            borderLeft: "2px solid #E8A0A0",
+            borderLeft: "2px solid #e3c071",
           }}
         >
           <p
             style={{
               fontSize: 9,
               letterSpacing: 3,
-              color: "#E8A0A0",
+              color: "#e3c071",
               textTransform: "uppercase",
               fontFamily: "Georgia, serif",
               marginBottom: 6,

@@ -145,7 +145,7 @@ export default function JournalComposer({
       <div
         style={{
           position: "relative",
-          border: "1px solid rgba(232,160,160,0.18)",
+          border: "1px solid rgba(231,192,113,0.18)",
           background: "rgba(0,0,0,0.55)",
         }}
       >
@@ -199,9 +199,9 @@ export default function JournalComposer({
                 letterSpacing: 2,
                 textTransform: "uppercase",
                 fontFamily: "Georgia, serif",
-                background: active ? "rgba(232,160,160,0.15)" : "transparent",
-                border: `1px solid ${active ? "rgba(232,160,160,0.6)" : "rgba(232,160,160,0.2)"}`,
-                color: active ? "#E8A0A0" : "rgba(245,240,240,0.4)",
+                background: active ? "rgba(231,192,113,0.15)" : "transparent",
+                border: `1px solid ${active ? "rgba(231,192,113,0.6)" : "rgba(231,192,113,0.2)"}`,
+                color: active ? "#e3c071" : "rgba(245,240,240,0.4)",
                 cursor: "pointer",
                 transition: "all 0.15s",
               }}
@@ -222,7 +222,7 @@ export default function JournalComposer({
                 position: "relative",
                 width: 76,
                 height: 76,
-                border: "1px solid rgba(232,160,160,0.2)",
+                border: "1px solid rgba(231,192,113,0.2)",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -242,9 +242,9 @@ export default function JournalComposer({
                   width: 18,
                   height: 18,
                   borderRadius: "50%",
-                  border: "1px solid rgba(232,160,160,0.5)",
+                  border: "1px solid rgba(231,192,113,0.5)",
                   background: "#000",
-                  color: "#E8A0A0",
+                  color: "#e3c071",
                   cursor: "pointer",
                   fontSize: 11,
                   lineHeight: 1,
@@ -273,7 +273,7 @@ export default function JournalComposer({
             letterSpacing: 2,
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
-            color: previews.length >= MAX_IMAGES ? "rgba(245,240,240,0.3)" : "#E8A0A0",
+            color: previews.length >= MAX_IMAGES ? "rgba(245,240,240,0.3)" : "#e3c071",
             cursor: previews.length >= MAX_IMAGES ? "default" : "pointer",
           }}
         >

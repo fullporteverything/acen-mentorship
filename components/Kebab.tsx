@@ -82,7 +82,7 @@ export default function Kebab({
           borderRadius: 3,
           padding: size === "sm" ? "2px 6px" : "3px 7px",
           cursor: "pointer",
-          color: "rgba(232,160,160,0.75)",
+          color: "rgba(231,192,113,0.75)",
           display: "inline-flex",
           alignItems: "center",
           gap: 2,
@@ -108,7 +108,7 @@ export default function Kebab({
             left: "calc(100% + 6px)",
             transform: "translateY(-50%)",
             background: "#0a0000",
-            border: "1px solid rgba(232,160,160,0.35)",
+            border: "1px solid rgba(231,192,113,0.35)",
             boxShadow: "0 8px 24px rgba(0,0,0,0.8)",
             padding: 4,
             zIndex: 60,
@@ -150,7 +150,7 @@ export default function Kebab({
               onMouseEnter={(e) => {
                 if (it.disabled) return;
                 (e.currentTarget as HTMLButtonElement).style.background =
-                  "rgba(232,160,160,0.08)";
+                  "rgba(231,192,113,0.08)";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background =

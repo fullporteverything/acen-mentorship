@@ -86,7 +86,7 @@ export default function VideoAssign({
         padding: "4px 0",
       }}
     >
-      <span style={{ ...TINY_CAPS, color: "rgba(232,160,160,0.6)" }}>Video</span>
+      <span style={{ ...TINY_CAPS, color: "rgba(231,192,113,0.6)" }}>Video</span>
 
       {attached ? (
         <span
@@ -131,7 +131,7 @@ export default function VideoAssign({
           minWidth: "180px",
           padding: "6px 10px",
           background: "rgba(0,0,0,0.4)",
-          border: "1px solid rgba(232,160,160,0.2)",
+          border: "1px solid rgba(231,192,113,0.2)",
           color: "#F5F0F0",
           fontFamily: "Georgia, serif",
           fontSize: "11px",
@@ -146,9 +146,9 @@ export default function VideoAssign({
         disabled={saving}
         style={{
           ...TINY_CAPS,
-          color: "#E8A0A0",
+          color: "#e3c071",
           background: "transparent",
-          border: "1px solid #E8A0A0",
+          border: "1px solid #e3c071",
           padding: "7px 14px",
           cursor: saving ? "default" : "pointer",
           opacity: saving ? 0.6 : 1,

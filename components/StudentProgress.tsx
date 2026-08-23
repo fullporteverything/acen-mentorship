@@ -327,7 +327,7 @@ function SkeletonBar({ width = "140px" }: { width?: string }) {
         width,
         height: "12px",
         borderRadius: "3px",
-        background: "rgba(232,160,160,0.08)",
+        background: "rgba(231,192,113,0.08)",
         animation: "dojoPulse 1.4s ease-in-out infinite",
       }}
     />
@@ -337,7 +337,7 @@ function SkeletonBar({ width = "140px" }: { width?: string }) {
 const sectionLabel: React.CSSProperties = {
   fontSize: "10px",
   letterSpacing: "4px",
-  color: "#E8A0A0",
+  color: "#e3c071",
   textTransform: "uppercase",
   fontFamily: "Georgia, serif",
   marginBottom: "18px",
@@ -345,8 +345,8 @@ const sectionLabel: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   padding: "28px 32px",
-  border: "1px solid rgba(232,160,160,0.12)",
-  background: "rgba(232,160,160,0.02)",
+  border: "1px solid rgba(231,192,113,0.12)",
+  background: "rgba(231,192,113,0.02)",
   maxWidth: "760px",
   marginBottom: "40px",
 };
@@ -366,7 +366,7 @@ const errorItalic: React.CSSProperties = {
 
 const rowStyle: React.CSSProperties = {
   padding: "14px 16px",
-  border: "1px solid rgba(232,160,160,0.10)",
+  border: "1px solid rgba(231,192,113,0.10)",
   background: "rgba(0,0,0,0.25)",
   fontFamily: "Georgia, serif",
 };
@@ -381,7 +381,7 @@ const controlsStyle: React.CSSProperties = {
 const selectStyle: React.CSSProperties = {
   padding: "7px 10px",
   background: "rgba(0,0,0,0.35)",
-  border: "1px solid rgba(232,160,160,0.2)",
+  border: "1px solid rgba(231,192,113,0.2)",
   color: "#F5F0F0",
   fontFamily: "Georgia, serif",
   fontSize: "12px",
@@ -394,7 +394,7 @@ const manualInputStyle: React.CSSProperties = {
   minWidth: 0,
   padding: "7px 10px",
   background: "rgba(0,0,0,0.35)",
-  border: "1px solid rgba(232,160,160,0.2)",
+  border: "1px solid rgba(231,192,113,0.2)",
   color: "#F5F0F0",
   fontFamily: "Georgia, serif",
   fontSize: "12px",
@@ -409,8 +409,8 @@ const smallBtn: React.CSSProperties = {
   fontFamily: "Georgia, serif",
   padding: "8px 16px",
   background: "transparent",
-  border: "1px solid rgba(232,160,160,0.4)",
-  color: "#E8A0A0",
+  border: "1px solid rgba(231,192,113,0.4)",
+  color: "#e3c071",
   cursor: "pointer",
 };
 

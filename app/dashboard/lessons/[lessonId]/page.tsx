@@ -162,7 +162,7 @@ export default async function LessonPage({
           {/* Header */}
           <div
             style={{
-              borderBottom: "1px solid rgba(232,160,160,0.15)",
+              borderBottom: "1px solid rgba(231,192,113,0.15)",
               paddingBottom: "28px",
               marginBottom: "40px",
             }}
@@ -171,7 +171,7 @@ export default async function LessonPage({
               style={{
                 fontSize: "10px",
                 letterSpacing: "4px",
-                color: "#E8A0A0",
+                color: "#e3c071",
                 textTransform: "uppercase",
                 fontFamily: "Georgia, serif",
                 marginBottom: "10px",
@@ -202,8 +202,8 @@ export default async function LessonPage({
               style={{
                 maxWidth: "480px",
                 padding: "48px 40px",
-                border: "1px solid rgba(232,160,160,0.15)",
-                background: "rgba(232,160,160,0.02)",
+                border: "1px solid rgba(231,192,113,0.15)",
+                background: "rgba(231,192,113,0.02)",
                 textAlign: "center",
               }}
             >
@@ -228,8 +228,8 @@ export default async function LessonPage({
                 {isCoreLesson(lesson)
                   ? "Complete the previous CORE lesson’s homework to unlock this lesson."
                   : curriculum.supplementalGateLesson
-                    ? `Complete CORE Floor 04 — ${curriculum.supplementalGateLesson.title} to unlock this category.`
-                    : "This category unlocks after CORE Floor 04 is available and completed."}
+                    ? `Complete CORE Lecture 04 — ${curriculum.supplementalGateLesson.title} to unlock this category.`
+                    : "This category unlocks after CORE Lecture 04 is available and completed."}
               </p>
               <div style={{ marginTop: "22px" }}>
                 <SupportLink>Need help with lesson access?</SupportLink>
@@ -248,7 +248,7 @@ export default async function LessonPage({
                       width: "100%",
                       aspectRatio: "16 / 9",
                       background: "#000",
-                      border: "1px solid rgba(232,160,160,0.15)",
+                      border: "1px solid rgba(231,192,113,0.15)",
                       overflow: "hidden",
                     }}
                   >
@@ -331,7 +331,7 @@ export default async function LessonPage({
                   style={{
                     fontSize: "11px",
                     letterSpacing: "4px",
-                    color: "#E8A0A0",
+                    color: "#e3c071",
                     textTransform: "uppercase",
                     fontFamily: "Georgia, serif",
                     marginBottom: "14px",
@@ -342,7 +342,7 @@ export default async function LessonPage({
                 <div
                   style={{
                     height: "1px",
-                    background: "rgba(232,160,160,0.15)",
+                    background: "rgba(231,192,113,0.15)",
                     marginBottom: "20px",
                   }}
                 />
@@ -456,7 +456,7 @@ export default async function LessonPage({
                       style={{
                         fontSize: "9px",
                         letterSpacing: "4px",
-                        color: "rgba(232,160,160,0.6)",
+                        color: "rgba(231,192,113,0.6)",
                         textTransform: "uppercase",
                         fontFamily: "Georgia, serif",
                         marginBottom: "14px",
@@ -474,8 +474,8 @@ export default async function LessonPage({
                         alignItems: "center",
                         gap: "16px",
                         padding: "14px 18px",
-                        border: "1px solid rgba(232,160,160,0.12)",
-                        background: "rgba(232,160,160,0.04)",
+                        border: "1px solid rgba(231,192,113,0.12)",
+                        background: "rgba(231,192,113,0.04)",
                         textDecoration: "none",
                         fontFamily: "Georgia, serif",
                       }}
@@ -507,7 +507,7 @@ export default async function LessonPage({
                   maxWidth: "760px",
                   marginTop: "40px",
                   paddingTop: "24px",
-                  borderTop: "1px solid rgba(232,160,160,0.15)",
+                  borderTop: "1px solid rgba(231,192,113,0.15)",
                 }}
               >
                 {navigation.previous ? (
@@ -551,7 +551,7 @@ export default async function LessonPage({
 }
 
 const lessonNavigationStyle = {
-  color: "#E8A0A0",
+  color: "#e3c071",
   fontFamily: "Georgia, serif",
   fontSize: "11px",
   letterSpacing: "0.8px",

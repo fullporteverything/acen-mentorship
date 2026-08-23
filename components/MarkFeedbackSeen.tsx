@@ -80,8 +80,8 @@ export function NewFeedbackChip({ feedbackAt }: { feedbackAt?: string }) {
         letterSpacing: 2,
         textTransform: "uppercase",
         fontFamily: "Georgia, serif",
-        color: "#E8A0A0",
-        border: "1px solid rgba(232,160,160,0.35)",
+        color: "#e3c071",
+        border: "1px solid rgba(231,192,113,0.35)",
         padding: "1px 7px",
         lineHeight: 1.6,
       }}

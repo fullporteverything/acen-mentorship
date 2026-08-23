@@ -121,22 +121,49 @@ const CHIP_H = 0.045 * TABLE_SCALE;
 const GLB_CARD_NODE = "Card7S";
 const GLB_CHIP_NODE = "Chip7";
 const GLB_SHOE_NODE = "Shoe";
+/** The 5-seat table variant ships in the same glb for future multiplayer. It
+    is geometry only — never shown, and never measured (see adoptGlb). */
+const GLB_TABLE5_NODE = "Table5";
+/** The dealer: an armature ("DealerRig") holding a Group of SkinnedMeshes. */
+const GLB_DEALER_NODE = "Dealer";
+const GLB_DEALER_RIG = "DealerRig";
 const GLB_ENV_NODES = ["Table", "Shoe", "ChipTray", "DiscardTray"] as const;
 /** Material names on the authored Table mesh (one sub-mesh per material). */
 const MAT_FELT = "S7_Felt";
 const MAT_FELT_PRINT = "S7_FeltPrint";
 /** The padded rail tube AND the table body slab share this material. */
 const MAT_RAIL = "S7_Rail";
-/** A laid glb card rests at local y = 0.020; ChipToss ends at y = 0.0305. */
-const GLB_CARD_REST_Y = 0.02;
-const GLB_CHIP_CLIP_Y = 0.0305;
-/** Shoe's authored REST pose — the end of TableIntro. Its node transform is
-    the intro's START pose, which parks it off the table edge, so the shoe must
-    be moved here (or walked here by TableIntro) or cards deal from thin air. */
+/**
+ * Shoe's authored REST pose — the end of TableIntro. Its node transform is
+ * the intro's START pose, which parks it off the table edge, so the shoe must
+ * be moved here (or walked here by TableIntro) or cards deal from thin air.
+ *
+ * This is the ONE authored constant left, and even it is overwritten at load
+ * time from TableIntro's last Shoe keyframe (see adoptGlb) — it is only the
+ * value used if that clip is missing.
+ */
 const GLB_SHOE_REST = new THREE.Vector3(1.92, 0.19353486, -1.1);
 /** Betting circle in authored table space (matches ChipToss' final key). */
 const GLB_BET_CENTER = new THREE.Vector2(0, 0.9);
 const GLB_BET_RADIUS = 0.34;
+
+/* ── The dealer (glb clips on the DealerRig bones) ───────────────────────── */
+
+const DEALER_IDLE = "DealerIdle";
+const DEALER_DEAL = "DealerDeal";
+const DEALER_FLIP = "DealerFlip";
+const DEALER_SWEEP = "DealerSweep";
+/** Cross-fade between the idle loop and a one-shot, seconds. */
+const DEALER_FADE = 0.26;
+
+/* ── The shoe's visible deck of face-down cards ──────────────────────────── */
+
+/** Cards drawn in the stack when the shoe is full. */
+const DECK_CARDS = 18;
+/** Never thin below this — a shoe that looks empty mid-shoe reads as a bug. */
+const DECK_MIN_CARDS = 4;
+/** Stack step, in CARD-LOCAL units (the deck group carries the card scale). */
+const DECK_STEP = 0.0075;
 
 /* Authored clip lengths are retimed to these READ-ABLE durations (seconds).
    timeScale is derived per clip, so a re-authored glb retimes itself. */
@@ -191,11 +218,28 @@ const MARTINI_LIQUID_R = 0.188;
 const SIP_SECONDS = 0.5;
 const POUR_SECONDS = 0.95;
 
-/* ── Camera: lower and closer than the old framing, per the owner ────────── */
+/* ── Camera ──────────────────────────────────────────────────────────────── */
 
-const CAM_BASE = new THREE.Vector3(0, 4.3, 6.9);
-const CAM_TARGET = new THREE.Vector3(0, 0, 0.8);
+/**
+ * Framing: "the player's seat at a real table, with the dealer across from
+ * you". Solved numerically against the measured world bounds rather than
+ * eyeballed — at CAM_REF_ASPECT every one of the table silhouette, both card
+ * rows, the rack, the betting circle, the martini, the shoe, both trays and
+ * the DEALER projects inside |ndc| <= 0.92, with the dealer's head at 0.895
+ * (headroom above the back rail, visible from the waist up) and the table's
+ * outer rails at 0.920 — a real margin, not edge-to-edge.
+ *
+ * The previous framing (0, 4.3, 6.9) put the table's rails at |ndc.x| = 1.68,
+ * i.e. two thirds of the table's width was off-screen on each side, which is
+ * what the owner was seeing as "a bit close".
+ */
+const CAM_BASE = new THREE.Vector3(0, 7.25, 11.63);
+const CAM_TARGET = new THREE.Vector3(0, -0.2, -0.75);
 const CAM_FOV = 36;
+/** The aspect the framing above is solved at. */
+const CAM_REF_ASPECT = 1.78;
+/** Narrower viewports pull straight back by REF/aspect, up to this much. */
+const CAM_PULL_CAP = 2.1;
 
 /* ── Card atlas (public/brand/cards-atlas.png) ───────────────────────────── */
 
@@ -546,6 +590,8 @@ interface FeltMetrics {
   shoeMouth: THREE.Vector3;
   /** Where payout chips come from. */
   payoutFrom: THREE.Vector3;
+  /** Where swept cards go — the measured DiscardTray, for the clip-less arc. */
+  discardTo: THREE.Vector3;
 }
 
 /**
@@ -666,6 +712,7 @@ function proceduralMetrics(): FeltMetrics {
     chipHeight: CHIP_H,
     shoeMouth: new THREE.Vector3(1.92, 0.42, -1.1).multiplyScalar(TABLE_SCALE),
     payoutFrom: new THREE.Vector3(0, 0.03, -0.72).multiplyScalar(TABLE_SCALE),
+    discardTo: new THREE.Vector3(-1.95, 0.04, -1.15).multiplyScalar(TABLE_SCALE),
   };
 }
 
@@ -920,6 +967,14 @@ function createController(mount: HTMLDivElement): Controller {
         backMat.needsUpdate = true;
       }
     }
+    // The shoe's deck is drawn from the same BACK cell.
+    if (deck) {
+      const mat = deck.cards[0]?.material as THREE.MeshStandardMaterial | undefined;
+      if (mat) {
+        mat.map = backTexture();
+        mat.needsUpdate = true;
+      }
+    }
   }
 
   /* Shared geometries (a handful total, whatever the hand count). */
@@ -1036,7 +1091,14 @@ function createController(mount: HTMLDivElement): Controller {
 
   const pulse = new THREE.PointLight(0xf7e8ac, 0, 6 * LS, 2);
   pulse.position.set(0, 1.15 * LS, 0);
-  scene.add(ambient, key, rim, spot, spot.target, pulse);
+
+  /* Dealer fill. The house lamp pools on the FELT and dies at the rails, which
+     leaves the man standing behind them as a silhouette. This is a short-throw
+     inverse-square lamp aimed at his chest — it shapes the jacket and shirt and
+     is spent long before it reaches the player's half of the table. Placed and
+     lit in adoptDealer(), off until then. */
+  const dealerFill = new THREE.PointLight(0xffe6bd, 0, 1, 2);
+  scene.add(ambient, key, rim, spot, spot.target, pulse, dealerFill);
 
   /* ── Animation clock + tween list ─────────────────────────────────────── */
 
@@ -1084,6 +1146,24 @@ function createController(mount: HTMLDivElement): Controller {
   let glbClips: Record<string, THREE.AnimationClip> = {};
   let glbChipTemplate: THREE.Object3D | null = null;
   const glbDisposables: { dispose(): void }[] = [];
+  /* The dealer: the loaded SkinnedMesh rig itself — never cloned, so the
+     skeleton binding the glb set up survives untouched. */
+  let dealerRig: THREE.Object3D | null = null;
+  let dealerMixer: THREE.AnimationMixer | null = null;
+  let dealerIdleAction: THREE.AnimationAction | null = null;
+  /** One-shots currently weighted onto the rig, newest last. */
+  interface DealerShot {
+    action: THREE.AnimationAction;
+    weight: number;
+    target: number;
+    /** Bumped when the same reach is re-triggered, so a stale hand-back is
+        ignored and the arm is not dropped mid-swing. */
+    seq: number;
+  }
+  const dealerShots: DealerShot[] = [];
+  /** Cloned clips, so overlapping reaches get independent actions. */
+  const dealerVariants = new Map<string, THREE.AnimationClip[]>();
+  let dealerSeq = 0;
   /* Tinted material clones, cached per denomination (keyed by source uuid). */
   const glbChipMats = new Map<number, Map<string, THREE.Material>>();
 
@@ -1117,14 +1197,23 @@ function createController(mount: HTMLDivElement): Controller {
     return true;
   }
 
-  /** Put `node` on a clip's first keyframe so it is never parked elsewhere
-      while a delayed action waits to start. (The glb's rest poses are the
-      TableIntro START poses, i.e. off-table — this is what used to make chips
-      hover in mid-air before their toss began.) */
-  function primeToClipStart(node: THREE.Object3D, clip: THREE.AnimationClip, nodeName: string) {
+  /**
+   * Put every node a clip drives on that clip's FIRST keyframe, so nothing is
+   * ever parked elsewhere while a delayed action waits to start. (The glb's
+   * node rest poses ARE the TableIntro start poses — the Shoe rests off the
+   * table edge, Chip7 rests a metre up — which is what used to make chips
+   * hover in mid-air before their toss began. Do not remove this.)
+   *
+   * `root` is matched by name too, so a bare retarget node (a card group named
+   * "Card7S") primes exactly as a whole rig does.
+   */
+  function primeToClipStart(root: THREE.Object3D, clip: THREE.AnimationClip) {
     for (const track of clip.tracks) {
       const dot = track.name.indexOf(".");
-      if (dot === -1 || track.name.slice(0, dot) !== nodeName) continue;
+      if (dot === -1) continue;
+      const nodeName = track.name.slice(0, dot);
+      const node = root.name === nodeName ? root : root.getObjectByName(nodeName);
+      if (!node) continue;
       const prop = track.name.slice(dot + 1);
       const v = track.values;
       if (prop === "position") node.position.set(v[0], v[1], v[2]);
@@ -1133,9 +1222,164 @@ function createController(mount: HTMLDivElement): Controller {
     }
   }
 
+  /* ── Scale-independent retargeting ────────────────────────────────────── */
+
+  /**
+   * THE ANCHORING CONTRACT.
+   *
+   * Every authored clip is animated in TABLE units and is retargeted by
+   * parenting the animated node under a Group scaled by TABLE_SCALE. Where
+   * that Group has to sit is derived ENTIRELY from the clip's own first/last
+   * keyframes, read here at load time — never from a hand-copied constant.
+   *
+   * That is the fix for the class of bug this file has now hit twice: the
+   * authored rest heights (a laid card at y 0.020, a settled chip at 0.0305)
+   * and the authored betting-circle centre used to live as literals up top, so
+   * changing TABLE_SCALE — or re-exporting the glb — silently desynced the
+   * wrapper offset from the curve and the motion stopped landing where the
+   * solved layout said it should. Reading the track values means a future
+   * TABLE_SCALE change, or a re-authored clip, can never desync it again.
+   */
+  interface ClipAnchor {
+    /** Local position of the node's first keyframe (authored table units). */
+    first: THREE.Vector3;
+    /** Local position of the node's last keyframe. */
+    last: THREE.Vector3;
+    /** Orientation at the first keyframe. */
+    firstQuat: THREE.Quaternion;
+    /** Largest positional travel across the clip, authored units. */
+    travel: number;
+    /** Largest rotation across the clip, radians. */
+    turn: number;
+  }
+  const anchorCache = new Map<string, ClipAnchor | null>();
+
+  /** First/last keyframes of `nodeName` in `clip`, cached. Null if untracked. */
+  function clipAnchor(clip: THREE.AnimationClip, nodeName: string): ClipAnchor | null {
+    const key = `${clip.name}|${nodeName}`;
+    const hit = anchorCache.get(key);
+    if (hit !== undefined) return hit;
+    let anchor: ClipAnchor | null = null;
+    const qa = new THREE.Quaternion();
+    const qb = new THREE.Quaternion();
+    for (const track of clip.tracks) {
+      const dot = track.name.indexOf(".");
+      if (dot === -1 || track.name.slice(0, dot) !== nodeName) continue;
+      const prop = track.name.slice(dot + 1);
+      const v = track.values;
+      const n = v.length;
+      if (!anchor) {
+        anchor = {
+          first: new THREE.Vector3(),
+          last: new THREE.Vector3(),
+          firstQuat: new THREE.Quaternion(),
+          travel: 0,
+          turn: 0,
+        };
+      }
+      if (prop === "position") {
+        anchor.first.set(v[0], v[1], v[2]);
+        anchor.last.set(v[n - 3], v[n - 2], v[n - 1]);
+        // Max excursion from the first key — a clip that only holds still has
+        // no motion to show, whatever its start and end happen to be.
+        for (let i = 0; i + 2 < n; i += 3) {
+          const d = Math.hypot(v[i] - v[0], v[i + 1] - v[1], v[i + 2] - v[2]);
+          if (d > anchor.travel) anchor.travel = d;
+        }
+      } else if (prop === "quaternion") {
+        anchor.firstQuat.set(v[0], v[1], v[2], v[3]);
+        qa.set(v[0], v[1], v[2], v[3]);
+        for (let i = 0; i + 3 < n; i += 4) {
+          qb.set(v[i], v[i + 1], v[i + 2], v[i + 3]);
+          const a = qa.angleTo(qb);
+          if (a > anchor.turn) anchor.turn = a;
+        }
+      }
+    }
+    anchorCache.set(key, anchor);
+    return anchor;
+  }
+
+  /** World-space offset that makes `nodeName`'s LAST keyframe land on `world`. */
+  function anchorEnd(
+    clip: THREE.AnimationClip,
+    nodeName: string,
+    world: THREE.Vector3,
+    out: THREE.Vector3
+  ): THREE.Vector3 {
+    const a = clipAnchor(clip, nodeName);
+    out.copy(world);
+    if (a) out.addScaledVector(a.last, -TABLE_SCALE);
+    return out;
+  }
+
+  /** World-space offset that makes `nodeName`'s FIRST keyframe land on `world`. */
+  function anchorStart(
+    clip: THREE.AnimationClip,
+    nodeName: string,
+    world: THREE.Vector3,
+    out: THREE.Vector3
+  ): THREE.Vector3 {
+    const a = clipAnchor(clip, nodeName);
+    out.copy(world);
+    if (a) out.addScaledVector(a.first, -TABLE_SCALE);
+    return out;
+  }
+
+  /** The pose a retargeted node must be snapped to at the end of `clip`. */
+  function restPose(clip: THREE.AnimationClip, nodeName: string, node: THREE.Object3D) {
+    const a = clipAnchor(clip, nodeName);
+    if (a) node.position.copy(a.last);
+    else node.position.set(0, 0, 0);
+    node.quaternion.identity();
+  }
+
+  /**
+   * MOTION GUARD. A clip can bind perfectly and still show nothing: every
+   * track constant, or a duration/timeScale that works out to zero. That looks
+   * exactly like a card popping into existence, so a clip with no motion is
+   * refused here and routed to the procedural (always-animated) path.
+   */
+  function hasMotion(clip: THREE.AnimationClip, seconds: number, label: string): boolean {
+    if (!(clip.duration > 0) || !Number.isFinite(clip.duration)) {
+      warnOnce(
+        `motion:${clip.name}`,
+        `clip "${clip.name}" has a ${clip.duration} duration — no motion to play ` +
+          `on the ${label}; using the procedural fallback.`
+      );
+      return false;
+    }
+    const scale = clip.duration / Math.max(0.05, seconds);
+    if (!Number.isFinite(scale) || scale <= 0) {
+      warnOnce(
+        `motion:${clip.name}`,
+        `clip "${clip.name}" retimes to a non-finite timeScale (${scale}) on the ` +
+          `${label}; using the procedural fallback.`
+      );
+      return false;
+    }
+    // Any track that actually moves or turns is enough.
+    const nodes = new Set<string>();
+    for (const track of clip.tracks) {
+      const dot = track.name.indexOf(".");
+      if (dot !== -1) nodes.add(track.name.slice(0, dot));
+    }
+    for (const nodeName of nodes) {
+      const a = clipAnchor(clip, nodeName);
+      if (a && (a.travel > 1e-4 || a.turn > 1e-3)) return true;
+    }
+    warnOnce(
+      `motion:${clip.name}`,
+      `clip "${clip.name}" binds but every track is constant — it would make the ` +
+        `${label} appear and disappear rather than move; using the procedural fallback.`
+    );
+    return false;
+  }
+
   /** Play an authored clip once on `root`'s subtree, retimed to `seconds`.
       `snap` sets the exact rest pose on 'finished' (and immediately under
-      reducedMotion). Returns false when the clip could not bind. */
+      reducedMotion). Returns false when the clip cannot bind or has no motion
+      to show — in both cases the caller must run its procedural arc instead. */
   function playClip(
     root: THREE.Object3D,
     clip: THREE.AnimationClip,
@@ -1149,6 +1393,7 @@ function createController(mount: HTMLDivElement): Controller {
       return true;
     }
     if (!bindsCleanly(root, clip, label)) return false;
+    if (!hasMotion(clip, seconds, label)) return false;
     const mixer = new THREE.AnimationMixer(root);
     const action = mixer.clipAction(clip);
     action.setLoop(THREE.LoopOnce, 1);
@@ -1434,6 +1679,7 @@ function createController(mount: HTMLDivElement): Controller {
       betRadius: GLB_BET_RADIUS * TABLE_SCALE,
       shoeMouth: base.shoeMouth.clone(),
       payoutFrom: base.payoutFrom.clone(),
+      discardTo: base.discardTo.clone(),
     };
 
     // ── The playable surface: felt outline, its holes, the rail overhang ──
@@ -1499,6 +1745,8 @@ function createController(mount: HTMLDivElement): Controller {
     if (discard) {
       const b = new THREE.Box3().setFromObject(discard);
       m.obstacles.push({ minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z });
+      b.getCenter(m.discardTo);
+      m.discardTo.y = b.max.y;
     }
     const shoeNode = root.getObjectByName(GLB_SHOE_NODE);
     if (shoeNode) {
@@ -1529,6 +1777,7 @@ function createController(mount: HTMLDivElement): Controller {
     relayoutRow("dealer");
     buildRack();
     placeMartini();
+    placeDeck();
   }
 
   /** Swap the environment + chips + clips in once the glb has loaded. */
@@ -1578,6 +1827,14 @@ function createController(mount: HTMLDivElement): Controller {
     const chipTemplate = root.getObjectByName(GLB_CHIP_NODE) ?? null;
     if (chipTemplate) chipTemplate.visible = false;
 
+    // Table5 is the wider 5-seat variant, shipped for future multiplayer. It
+    // shares S7_Felt / S7_Rail with Table and is 1.33x as wide, so leaving it
+    // in would both double-render the felt and — if anything measured it —
+    // hand the solver a table that is not the one being played on. Hidden, not
+    // deleted; every measurement below is scoped to the "Table" node.
+    const table5 = root.getObjectByName(GLB_TABLE5_NODE);
+    if (table5) table5.visible = false;
+
     scene.add(root);
     root.updateMatrixWorld(true);
 
@@ -1603,7 +1860,9 @@ function createController(mount: HTMLDivElement): Controller {
     glbChipTemplate = chipTemplate;
     glbEnv = root;
 
+    adoptDealer(root);
     applyLayout(solveLayout(measureFromGlb(root)));
+    buildDeck();
     playIntro(root);
   }
 
@@ -1614,7 +1873,7 @@ function createController(mount: HTMLDivElement): Controller {
     const intro = glbClips.TableIntro;
     const shoeNode = root.getObjectByName(GLB_SHOE_NODE);
     if (intro && shoeNode) {
-      primeToClipStart(shoeNode, intro, GLB_SHOE_NODE);
+      primeToClipStart(shoeNode, intro);
       const played = playClip(
         root,
         intro,
@@ -1629,6 +1888,319 @@ function createController(mount: HTMLDivElement): Controller {
     tween(0, INTRO_SECONDS, (e) => {
       camIntro = 1 - e;
     });
+  }
+
+  /* ── The shoe's deck of face-down cards ───────────────────────────────── */
+
+  /**
+   * A real stack of card backs sitting in the shoe's mouth, so the player can
+   * SEE where the cards come from — and see the shoe run down.
+   *
+   * Placement is measured, not guessed: the stack's bottom card is pinned to
+   * CardDeal's own FIRST keyframe (position AND orientation), which is the
+   * pose the author parked the next card in. That is inside the measured shoe
+   * slot (S7_ShoeSlot spans world y 0.423–0.468 and the anchor is y 0.456), at
+   * the shoe's authored yaw of −26°, and it means the card that flies out is
+   * literally the card you were looking at. It also cannot drift: change
+   * TABLE_SCALE or re-author the clip and the deck follows.
+   *
+   * Cost: ONE shared geometry for the cards (the same PlaneGeometry every
+   * dealt card uses) plus one unit box for the block, and two materials. No
+   * per-frame allocation — depletion only toggles `visible` and rescales the
+   * block. Disposed on unmount.
+   */
+  interface DeckStack {
+    group: THREE.Group;
+    cards: THREE.Mesh[];
+    /** The solid body under the top cards: the deck's paper edge. */
+    body: THREE.Mesh;
+    disposables: { dispose(): void }[];
+    remaining: number;
+  }
+  let deck: DeckStack | null = null;
+
+  function disposeDeck() {
+    if (!deck) return;
+    scene.remove(deck.group);
+    for (const d of deck.disposables) d.dispose();
+    deck = null;
+  }
+
+  function buildDeck() {
+    disposeDeck();
+    const deal = glbClips.CardDeal;
+    if (!deal || !clipAnchor(deal, GLB_CARD_NODE)) {
+      warnOnce(
+        "deck",
+        `no "CardDeal" curve to pin the shoe's deck to — the shoe is drawn empty.`
+      );
+      return;
+    }
+    const backMat = new THREE.MeshStandardMaterial({
+      map: backTexture(),
+      transparent: true,
+      alphaTest: 0.35,
+      roughness: 0.66,
+      metalness: 0.04,
+      envMapIntensity: 0.5,
+    });
+    // The paper edge of the block. Warm off-white so the stack reads as a
+    // stack against black felt, rather than as a hole.
+    const edgeMat = new THREE.MeshStandardMaterial({
+      color: 0x9c9179,
+      roughness: 0.92,
+      metalness: 0,
+    });
+    const bodyGeo = new THREE.BoxGeometry(1, 1, 1);
+
+    const group = new THREE.Group();
+    group.name = "ShoeDeck";
+    const body = new THREE.Mesh(bodyGeo, edgeMat);
+    body.castShadow = true;
+    group.add(body);
+    const cards: THREE.Mesh[] = [];
+    for (let i = 0; i < DECK_CARDS; i++) {
+      // Shared cardGeo — the exact geometry a dealt card uses, so the stack and
+      // the card that leaves it are the same object at the same size.
+      const mesh = new THREE.Mesh(cardGeo, backMat);
+      // Euler XYZ applies z first: an in-plane wobble, then laid flat.
+      mesh.rotation.set(-Math.PI / 2, 0, rand(-1, 1) * ((1.7 * Math.PI) / 180));
+      mesh.position.set(rand(-0.009, 0.009), i * DECK_STEP, rand(-0.009, 0.009));
+      group.add(mesh);
+      cards.push(mesh);
+    }
+    scene.add(group);
+    deck = { group, cards, body, disposables: [backMat, edgeMat, bodyGeo], remaining: DECK_CARDS };
+    placeDeck();
+    showDeck(DECK_CARDS);
+  }
+
+  /** Re-seat the deck after a layout change (it carries the card scale). */
+  function placeDeck() {
+    if (!deck) return;
+    const deal = glbClips.CardDeal;
+    const a = deal ? clipAnchor(deal, GLB_CARD_NODE) : null;
+    if (!a) return;
+    deck.group.position.copy(a.first).multiplyScalar(TABLE_SCALE);
+    deck.group.quaternion.copy(a.firstQuat);
+    // Same scale as a dealt card, so the deck reads as these cards.
+    deck.group.scale.setScalar(layout.cardScale);
+  }
+
+  /** Show `n` cards. The stack thins from the TOP; the bottom card — the one
+      the next deal flies out of — never moves. */
+  function showDeck(n: number) {
+    if (!deck) return;
+    const vis = THREE.MathUtils.clamp(Math.round(n), 0, deck.cards.length);
+    deck.remaining = vis;
+    for (let i = 0; i < deck.cards.length; i++) {
+      const card = deck.cards[i];
+      card.visible = i < vis;
+      card.castShadow = i === vis - 1; // only the top card needs to cast
+    }
+    deck.group.visible = vis > 0;
+    deck.body.visible = vis > 0;
+    const thick = Math.max(DECK_STEP, (vis - 1) * DECK_STEP);
+    // Inset so the card planes' edges stay proud of the block.
+    deck.body.scale.set(CARD_W * 0.955, thick, CARD_H * 0.955);
+    deck.body.position.set(0, ((vis - 1) * DECK_STEP) / 2, 0);
+  }
+
+  /** One card leaves the shoe. Floors at DECK_MIN_CARDS: an empty-looking shoe
+      mid-shoe reads as a bug, and the real reshuffle is what refills it. */
+  function deckTake() {
+    if (!deck) return;
+    showDeck(Math.max(DECK_MIN_CARDS, deck.remaining - 1));
+  }
+
+  /** The shoe is reloaded — grow the stack back over the ShoeRefill beat. */
+  function deckRefill() {
+    if (!deck) return;
+    const from = deck.remaining;
+    if (reduced) {
+      showDeck(DECK_CARDS);
+      return;
+    }
+    tween(0, REFILL_SECONDS, (e) => {
+      showDeck(from + (DECK_CARDS - from) * e);
+    });
+  }
+
+  /* ── The dealer ───────────────────────────────────────────────────────── */
+
+  /**
+   * Wire the authored dealer.
+   *
+   * He is a SkinnedMesh rig ("DealerRig" → 11 bones + a "Dealer" group of six
+   * skinned sub-meshes), authored in TABLE space standing in the dealer notch,
+   * so he rides the same TABLE_SCALE root as everything else and needs no
+   * placement of his own. He is NEVER cloned: a plain Object3D.clone() would
+   * copy the meshes but not rebind them to the cloned skeleton, and he would
+   * collapse. One mixer drives him for the life of the scene — DealerIdle on
+   * a loop, with the one-shots cross-fading over it.
+   */
+  function adoptDealer(root: THREE.Object3D) {
+    const rig = root.getObjectByName(GLB_DEALER_RIG) ?? root.getObjectByName(GLB_DEALER_NODE);
+    if (!rig) {
+      warnOnce("dealer", `no "${GLB_DEALER_RIG}" in the glb — the table plays without a dealer.`);
+      return;
+    }
+    dealerRig = rig;
+    rig.visible = true;
+    rig.traverse((obj) => {
+      const mesh = obj as THREE.SkinnedMesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.receiveShadow = false;
+      mesh.frustumCulled = false; // a skinned bbox is the BIND pose, not the pose
+      for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        const std = mat as THREE.MeshStandardMaterial;
+        // He stands beyond the felt pool: without a lift he reads as a black
+        // cut-out. The env gives the jacket and shirt their shape back.
+        if (std.isMeshStandardMaterial) std.envMapIntensity = /Gold/i.test(std.name) ? 1.3 : 0.85;
+      }
+    });
+
+    // A small local fill just in front of his chest, MEASURED off his own
+    // bounding box rather than guessed. Decay 2 with a short throw: it lands
+    // ~1.5 at the jacket (comparable to the key light, so the lapels and the
+    // shirt keep their shape) and is down to ~0.4 by the time it reaches the
+    // felt two metres below — a lift on the dealer's side of the table, not a
+    // second lamp pool competing with the house spot.
+    const box = new THREE.Box3().setFromObject(rig);
+    const chestY = box.min.y + (box.max.y - box.min.y) * 0.72;
+    dealerFill.position.set(0, chestY, box.max.z + 0.6 * LS);
+    dealerFill.distance = 3.0 * LS;
+    dealerFill.intensity = 0.95 * LS * LS;
+
+    const idle = glbClips[DEALER_IDLE];
+    if (!idle) {
+      warnOnce("dealerclip", `clip "${DEALER_IDLE}" is missing — the dealer stands still.`);
+      return;
+    }
+    // Same guard as every other clip: a rig primed to the idle's first pose is
+    // never parked in some other authored pose while it waits.
+    primeToClipStart(rig, idle);
+    if (reduced) return; // visible, but static
+    if (!bindsCleanly(rig, idle, "dealer rig")) return;
+    if (!hasMotion(idle, idle.duration, "dealer rig")) return;
+    dealerMixer = new THREE.AnimationMixer(rig);
+    dealerIdleAction = dealerMixer.clipAction(idle);
+    dealerIdleAction.setLoop(THREE.LoopRepeat, Infinity);
+    dealerIdleAction.clampWhenFinished = false;
+    dealerIdleAction.setEffectiveWeight(1);
+    dealerIdleAction.play();
+    activeMixers.add(dealerMixer);
+  }
+
+  /**
+   * Fire one of the dealer's one-shots over the idle loop.
+   *
+   * Blending is a rate-limited weight ramp stepped once per frame (see
+   * stepDealer) rather than crossFadeFrom/fadeIn. Those schedule interpolants
+   * inside the mixer that a SUPERSEDED one-shot never unwinds: dealing the
+   * second card 0.4 s into the first card's reach used to strand the idle at a
+   * fraction of its weight — measured at 6% of its normal travel, a dealer who
+   * goes still after the first hand — and snapping the idle back to 1 to fix
+   * that produced a 0.77-world-unit hand jump in a single frame. A weight that
+   * can only move dt/DEALER_FADE per frame cannot jump, whatever arrives on
+   * top of what.
+   *
+   * The clip is retimed by the same factor as the prop clip it accompanies, so
+   * the reach stays locked to the card or chip it belongs to.
+   */
+  /**
+   * An AnimationAction for `clip` that is not already weighted onto the rig.
+   *
+   * mixer.clipAction() returns the SAME action for the same clip, so two
+   * overlapping reaches from one clip would fight over one clock. Cloned
+   * clips give genuinely independent actions; at most three per clip name,
+   * built lazily and only ever when an overlap actually happens.
+   */
+  function dealerFreeAction(
+    mixer: THREE.AnimationMixer,
+    clip: THREE.AnimationClip
+  ): THREE.AnimationAction | null {
+    let variants = dealerVariants.get(clip.name);
+    if (!variants) {
+      variants = [clip];
+      dealerVariants.set(clip.name, variants);
+    }
+    for (const variant of variants) {
+      const action = mixer.clipAction(variant);
+      if (!dealerShots.some((s) => s.action === action)) return action;
+    }
+    if (variants.length >= 3) return null;
+    const extra = clip.clone();
+    extra.name = `${clip.name}#${variants.length}`;
+    variants.push(extra);
+    return mixer.clipAction(extra);
+  }
+
+  function playDealerClip(name: string, seconds: number, delay: number) {
+    if (reduced || disposed) return;
+    const mixer = dealerMixer;
+    const idle = dealerIdleAction;
+    const clip = glbClips[name];
+    if (!mixer || !idle) return;
+    if (!clip) {
+      warnOnce(`dealerclip:${name}`, `clip "${name}" is missing — the dealer keeps idling.`);
+      return;
+    }
+    if (!dealerRig || !bindsCleanly(dealerRig, clip, "dealer rig")) return;
+    if (!hasMotion(clip, seconds, "dealer rig")) return;
+    at(delay, () => {
+      if (disposed || !dealerMixer || !dealerIdleAction) return;
+      // A FREE action, so the second card's reach cross-fades with the first
+      // card's instead of resetting the same action mid-swing (which snapped
+      // the arm back to its start pose — a 0.53-unit hand jump in one frame).
+      const action = dealerFreeAction(mixer, clip);
+      if (!action) return; // every variant is already reaching; let it carry
+      action.reset();
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+      action.setEffectiveTimeScale(clip.duration / Math.max(0.05, seconds));
+      action.enabled = true;
+      action.setEffectiveWeight(0);
+      action.play();
+      const shot: DealerShot = { action, weight: 0, target: 1, seq: ++dealerSeq };
+      dealerShots.push(shot);
+      // Anything else on the rig starts giving way immediately.
+      for (const other of dealerShots) if (other !== shot) other.target = 0;
+      const mine = shot;
+      const seq = mine.seq;
+      // Hand the bones back to the idle loop just before the reach resolves,
+      // so the ramp is finished by the time the clip clamps.
+      at(Math.max(0, seconds - DEALER_FADE), () => {
+        if (mine.seq === seq) mine.target = 0;
+      });
+    });
+  }
+
+  /**
+   * Per-frame dealer blend. Every one-shot weight walks toward its target at
+   * most dt/DEALER_FADE per frame and the idle takes whatever weight is left,
+   * so no pose can ever cut in or out. A shot that reaches zero is stopped and
+   * dropped; nothing is allocated here.
+   */
+  function stepDealer(dt: number) {
+    const idle = dealerIdleAction;
+    if (!idle) return;
+    const rate = DEALER_FADE > 0 ? dt / DEALER_FADE : 1;
+    let sum = 0;
+    for (let i = dealerShots.length - 1; i >= 0; i--) {
+      const shot = dealerShots[i];
+      shot.weight += THREE.MathUtils.clamp(shot.target - shot.weight, -rate, rate);
+      if (shot.target === 0 && shot.weight <= 1e-3) {
+        shot.action.stop();
+        dealerShots.splice(i, 1);
+        continue;
+      }
+      shot.action.setEffectiveWeight(shot.weight);
+      sum += shot.weight;
+    }
+    idle.enabled = true;
+    idle.setEffectiveWeight(Math.max(0, 1 - Math.min(1, sum)));
   }
 
   /* ── Display lists ────────────────────────────────────────────────────── */
@@ -1711,11 +2283,12 @@ function createController(mount: HTMLDivElement): Controller {
   }
 
   /** Where the card's outermost node must sit for the card to land on `home`.
-      Writes into `out` — this runs per frame during a deal. */
+      In glb-clip mode the offset is CardDeal's own final keyframe, scaled —
+      never a copied constant. Writes into `out`: this runs per frame. */
   function groupPosFor(entry: CardEntry, home: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
-    out.copy(home);
-    if (entry.usingClip) out.y -= GLB_CARD_REST_Y * TABLE_SCALE;
-    return out;
+    const deal = glbClips.CardDeal;
+    if (entry.usingClip && deal) return anchorEnd(deal, GLB_CARD_NODE, home, out);
+    return out.copy(home);
   }
 
   /** Re-centre a row after its card count (or the layout) changed. */
@@ -1786,7 +2359,7 @@ function createController(mount: HTMLDivElement): Controller {
       inner.scale.setScalar(1);
       squash.scale.setScalar(1);
       flip.scale.setScalar(layout.cardScale / TABLE_SCALE);
-      primeToClipStart(inner, deal, GLB_CARD_NODE);
+      primeToClipStart(inner, deal);
       const wrapper = new THREE.Group();
       wrapper.scale.setScalar(TABLE_SCALE);
       wrapper.rotation.y = jitter;
@@ -1808,14 +2381,20 @@ function createController(mount: HTMLDivElement): Controller {
           entry.dealing = false;
           wrapper.position.copy(groupPosFor(entry, entry.home, _vA));
           entry.squash.scale.setScalar(1);
-          inner.position.set(0, GLB_CARD_REST_Y, 0);
-          inner.quaternion.identity();
+          restPose(deal, GLB_CARD_NODE, inner);
         },
         "card wrapper"
       );
 
       if (played) {
-        at(delay, () => audio.play("cardSlide"));
+        at(delay, () => {
+          audio.play("cardSlide");
+          deckTake(); // the card that leaves is the one off the top of the stack
+        });
+        // The author timed DealerDeal's reach to peak where CardDeal's card
+        // clears the shoe lip, so the two start together and are retimed by the
+        // same factor — slowing the card slows the hand with it.
+        playDealerClip(DEALER_DEAL, DEAL_SECONDS, delay);
         tween(delay, DEAL_SECONDS, (e, k) => {
           const to = groupPosFor(entry, entry.home, _vA);
           wrapper.position.set(to.x * e, to.y * e, to.z * e);
@@ -1844,7 +2423,11 @@ function createController(mount: HTMLDivElement): Controller {
     scene.add(group);
     list.push(entry);
     relayoutRow(row);
-    at(delay, () => audio.play("cardSlide"));
+    at(delay, () => {
+      audio.play("cardSlide");
+      deckTake();
+    });
+    playDealerClip(DEALER_DEAL, DEAL_SECONDS, delay);
     tween(
       delay,
       DEAL_SECONDS,
@@ -1875,7 +2458,10 @@ function createController(mount: HTMLDivElement): Controller {
     const clip = glbClips.CardDiscard;
     if (!clip || !entry.usingClip) return false;
     const wrapper = entry.group;
-    const base = wrapper.position.clone();
+    // Anchored on the clip's FIRST keyframe so the sweep leaves from exactly
+    // where the card is lying, whatever the author's start pose happens to be.
+    const base = anchorStart(clip, GLB_CARD_NODE, entry.home, new THREE.Vector3());
+    wrapper.position.copy(base);
     const played = playClip(
       wrapper,
       clip,
@@ -1896,9 +2482,43 @@ function createController(mount: HTMLDivElement): Controller {
     return true;
   }
 
+  /**
+   * Clip-less sweep: the card still TRAVELS to the discard tray on a low arc.
+   * A card must never simply blink out — that is the same "it just
+   * disappeared" the authored clips exist to avoid.
+   */
+  function proceduralDiscard(entry: CardEntry, delay: number): boolean {
+    if (reduced || disposed) return false;
+    const node = entry.group;
+    const from = node.position.clone();
+    const to = layout.metrics.discardTo.clone();
+    if (entry.usingClip) to.y -= 0; // the wrapper already carries the rest offset
+    const spin = entry.jitter;
+    discarding.add(entry);
+    tween(
+      delay,
+      DISCARD_SECONDS,
+      (e, k) => {
+        node.position.x = from.x + (to.x - from.x) * e;
+        node.position.z = from.z + (to.z - from.z) * e;
+        node.position.y = from.y + (to.y - from.y) * e + Math.sin(Math.PI * k) * 0.22 * TABLE_SCALE;
+        node.rotation.y = spin + e * 0.7;
+      },
+      () => {
+        discarding.delete(entry);
+        scene.remove(node);
+        for (const m of entry.mats) m.dispose();
+      }
+    );
+    return true;
+  }
+
   function clearRow(row: "player" | "dealer") {
     rows[row].forEach((entry, i) => {
-      if (!disposed && !reduced && discardCard(entry, i * 0.06)) return;
+      if (!disposed && !reduced) {
+        if (discardCard(entry, i * 0.06)) return;
+        if (proceduralDiscard(entry, i * 0.06)) return;
+      }
       removeCard(entry);
     });
     rows[row].length = 0;
@@ -1909,6 +2529,7 @@ function createController(mount: HTMLDivElement): Controller {
     entry.faceDown = false;
     const { flip, group, card } = entry;
     audio.play("cardFlip");
+    playDealerClip(DEALER_FLIP, FLIP_SECONDS, 0);
     const clip = glbClips.CardFlip;
     if (clip && entry.usingClip) {
       // Authored CardFlip ends clamped at rotation π about the long axis;
@@ -1921,18 +2542,16 @@ function createController(mount: HTMLDivElement): Controller {
         0,
         () => {
           flip.rotation.z = 0;
-          card.position.set(0, GLB_CARD_REST_Y, 0);
-          card.quaternion.identity();
+          restPose(clip, GLB_CARD_NODE, card);
         },
         "card wrapper"
       );
       if (played) return;
     }
-    const restY = entry.home.y;
+    const restY = groupPosFor(entry, entry.home, _vA).y;
     tween(0, FLIP_SECONDS, (e, k) => {
       flip.rotation.z = Math.PI * (1 - e);
-      group.position.y = (entry.usingClip ? restY - GLB_CARD_REST_Y * TABLE_SCALE : restY) +
-        Math.sin(Math.PI * k) * 0.15;
+      group.position.y = restY + Math.sin(Math.PI * k) * 0.15 * TABLE_SCALE;
     });
   }
 
@@ -1961,18 +2580,16 @@ function createController(mount: HTMLDivElement): Controller {
         // glb-space (0, 0.0305, 0.90) — a parent offset makes that end land on
         // this chip's stack slot.
         const chip = cloneGlbChip(denom);
-        primeToClipStart(chip, toss, GLB_CHIP_NODE); // never hover mid-air
+        primeToClipStart(chip, toss); // never hover mid-air
         const wrapper = new THREE.Group();
         wrapper.scale.setScalar(TABLE_SCALE);
-        // The clip lands the chip on the circle at felt height; the wrapper's
-        // y-offset (this chip's slot in the stack) eases in over the flight so
-        // a tall stack's chips don't sail in high above the felt.
-        const yOffset = rest.y - GLB_CHIP_CLIP_Y * TABLE_SCALE;
-        wrapper.position.set(
-          rest.x - GLB_BET_CENTER.x * TABLE_SCALE,
-          0,
-          rest.z - GLB_BET_CENTER.y * TABLE_SCALE
-        );
+        // Anchored on ChipToss' OWN final keyframe: wherever the author landed
+        // the chip, this offset puts that landing on `rest`. The y half of the
+        // offset (this chip's slot in the stack) eases in over the flight so a
+        // tall stack's chips don't sail in high above the felt.
+        const anchor = anchorEnd(toss, GLB_CHIP_NODE, rest, new THREE.Vector3());
+        const yOffset = anchor.y;
+        wrapper.position.set(anchor.x, 0, anchor.z);
         wrapper.userData.tossing = true;
         wrapper.add(chip);
         scene.add(wrapper);
@@ -2095,7 +2712,7 @@ function createController(mount: HTMLDivElement): Controller {
         _vB
       );
       if (pinLocal) {
-        primeToClipStart(chip, clip, GLB_CHIP_NODE);
+        primeToClipStart(chip, clip);
         chip.scale.setScalar(1); // the wrapper carries TABLE_SCALE
         const wrapper = new THREE.Group();
         wrapper.scale.setScalar(TABLE_SCALE);
@@ -2141,10 +2758,13 @@ function createController(mount: HTMLDivElement): Controller {
     tween(
       delay,
       seconds,
-      (e) => {
+      (e, k) => {
         chip.position.x = worldStart.x + (worldEnd.x - worldStart.x) * e;
         chip.position.z = worldStart.z + (worldEnd.z - worldStart.z) * e;
-        chip.position.y = worldStart.y + (worldEnd.y - worldStart.y) * e;
+        // A real arc, not a slide: the fallback has to read as a throw.
+        chip.position.y =
+          worldStart.y + (worldEnd.y - worldStart.y) * e + Math.sin(Math.PI * k) * 0.2 * TABLE_SCALE;
+        chip.rotation.y = (1 - e) * 1.8;
       },
       finish
     );
@@ -2567,7 +3187,9 @@ function createController(mount: HTMLDivElement): Controller {
     const settledChips = stack.filter((chip) => chip.userData.tossing !== true);
 
     if (outcome === "lose") {
-      // The house takes it — authored ChipSweep, circle → dealer tray.
+      // The house takes it — authored ChipSweep, circle → dealer tray, with the
+      // dealer's own arm on the same beat.
+      playDealerClip(DEALER_SWEEP, SWEEP_SECONDS, 0.15);
       settledChips.forEach((chip, i) => {
         const from = chip.position.clone();
         flyChip(
@@ -2648,6 +3270,7 @@ function createController(mount: HTMLDivElement): Controller {
   /** A face-down card drops into the shoe: the authored ShoeRefill. */
   function playShoeRefill() {
     audio.play("shuffle");
+    deckRefill(); // the stack grows back as the shoe is reloaded
     const clip = glbClips.ShoeRefill;
     if (!clip || reduced || disposed) return;
     // ShoeRefill also drives the Shoe node (a constant hold) — keep only the
@@ -2659,7 +3282,7 @@ function createController(mount: HTMLDivElement): Controller {
     flip.rotation.z = Math.PI;
     group.name = GLB_CARD_NODE;
     flip.scale.setScalar(layout.cardScale / TABLE_SCALE);
-    primeToClipStart(group, sub, GLB_CARD_NODE);
+    primeToClipStart(group, sub);
     const wrapper = new THREE.Group();
     wrapper.scale.setScalar(TABLE_SCALE);
     wrapper.add(group);
@@ -2757,6 +3380,7 @@ function createController(mount: HTMLDivElement): Controller {
     for (const mixer of activeMixers) mixer.update(dt); // glb clip instances
     stepRack(dt);
     stepMartini(dt);
+    stepDealer(dt);
 
     // Betting circle breathes while the player is deciding.
     ringMat.opacity =
@@ -2800,11 +3424,13 @@ function createController(mount: HTMLDivElement): Controller {
     if (w === 0 || h === 0) return;
     const aspect = w / h;
     camera.aspect = aspect;
-    // Narrow viewports pull the camera back so both card rows, the rack, the
-    // shoe and the martini all stay in frame (the table's outer left/right
-    // rails are deliberately allowed to crop — that IS the close framing).
-    const f = THREE.MathUtils.clamp(1.55 / aspect, 1, 2);
-    camBase.copy(CAM_BASE).multiplyScalar(1 + (f - 1) * 0.9);
+    // A narrower viewport loses horizontal field in exact proportion to its
+    // aspect, so it is bought straight back: REF/aspect restores the width the
+    // framing was solved for. Capped, because past ~2.1x the table is so far
+    // away the cards stop being readable — on a phone the outer rails are
+    // deliberately allowed to crop instead (every playable thing still fits).
+    const f = THREE.MathUtils.clamp(CAM_REF_ASPECT / aspect, 1, CAM_PULL_CAP);
+    camBase.copy(CAM_BASE).multiplyScalar(f);
     camera.updateProjectionMatrix();
     renderer.setSize(w, h, false);
   };
@@ -2886,6 +3512,18 @@ function createController(mount: HTMLDivElement): Controller {
     scene.remove(martini.group, martini.hit);
     for (const d of martiniDisposables) d.dispose();
     martiniDisposables.length = 0;
+    disposeDeck();
+    if (dealerMixer) {
+      dealerMixer.stopAllAction();
+      if (dealerRig) dealerMixer.uncacheRoot(dealerRig);
+      activeMixers.delete(dealerMixer);
+    }
+    dealerMixer = null;
+    dealerIdleAction = null;
+    dealerShots.length = 0;
+    dealerVariants.clear();
+    dealerRig = null;
+    anchorCache.clear();
     if (glbEnv) scene.remove(glbEnv);
     glbEnv = null;
     glbChipTemplate = null;

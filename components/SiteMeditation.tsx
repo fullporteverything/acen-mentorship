@@ -106,7 +106,7 @@ export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number }
             cursor: "pointer",
           }}
         >
-          <AfkCard />
+          <AfkCard onReturn={() => setAfk(false)} />
         </motion.div>
       )}
     </AnimatePresence>
@@ -114,7 +114,7 @@ export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number }
 }
 
 /** A 7 of spades that slowly fades in and drifts, "long night sir?" on the base. */
-function AfkCard() {
+function AfkCard({ onReturn }: { onReturn: () => void }) {
   const corner = (pos: "tl" | "br"): CSSProperties => {
     const base: CSSProperties = {
       position: "absolute",
@@ -140,10 +140,7 @@ function AfkCard() {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 2.2, ease: [0.22, 1, 0.36, 1] }}
     >
-      <motion.div
-        // gentle perpetual drift once it has settled in
-        animate={{ y: [0, -7, 0] }}
-        transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut", delay: 2.2 }}
+      <div
         style={{
           position: "relative",
           width: 220,
@@ -205,36 +202,66 @@ function AfkCard() {
         >
           ♠
         </span>
+      </div>
 
-        {/* dealer's aside */}
-        <p
-          style={{
-            position: "absolute",
-            bottom: 22,
-            left: 0,
-            right: 0,
-            textAlign: "center",
-            fontFamily: "Georgia, serif",
-            fontStyle: "italic",
-            fontSize: 14,
-            letterSpacing: 0.5,
-            color: "rgba(247,232,172,0.8)",
-          }}
-        >
-          long night sir?
-        </p>
-      </motion.div>
-
+      {/* Dealer's aside — below the card, outside it. */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 1.2, delay: 2.4 }}
+        transition={{ duration: 1.2, delay: 2.2 }}
         style={{
-          marginTop: 22,
+          marginTop: 26,
+          fontFamily: "Georgia, serif",
+          fontStyle: "italic",
+          fontSize: 16,
+          letterSpacing: 0.5,
+          color: "rgba(247,232,172,0.85)",
+        }}
+      >
+        Long night, sir?
+      </motion.p>
+
+      {/* Yes / No — either one returns you to the site. */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.2, delay: 2.5 }}
+        style={{ display: "flex", gap: 14, marginTop: 14 }}
+      >
+        {(["Yes", "No"] as const).map((label) => (
+          <button
+            key={label}
+            type="button"
+            onClick={onReturn}
+            style={{
+              fontFamily: "Georgia, serif",
+              fontSize: 12,
+              letterSpacing: 3,
+              textTransform: "uppercase",
+              color: "#e3c071",
+              background: "transparent",
+              border: "1px solid rgba(231,192,113,0.4)",
+              borderRadius: 999,
+              padding: "8px 22px",
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </motion.div>
+
+      {/* Return hint, under the question. */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1.2, delay: 2.8 }}
+        style={{
+          marginTop: 18,
           fontSize: 9,
           letterSpacing: 3,
           textTransform: "uppercase",
-          color: "rgba(245,240,240,0.32)",
+          color: "rgba(245,240,240,0.3)",
           fontFamily: "Georgia, serif",
           fontStyle: "italic",
         }}

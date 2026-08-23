@@ -159,12 +159,13 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
       >
         <NotificationCenter />
         {rank && (
-          // Status badge — the member's rank. Deliberately NOT button-styled
-          // (transparent, thin gold rule, gold dot) so it reads as a label, not
-          // a clickable control.
-          <span
+          // Rank badge — and the quiet door to the Table (/dashboard/table).
+          // Keeps the exact label styling (transparent, thin gold rule, gold
+          // dot); only the cursor and a subtle hover border betray the door.
+          <a
             className="topnav-rank"
-            aria-label={`Rank: ${rank}`}
+            href="/dashboard/table"
+            aria-label={`${rank} — enter the Table`}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -181,7 +182,9 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
               borderRadius: 999,
               whiteSpace: "nowrap",
               lineHeight: 1,
-              cursor: "default",
+              cursor: "pointer",
+              textDecoration: "none",
+              transition: "border-color 0.2s",
             }}
           >
             <span
@@ -195,7 +198,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
               }}
             />
             {rank}
-          </span>
+          </a>
         )}
         <ProfileTrigger
           discordId={session?.user?.discordId}

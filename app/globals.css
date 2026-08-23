@@ -1098,3 +1098,264 @@ body {
     gap: 12px;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   The Table (/dashboard/table) — house blackjack. All hooks are suite7-*.
+   Play-chips only; purely cosmetic. Logic lives in lib/blackjack.ts.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Rank pill doubles as the door to the Table. Same badge, quiet hover.
+   (!important: the pill's base border ships as an inline style.) */
+a.topnav-rank:hover {
+  border-color: rgba(231, 192, 113, 0.7) !important;
+}
+
+/* Layout: felt left, martini right; martini drops below the felt on phones. */
+.suite7-table-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 36px;
+}
+.suite7-martini-slot {
+  flex: 0 0 auto;
+}
+@media (max-width: 759px) {
+  .suite7-table-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .suite7-martini-slot {
+    align-self: center;
+  }
+}
+
+.suite7-felt {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(231, 192, 113, 0.2);
+  background: radial-gradient(
+    120% 100% at 50% 0%,
+    rgba(231, 192, 113, 0.06),
+    rgba(10, 8, 5, 0.85) 55%,
+    #000
+  );
+  padding: 26px 26px 30px;
+}
+
+/* Playing cards */
+.suite7-hand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  min-height: 106px;
+}
+.suite7-hand > * + * {
+  margin-left: -16px;
+}
+.suite7-card {
+  position: relative;
+  width: 74px;
+  height: 106px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: radial-gradient(130% 90% at 50% 0%, #171207, #0a0805 55%, #000);
+  border: 1px solid rgba(231, 192, 113, 0.5);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.55);
+  font-family: Georgia, serif;
+  font-variant-numeric: lining-nums;
+  user-select: none;
+}
+.suite7-card-corner {
+  position: absolute;
+  top: 6px;
+  left: 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  font-size: 13px;
+}
+.suite7-card-corner-br {
+  top: auto;
+  left: auto;
+  right: 7px;
+  bottom: 6px;
+  transform: rotate(180deg);
+}
+.suite7-card-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+}
+/* Face-down back: hairline weave + a faint centered spade. */
+.suite7-card-back::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(45deg, rgba(231, 192, 113, 0.12) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(-45deg, rgba(231, 192, 113, 0.08) 0 1px, transparent 1px 7px);
+  border: 1px solid rgba(231, 192, 113, 0.22);
+}
+.suite7-card-back::after {
+  content: "♠";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  color: rgba(231, 192, 113, 0.22);
+  font-family: Georgia, serif;
+}
+
+/* Deal-in + hole-card flip */
+.suite7-dealt {
+  animation: suite7-deal 0.38s cubic-bezier(0.22, 0.7, 0.3, 1) both;
+}
+@keyframes suite7-deal {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.suite7-flip {
+  perspective: 700px;
+  flex: 0 0 auto;
+}
+.suite7-flip-inner {
+  position: relative;
+  width: 74px;
+  height: 106px;
+  transform-style: preserve-3d;
+  transition: transform 0.55s ease;
+}
+.suite7-flip-inner.suite7-revealed {
+  transform: rotateY(180deg);
+}
+.suite7-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.suite7-flip-front {
+  transform: rotateY(180deg);
+}
+.suite7-flip-face > .suite7-card {
+  width: 100%;
+  height: 100%;
+}
+
+/* Buttons — theme-standard quiet gold outline; primary is the gold fill. */
+.suite7-btn {
+  background: none;
+  border: 1px solid rgba(231, 192, 113, 0.35);
+  color: #e3c071;
+  font-family: Georgia, serif;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-size: 10px;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, filter 0.2s;
+}
+.suite7-btn:hover:not(:disabled) {
+  border-color: rgba(231, 192, 113, 0.7);
+  color: #f7e8ac;
+}
+.suite7-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.suite7-btn-primary {
+  background: linear-gradient(180deg, #f7e8ac, #b8934a);
+  border-color: transparent;
+  color: #0a0805;
+  font-weight: 700;
+}
+.suite7-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.07);
+  color: #0a0805;
+}
+
+/* Chips: bet buttons + bankroll stack discs (dashed border = notched edge). */
+.suite7-chip-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 4px dashed rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-family: Georgia, serif;
+  font-weight: 700;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #0a0805;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6), inset 0 0 0 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s, filter 0.15s;
+}
+.suite7-chip-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+.suite7-chip-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.suite7-chip-disc {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: radial-gradient(circle at 35% 30%, #f7e8ac 0%, #e3c071 35%, #b8934a 70%, #6f5320 100%);
+  border: 3px dashed rgba(0, 0, 0, 0.55);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+/* Phone tier: smaller cards, tighter overlap; never any horizontal scroll. */
+@media (max-width: 480px) {
+  .suite7-card,
+  .suite7-flip-inner {
+    width: 58px;
+    height: 84px;
+    border-radius: 8px;
+  }
+  .suite7-hand {
+    min-height: 84px;
+  }
+  .suite7-hand > * + * {
+    margin-left: -14px;
+  }
+  .suite7-card-corner {
+    font-size: 11px;
+  }
+  .suite7-card-center {
+    font-size: 26px;
+  }
+  .suite7-card-back::after {
+    font-size: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .suite7-dealt {
+    animation: none;
+  }
+  .suite7-flip-inner {
+    transition: none;
+  }
+  .suite7-chip-btn:hover:not(:disabled) {
+    transform: none;
+  }
+}

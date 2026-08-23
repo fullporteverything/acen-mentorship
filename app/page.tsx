@@ -33,8 +33,8 @@ export default async function LoginPage({
         justifyContent: "center",
       }}
     >
-      {/* Drifting sakura background */}
-      <KanjiBackground />
+      {/* Falling chips + cards — the real Blender renders */}
+      <KanjiBackground variant="deck" />
 
       {/* Fixed vertical brand text — left side */}
       <div className="brand-vertical">

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Card, Outcome, Suit } from "@/lib/blackjack";
 
 /**
@@ -14,14 +16,21 @@ import type { Card, Outcome, Suit } from "@/lib/blackjack";
  * flip, bet increase → chip toss, SETTLED → payout slide + win glow. It never
  * drives game state.
  *
- * ── Future Blender hook ─────────────────────────────────────────────────────
- * buildCardMesh() and buildChipMesh() below are the ONLY places card / chip
- * geometry + materials are constructed. When the Blender-authored
- * /public/brand/table-assets.glb exists (a parallel blender/table_assets.py
- * workstream authors that file), swap the procedural construction inside those
- * two factories for GLTFLoader-loaded meshes/actions — layout, tweens and
- * disposal all go through the factories' return shape, so nothing else needs
- * to change. Do NOT implement the loader until the asset ships.
+ * ── Blender integration ─────────────────────────────────────────────────────
+ * /public/brand/table-assets.glb (Blender-authored) is loaded asynchronously
+ * after the procedural scene is up. When it arrives it supplies:
+ *   • the ENVIRONMENT — Table/Shoe/ChipTray/DiscardTray replace the procedural
+ *     felt + shoe (which stay built and merely turn invisible: they are the
+ *     permanent fallback if the load fails);
+ *   • the CHIPS — Chip7 clones (materials cloned + tinted per denomination);
+ *   • the ANIMATION CURVES — the authored CardDeal / CardFlip / CardDiscard /
+ *     ChipToss clips, retargeted onto the procedural cards and cloned chips by
+ *     parenting each animated node under a per-instance wrapper Group and
+ *     running a scoped AnimationMixer on that wrapper (the clips target node
+ *     names "Card7S"/"Chip7", so the animated node is given that name).
+ * The PLAYING CARDS stay procedural (canvas textures show correct ranks/suits;
+ * the glb card's 7♠ face is geometry — no 52-face atlas until sprint 2).
+ * If the glb is missing or malformed the whole procedural scene keeps working.
  */
 
 export type TablePhase = "BETTING" | "PLAYER" | "DEALER" | "SETTLED";
@@ -65,10 +74,37 @@ const CARD_GAP = 0.44; // fan overlap step
 const CHIP_R = 0.17;
 const CHIP_H = 0.05;
 
-const DEALER_Z = -1.45;
-const PLAYER_Z = 1.3;
+/* ── The Blender glb contract (public/brand/table-assets.glb) ────────────── */
+
+const GLB_URL = "/brand/table-assets.glb";
+/** Authored table is 6.0 wide — scale it up to the old procedural footprint. */
+const TABLE_SCALE = TABLE_W / 6.0;
+/** Node / clip names inside the glb (verified author contract). */
+const GLB_CARD_NODE = "Card7S";
+const GLB_CHIP_NODE = "Chip7";
+const GLB_ENV_NODES = ["Table", "Shoe", "ChipTray", "DiscardTray"] as const;
+/** CardDeal's first key — the card resting inside the shoe (glTF Y-up). */
+const DEAL_START_POS = new THREE.Vector3(1.819, 0.24, -0.892);
+const DEAL_START_QUAT = new THREE.Quaternion(-0.1356, -0.2228, -0.0313, 0.9649);
+/** A laid glb card rests at (0, 0.02, 0); ChipToss ends at (0, 0.0305, 0.90). */
+const GLB_CARD_REST_Y = 0.02;
+const GLB_CHIP_REST = new THREE.Vector3(0, 0.0305, 0.9);
+const GLB_CHIP_H = 0.045; // authored chip height → bet-stack step
+const GLB_FELT_Y = 0.008; // authored felt surface height
+/* Authored clips are luxurious (CardDeal 1.33s) — retimed via timeScale. */
+const DEAL_TIMESCALE = 2.0; // 1.33s → ~0.67s
+const FLIP_TIMESCALE = 1.0; // 0.67s (matches the old 0.6s flip)
+const DISCARD_TIMESCALE = 1.3; // 0.87s → ~0.67s
+const TOSS_TIMESCALE = 1.6; // 0.80s → 0.5s
+
+/* Rows sit clear of the glb ChipTray (dealer side) and betting circle. */
+const DEALER_Z = -1.55;
+const PLAYER_Z = 0.42;
 const ROW_X0 = -0.95;
-const BET_POS = { x: 0, z: 0.3 }; // betting circle center (drawn on the felt)
+/** Betting circle center — authored at glb table space (0, −0.90), which is
+    scene z = +0.90·TABLE_SCALE (player side is +z here). Was (0, 0.3). */
+const BET_POS = { x: 0, z: 0.9 * TABLE_SCALE };
+const BET_R = 0.34 * TABLE_SCALE; // authored circle radius, scaled
 const SHOE_POS = new THREE.Vector3(3.0, 0.5, -1.3);
 const CHIP_TOSS_FROM = new THREE.Vector3(0.9, 0.3, 2.7);
 const DEALER_TRAY = new THREE.Vector3(-2.4, CHIP_H / 2, -1.7);
@@ -251,7 +287,7 @@ function paintFelt(ctx: CanvasRenderingContext2D, w: number, h: number) {
   // Betting circle — thin gold line where the bet chips land.
   const px = (BET_POS.x / TABLE_W + 0.5) * w;
   const py = (BET_POS.z / TABLE_D + 0.5) * h;
-  const pr = (0.32 / TABLE_W) * w;
+  const pr = (BET_R / TABLE_W) * w;
   ctx.beginPath();
   ctx.arc(px, py, pr, 0, Math.PI * 2);
   ctx.strokeStyle = "rgba(227, 192, 113, 0.45)";
@@ -349,13 +385,15 @@ interface Controller {
 }
 
 interface CardEntry {
-  group: THREE.Group; // slot — final position + fan jitter
+  group: THREE.Group; // outermost scene node (glb mode: the retarget wrapper)
   flip: THREE.Group; // rotation.z = PI while face-down
   mats: THREE.MeshStandardMaterial[]; // per-card so the win pulse stays local
   shadow: THREE.Mesh;
   faceDown: boolean;
   home: THREE.Vector3;
   jitter: number;
+  /** glb mode only: the node named "Card7S" the authored clips animate. */
+  animRoot?: THREE.Group;
 }
 
 const SUIT_KEYS: Record<Suit, string> = { "♠": "S", "♥": "H", "♦": "D", "♣": "C" };
@@ -503,7 +541,14 @@ function createController(mount: HTMLDivElement): Controller {
     return { group, flip, mats: [faceMat, backMat] };
   }
 
-  function buildChipMesh(denom: number): THREE.Mesh {
+  function buildChipMesh(denom: number): THREE.Object3D {
+    if (glbChipTemplate) {
+      const chip = cloneGlbChip(denom);
+      chip.position.set(0, 0, 0);
+      chip.quaternion.identity();
+      chip.scale.setScalar(TABLE_SCALE);
+      return chip;
+    }
     return new THREE.Mesh(chipGeo, getChipMats(denom));
   }
 
@@ -538,11 +583,150 @@ function createController(mount: HTMLDivElement): Controller {
     }
   };
 
+  /* ── Blender glb: state, retarget mixers, async adoption ──────────────── */
+
+  let disposed = false;
+  let glbEnv: THREE.Group | null = null; // Table/Shoe/ChipTray/DiscardTray
+  let glbClips: {
+    deal: THREE.AnimationClip;
+    flip: THREE.AnimationClip;
+    discard: THREE.AnimationClip;
+    toss: THREE.AnimationClip;
+  } | null = null;
+  let glbChipTemplate: THREE.Object3D | null = null;
+  const glbDisposables: { dispose(): void }[] = [];
+  /* Tinted material clones, cached per denomination (keyed by source uuid). */
+  const glbChipMats = new Map<number, Map<string, THREE.Material>>();
+
+  /* Chip landing metrics + payout origin (procedural defaults; the glb swap
+     raises them to the authored chip/tray dimensions). */
+  let chipY0 = CHIP_H / 2;
+  let chipStep = CHIP_H * 1.04;
+  let shadowLift = 0; // contact shadows must clear the glb felt surface
+  const payoutFrom = DEALER_TRAY.clone();
+
+  /* One scoped AnimationMixer per animated instance, driven by the rAF dt. */
+  const activeMixers = new Set<THREE.AnimationMixer>();
+
+  /** Play an authored clip once on `root`'s subtree; `snap` sets the exact
+      rest pose on 'finished' (and immediately under reducedMotion). */
+  function playClip(
+    root: THREE.Object3D,
+    clip: THREE.AnimationClip,
+    timeScale: number,
+    delay: number,
+    snap: () => void
+  ) {
+    if (reduced) {
+      snap();
+      return;
+    }
+    const mixer = new THREE.AnimationMixer(root);
+    const action = mixer.clipAction(clip);
+    action.setLoop(THREE.LoopOnce, 1);
+    action.clampWhenFinished = true;
+    action.timeScale = timeScale;
+    if (delay > 0) action.startAt(delay);
+    action.play();
+    mixer.addEventListener("finished", () => {
+      activeMixers.delete(mixer);
+      mixer.stopAllAction();
+      mixer.uncacheRoot(root);
+      snap();
+    });
+    activeMixers.add(mixer);
+  }
+
+  /** Clone the glb Chip7, re-tinting cloned materials toward the denom color. */
+  function cloneGlbChip(denom: number): THREE.Object3D {
+    const chip = (glbChipTemplate as THREE.Object3D).clone(true);
+    chip.visible = true;
+    let tints = glbChipMats.get(denom);
+    if (!tints) {
+      tints = new Map();
+      glbChipMats.set(denom, tints);
+    }
+    const cache = tints;
+    const style = CHIP_STYLE[denom] ?? CHIP_STYLE[25];
+    const tint = new THREE.Color(style.mid);
+    chip.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const remap = (mat: THREE.Material): THREE.Material => {
+        let clone = cache.get(mat.uuid);
+        if (!clone) {
+          clone = mat.clone();
+          const std = clone as THREE.MeshStandardMaterial;
+          if (std.color) std.color.lerp(tint, 0.55);
+          cache.set(mat.uuid, clone);
+          glbDisposables.push(clone);
+        }
+        return clone;
+      };
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(remap) : remap(mesh.material);
+    });
+    return chip;
+  }
+
+  /** Swap the environment + chips + clips in once the glb has loaded. */
+  function adoptGlb(gltf: GLTF) {
+    const root = gltf.scene;
+    for (const name of GLB_ENV_NODES) {
+      if (!root.getObjectByName(name)) throw new Error(`glb missing ${name}`);
+    }
+    root.scale.setScalar(TABLE_SCALE);
+    root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      glbDisposables.push(mesh.geometry);
+      for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        glbDisposables.push(mat);
+        const map = (mat as THREE.MeshStandardMaterial).map;
+        if (map) glbDisposables.push(map);
+      }
+    });
+    // The template card/chip are clone/animation sources, never shown as-is.
+    const cardTemplate = root.getObjectByName(GLB_CARD_NODE);
+    if (cardTemplate) cardTemplate.visible = false;
+    const chipTemplate = root.getObjectByName(GLB_CHIP_NODE) ?? null;
+    if (chipTemplate) chipTemplate.visible = false;
+
+    scene.add(root);
+    root.updateMatrixWorld(true);
+
+    // The procedural felt + shoe stay built (permanent fallback) but hidden.
+    felt.visible = false;
+    shoe.visible = false;
+    // glTF PBR reads darker than the procedural mats under the same rig.
+    ambient.intensity = 1.25;
+    key.intensity = 2.0;
+
+    chipY0 = GLB_CHIP_REST.y * TABLE_SCALE;
+    chipStep = GLB_CHIP_H * TABLE_SCALE;
+    shadowLift = GLB_FELT_Y * TABLE_SCALE + 0.002;
+    const tray = root.getObjectByName("ChipTray");
+    if (tray) {
+      tray.getWorldPosition(payoutFrom);
+      payoutFrom.y = chipY0;
+    }
+
+    const deal = THREE.AnimationClip.findByName(gltf.animations, "CardDeal");
+    const flipClip = THREE.AnimationClip.findByName(gltf.animations, "CardFlip");
+    const discard = THREE.AnimationClip.findByName(gltf.animations, "CardDiscard");
+    const toss = THREE.AnimationClip.findByName(gltf.animations, "ChipToss");
+    if (deal && flipClip && discard && toss) {
+      glbClips = { deal, flip: flipClip, discard, toss };
+    }
+    glbChipTemplate = chipTemplate;
+    glbEnv = root;
+  }
+
   /* ── Display lists ────────────────────────────────────────────────────── */
 
   const rows: { player: CardEntry[]; dealer: CardEntry[] } = { player: [], dealer: [] };
-  const betStack: THREE.Mesh[] = []; // chips currently on the betting circle
-  const transientChips: THREE.Mesh[] = []; // payout / swept chips mid-flight
+  const betStack: THREE.Object3D[] = []; // chips currently on the betting circle
+  const transientChips: THREE.Object3D[] = []; // payout / swept chips mid-flight
+  const discarding = new Set<CardEntry>(); // cards mid-CardDiscard (glb bonus)
   let betShadow: THREE.Mesh | null = null;
   let lastBet = 0;
   let settledHandled = false;
@@ -550,7 +734,7 @@ function createController(mount: HTMLDivElement): Controller {
   function makeShadow(x: number, z: number, sx: number, sz: number, y: number): THREE.Mesh {
     const m = new THREE.Mesh(shadowGeo, shadowMat);
     m.rotation.x = -Math.PI / 2;
-    m.position.set(x, y, z);
+    m.position.set(x, shadowLift + y, z); // lifted above the glb felt surface
     m.scale.set(sx, sz, 1);
     scene.add(m);
     return m;
@@ -570,17 +754,52 @@ function createController(mount: HTMLDivElement): Controller {
     const jitter = rand(-1, 1) * ((2 * Math.PI) / 180); // ±2° fan wobble
     const { group, flip, mats } = buildCardMesh(card);
     if (faceDown) flip.rotation.z = Math.PI;
-    group.position.copy(SHOE_POS);
-    group.rotation.y = jitter + 1.4;
-    scene.add(group);
 
     const shadow = makeShadow(home.x, home.z, CARD_W * 1.5, CARD_H * 1.3, 0.004 + i * 0.0005);
     shadow.scale.set(0, 0, 1);
 
+    if (glbClips && !reduced) {
+      // Authored CardDeal, retargeted: the clip animates a node named
+      // "Card7S" from inside the Shoe to the glb-space origin, so the
+      // procedural card group takes that name and goes under a wrapper whose
+      // position lerps origin → slot. At k=0 the card sits exactly in the glb
+      // Shoe (env and wrapper share scale + origin); at k=1 the clip's
+      // authored rest lands exactly on the slot — both rows, no mirroring.
+      group.name = GLB_CARD_NODE;
+      group.position.copy(DEAL_START_POS);
+      group.quaternion.copy(DEAL_START_QUAT);
+      flip.scale.setScalar(1 / TABLE_SCALE); // wrapper scale ≠ card scale
+      const wrapper = new THREE.Group();
+      wrapper.scale.setScalar(TABLE_SCALE);
+      wrapper.rotation.y = jitter;
+      wrapper.add(group);
+      scene.add(wrapper);
+
+      const base = new THREE.Vector3(home.x, home.y - GLB_CARD_REST_Y * TABLE_SCALE, home.z);
+      const entry: CardEntry = { group: wrapper, animRoot: group, flip, mats, shadow, faceDown, home, jitter };
+      rows[row].push(entry);
+
+      const dur = glbClips.deal.duration / DEAL_TIMESCALE;
+      tween(delay, dur, (e) => {
+        wrapper.position.copy(base).multiplyScalar(e);
+        const s = 0.4 + 0.6 * e;
+        shadow.scale.set(CARD_W * 1.5 * s * e, CARD_H * 1.3 * s * e, 1);
+      });
+      playClip(wrapper, glbClips.deal, DEAL_TIMESCALE, delay, () => {
+        wrapper.position.copy(base);
+        group.position.set(0, GLB_CARD_REST_Y, 0);
+        group.quaternion.identity();
+      });
+      return;
+    }
+
+    // Procedural deal (also the reduced-motion snap path): fly in from the
+    // shoe along a parabolic arc, spin settling. ~450ms.
+    group.position.copy(SHOE_POS);
+    group.rotation.y = jitter + 1.4;
+    scene.add(group);
     const entry: CardEntry = { group, flip, mats, shadow, faceDown, home, jitter };
     rows[row].push(entry);
-
-    // Deal: fly in from the shoe along a parabolic arc, spin settling. ~450ms.
     tween(delay, 0.45, (e) => {
       group.position.x = SHOE_POS.x + (home.x - SHOE_POS.x) * e;
       group.position.z = SHOE_POS.z + (home.z - SHOE_POS.z) * e;
@@ -597,15 +816,49 @@ function createController(mount: HTMLDivElement): Controller {
     for (const m of entry.mats) m.dispose(); // textures stay cached
   }
 
+  /** Bonus: authored CardDiscard — a swept card slides into the DiscardTray.
+      Wrapper position lerps back to the origin, so the clip's authored end
+      (the glb DiscardTray position) is hit exactly. */
+  function discardCard(entry: CardEntry, delay: number) {
+    const clips = glbClips as NonNullable<typeof glbClips>;
+    const wrapper = entry.group;
+    scene.remove(entry.shadow);
+    discarding.add(entry);
+    const base = wrapper.position.clone();
+    const dur = clips.discard.duration / DISCARD_TIMESCALE;
+    tween(delay, dur, (e) => {
+      wrapper.position.copy(base).multiplyScalar(1 - e);
+    });
+    playClip(wrapper, clips.discard, DISCARD_TIMESCALE, delay, () => {
+      discarding.delete(entry);
+      scene.remove(wrapper);
+      for (const m of entry.mats) m.dispose();
+    });
+  }
+
   function clearRow(row: "player" | "dealer") {
-    for (const entry of rows[row]) removeCard(entry);
+    rows[row].forEach((entry, i) => {
+      if (!disposed && !reduced && glbClips && entry.animRoot) discardCard(entry, i * 0.06);
+      else removeCard(entry);
+    });
     rows[row].length = 0;
   }
 
   /** Hole-card reveal: lift ~0.15, roll PI around the long axis, set down. */
   function flipHole(entry: CardEntry) {
     entry.faceDown = false;
-    const { flip, group, home } = entry;
+    const { flip, group, home, animRoot } = entry;
+    if (glbClips && animRoot) {
+      // Authored CardFlip ends clamped at rotation π about the long axis;
+      // combined with the face-down flip group's π the card reads face-up
+      // (2π). The snap collapses both back to 0 — visually identical.
+      playClip(group, glbClips.flip, FLIP_TIMESCALE, 0, () => {
+        flip.rotation.z = 0;
+        animRoot.position.set(0, GLB_CARD_REST_Y, 0);
+        animRoot.quaternion.identity();
+      });
+      return;
+    }
     tween(0, 0.6, (e, k) => {
       flip.rotation.z = Math.PI * (1 - e);
       group.position.y = home.y + Math.sin(Math.PI * k) * 0.15;
@@ -617,7 +870,7 @@ function createController(mount: HTMLDivElement): Controller {
   function chipRest(i: number): THREE.Vector3 {
     return new THREE.Vector3(
       BET_POS.x + rand(-0.014, 0.014),
-      CHIP_H / 2 + i * CHIP_H * 1.04,
+      chipY0 + i * chipStep,
       BET_POS.z + rand(-0.014, 0.014)
     );
   }
@@ -627,8 +880,45 @@ function createController(mount: HTMLDivElement): Controller {
     const denoms = denomsFor(delta);
     denoms.forEach((denom, n) => {
       if (betStack.length >= MAX_BET_CHIPS) return; // extra chips are implied
+      const i = betStack.length;
+      if (glbClips && glbChipTemplate && !reduced) {
+        // Authored ChipToss, retargeted: the clip ends on the betting circle
+        // at glb-space (0, 0.0305, 0.90) — a parent offset makes that end
+        // land on this chip's stack slot. The clone's rest pose IS the clip's
+        // first key, so it sits at the toss origin until its action starts.
+        const chip = cloneGlbChip(denom);
+        const rest = chipRest(i);
+        const wrapper = new THREE.Group();
+        wrapper.scale.setScalar(TABLE_SCALE);
+        wrapper.position.set(
+          rest.x - GLB_CHIP_REST.x * TABLE_SCALE,
+          0, // stack offset tweens in below (keeps the pre-toss chip on felt)
+          rest.z - GLB_CHIP_REST.z * TABLE_SCALE
+        );
+        wrapper.add(chip);
+        scene.add(wrapper);
+        betStack.push(wrapper);
+        const dur = glbClips.toss.duration / TOSS_TIMESCALE;
+        tween(n * 0.09, dur, (e) => {
+          wrapper.position.y = (rest.y - chipY0) * e;
+        });
+        playClip(wrapper, glbClips.toss, TOSS_TIMESCALE, n * 0.09, () => {
+          // Snap: swap wrapper → bare chip at its exact rest pose so the
+          // settle/payout slides (site tweens) keep driving a flat node.
+          scene.remove(wrapper);
+          const idx = betStack.indexOf(wrapper);
+          if (idx === -1) return; // stack was swept mid-flight
+          chip.position.copy(rest);
+          chip.quaternion.identity();
+          chip.scale.setScalar(TABLE_SCALE);
+          scene.add(chip);
+          betStack[idx] = chip;
+        });
+        return;
+      }
+      // Procedural toss (also the reduced-motion snap path).
       const chip = buildChipMesh(denom);
-      const to = chipRest(betStack.length);
+      const to = chipRest(i);
       const spin = rand(0, Math.PI * 2);
       chip.position.copy(CHIP_TOSS_FROM);
       chip.rotation.y = spin;
@@ -654,7 +944,7 @@ function createController(mount: HTMLDivElement): Controller {
   }
 
   /** Slide a chip toward `to`, sinking under the felt near the end, then remove. */
-  function slideChipAway(chip: THREE.Mesh, to: THREE.Vector3, delay: number) {
+  function slideChipAway(chip: THREE.Object3D, to: THREE.Vector3, delay: number) {
     const from = chip.position.clone();
     transientChips.push(chip);
     tween(
@@ -699,7 +989,7 @@ function createController(mount: HTMLDivElement): Controller {
       );
       denoms.forEach((denom, i) => {
         const chip = buildChipMesh(denom);
-        chip.position.set(DEALER_TRAY.x + rand(-0.05, 0.05), DEALER_TRAY.y, DEALER_TRAY.z + rand(-0.05, 0.05));
+        chip.position.set(payoutFrom.x + rand(-0.05, 0.05), payoutFrom.y, payoutFrom.z + rand(-0.05, 0.05));
         chip.rotation.y = rand(0, Math.PI * 2);
         scene.add(chip);
         slideChipAway(
@@ -795,8 +1085,10 @@ function createController(mount: HTMLDivElement): Controller {
 
   const frame = () => {
     raf = requestAnimationFrame(frame);
-    now += Math.min(clock.getDelta(), 0.05); // clamp tab-switch jumps
+    const dt = Math.min(clock.getDelta(), 0.05); // clamp tab-switch jumps
+    now += dt;
     stepTweens();
+    for (const mixer of activeMixers) mixer.update(dt); // glb clip instances
     if (reduced) {
       camera.position.copy(camBase);
     } else {
@@ -845,17 +1137,54 @@ function createController(mount: HTMLDivElement): Controller {
   layout();
   start();
 
+  /* ── Kick off the async glb load (procedural scene already rendering) ──── */
+
+  try {
+    new GLTFLoader().load(
+      GLB_URL,
+      (gltf) => {
+        if (disposed) return;
+        try {
+          adoptGlb(gltf);
+        } catch {
+          /* malformed asset — the procedural table keeps running */
+        }
+      },
+      undefined,
+      () => {
+        /* fetch/parse failed — the procedural table keeps running */
+      }
+    );
+  } catch {
+    /* loader unavailable — the procedural table keeps running */
+  }
+
   /* ── Teardown: dispose EVERYTHING ─────────────────────────────────────── */
 
   function dispose() {
+    disposed = true; // clearRow must remove instantly, never play CardDiscard
     stop();
     document.removeEventListener("visibilitychange", onVisibility);
     observer.disconnect();
     tweens.length = 0;
+    for (const mixer of activeMixers) mixer.stopAllAction();
+    activeMixers.clear();
     clearRow("player");
     clearRow("dealer");
+    for (const entry of discarding) {
+      scene.remove(entry.group);
+      for (const m of entry.mats) m.dispose();
+    }
+    discarding.clear();
     clearBetStack();
     clearTransients();
+    if (glbEnv) scene.remove(glbEnv);
+    glbEnv = null;
+    glbChipTemplate = null;
+    glbClips = null;
+    for (const d of glbDisposables) d.dispose();
+    glbDisposables.length = 0;
+    glbChipMats.clear();
     for (const d of sharedDisposables) d.dispose();
     for (const tex of texCache.values()) tex.dispose();
     texCache.clear();

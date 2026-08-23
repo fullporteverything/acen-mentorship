@@ -3,6 +3,10 @@ import JournalNavBadge from "@/components/JournalNavBadge";
 import ProfileTrigger from "@/components/ProfileTrigger";
 import NotificationCenter from "@/components/NotificationCenter";
 import OnboardingTour from "@/components/OnboardingTour";
+import { getAddedLessons, getLessonOverrides, getViewerProgress } from "@/lib/lesson-store";
+import { buildEffectiveLessons, computeCurriculumStates } from "@/lib/lessons-config";
+import { autoPassedLessonIds } from "@/lib/progress-link";
+import { deriveRank, type Rank } from "@/lib/rank";
 
 interface TopNavProps {
   /** href of the nav link that should render as active. */
@@ -37,6 +41,41 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
   const links = [...NAV_LINKS];
   if (isAdmin) {
     links.push({ label: "Admin", href: "/dashboard/admin" });
+  }
+
+  // Member rank pill. Kept cheap and fully defensive: any failure just drops
+  // the chip rather than breaking the nav that every dashboard page depends on.
+  let rank: Rank | null = null;
+  try {
+    const discordId =
+      session?.user?.discordId?.trim() || session?.user?.id?.trim();
+    if (discordId) {
+      const [progress, addedLessons, overrides] = await Promise.all([
+        getViewerProgress(discordId),
+        getAddedLessons(),
+        getLessonOverrides(),
+      ]);
+      const lessons = buildEffectiveLessons(addedLessons, overrides);
+      const completedLessonIds = autoPassedLessonIds(
+        discordId,
+        progress.completedLessons,
+        lessons.map((lesson) => lesson.id)
+      );
+      const curriculum = computeCurriculumStates(
+        completedLessonIds,
+        lessons,
+        isAdmin
+      );
+      rank = deriveRank({
+        isAdmin,
+        coreStates: curriculum.coreStates,
+        allStates: curriculum.states,
+      });
+    } else if (isAdmin) {
+      rank = deriveRank({ isAdmin });
+    }
+  } catch {
+    rank = null;
   }
 
   return (
@@ -118,6 +157,33 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
         style={{ display: "flex", alignItems: "center", gap: 14 }}
       >
         <NotificationCenter />
+        {rank && (
+          <span
+            className="topnav-rank"
+            aria-label={`Rank: ${rank}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              background: "linear-gradient(180deg,#f7e8ac,#b8934a)",
+              color: "#2a1c05",
+              fontSize: 9,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              fontFamily: "Georgia, serif",
+              fontWeight: 600,
+              padding: "5px 11px",
+              borderRadius: 999,
+              whiteSpace: "nowrap",
+              lineHeight: 1,
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 8 }}>
+              ◆
+            </span>
+            {rank}
+          </span>
+        )}
         <ProfileTrigger
           discordId={session?.user?.discordId}
           name={session?.user?.name ?? undefined}

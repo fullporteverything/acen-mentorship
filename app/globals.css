@@ -337,6 +337,11 @@ body {
     padding: 7px 9px !important;
     letter-spacing: 2px !important;
   }
+  /* Rank pill drops out on the phone tier — the row-1 action cluster has no
+     room for it once notice + avatar + sign out are in. */
+  .topnav-rank {
+    display: none !important;
+  }
 }
 
 /* Inline editable text (admin) — CSS-only "double-click to edit" hint */

@@ -115,6 +115,7 @@ export default async function TopNav({ active = "/dashboard" }: TopNavProps) {
                 backgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 color: "#e3c071",
+                fontVariantNumeric: "lining-nums",
               }}
             >
               SUITE 7

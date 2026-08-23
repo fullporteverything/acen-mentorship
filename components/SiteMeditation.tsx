@@ -158,23 +158,47 @@ function AfkCard() {
           placeItems: "center",
         }}
       >
-        <span aria-hidden style={corner("tl")}>
+        {/* The two corner 7♠ are the focal point — they slowly glow in and out. */}
+        <motion.span
+          aria-hidden
+          style={corner("tl")}
+          animate={{
+            opacity: [0.5, 1, 0.5],
+            textShadow: [
+              "0 0 0px rgba(231,192,113,0)",
+              "0 0 20px rgba(231,192,113,0.95)",
+              "0 0 0px rgba(231,192,113,0)",
+            ],
+          }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", delay: 2.2 }}
+        >
           <span>7</span>
           <span style={{ fontSize: 20 }}>♠</span>
-        </span>
-        <span aria-hidden style={corner("br")}>
+        </motion.span>
+        <motion.span
+          aria-hidden
+          style={corner("br")}
+          animate={{
+            opacity: [0.5, 1, 0.5],
+            textShadow: [
+              "0 0 0px rgba(231,192,113,0)",
+              "0 0 20px rgba(231,192,113,0.95)",
+              "0 0 0px rgba(231,192,113,0)",
+            ],
+          }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", delay: 2.2 }}
+        >
           <span>7</span>
           <span style={{ fontSize: 20 }}>♠</span>
-        </span>
+        </motion.span>
 
-        {/* center spade */}
+        {/* center spade — calm backdrop now; the corner 7s carry the animation */}
         <span
           aria-hidden
           style={{
             fontSize: 104,
             lineHeight: 1,
-            color: "#e3c071",
-            textShadow: "0 0 26px rgba(231,192,113,0.4)",
+            color: "rgba(231,192,113,0.3)",
             fontFamily: "Georgia, serif",
             transform: "translateY(-6px)",
           }}

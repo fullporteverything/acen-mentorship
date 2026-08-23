@@ -3,7 +3,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { signIn } from "next-auth/react";
 import { useEffect, useState, type CSSProperties } from "react";
-import PhiLogo from "@/components/PhiLogo";
 import ThresholdOverlay from "@/components/ThresholdOverlay";
 import CrackedGate from "@/components/CrackedGate";
 import SupportLink from "@/components/SupportLink";
@@ -127,12 +126,8 @@ export default function LoginCard({
           initial="hidden"
           animate="visible"
           className="flex flex-col items-center gap-0"
+          style={{ paddingTop: 20 }}
         >
-          {/* Phi mark — identity anchor. */}
-          <motion.div variants={itemVariants} style={{ marginBottom: 18 }}>
-            <PhiLogo size={124} />
-          </motion.div>
-
           {/* Welcome */}
           <motion.p
             variants={itemVariants}
@@ -159,6 +154,9 @@ export default function LoginCard({
               fontFamily: "Georgia, serif",
               fontWeight: 400,
               marginBottom: "20px",
+              // Georgia uses old-style figures (the "7" dips below the baseline);
+              // force lining figures so the 7 sits level with the caps.
+              fontVariantNumeric: "lining-nums",
             }}
           >
             Suite 7

@@ -24,9 +24,12 @@ export default function SiteMeditation({ idleMs = IDLE_MS }: { idleMs?: number }
   const pathname = usePathname();
 
   // Watching a lesson video means long, legitimate stretches with no mouse or
-  // keyboard input — the overlay would pop every idle period mid-video. So on
-  // lesson-detail pages (where the video player lives) it never arms.
-  const suppressed = /^\/dashboard\/lessons\/[^/]+/.test(pathname ?? "");
+  // keyboard input — the overlay would pop every idle period mid-video. Same
+  // for The Table: you're already sitting with the dealer, so "Long night,
+  // sir?" is redundant there. Neither page arms the AFK card.
+  const suppressed =
+    /^\/dashboard\/lessons\/[^/]+/.test(pathname ?? "") ||
+    (pathname ?? "").startsWith("/dashboard/table");
 
   // Ref mirror so the always-on listeners can read the latest state without
   // being torn down / re-added on every toggle.

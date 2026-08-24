@@ -1176,7 +1176,7 @@ function createController(
     }
     // The shoe's deck is drawn from the same BACK cell.
     if (deck) {
-      const mat = deck.cards[0]?.material as THREE.MeshStandardMaterial | undefined;
+      const mat = deck.top.material as THREE.MeshStandardMaterial | undefined;
       if (mat) {
         mat.map = backTexture();
         mat.needsUpdate = true;
@@ -2220,8 +2220,9 @@ function createController(
    */
   interface DeckStack {
     group: THREE.Group;
-    cards: THREE.Mesh[];
-    /** The solid body under the top cards: the deck's paper edge. */
+    /** The one visible card back, riding on top of the paper-edge block. */
+    top: THREE.Mesh;
+    /** The solid body under the top card: the deck's paper edge. */
     body: THREE.Mesh;
     disposables: { dispose(): void }[];
     remaining: number;
@@ -2267,19 +2268,15 @@ function createController(
     const body = new THREE.Mesh(bodyGeo, edgeMat);
     body.castShadow = true;
     group.add(body);
-    const cards: THREE.Mesh[] = [];
-    for (let i = 0; i < DECK_CARDS; i++) {
-      // Shared cardGeo — the exact geometry a dealt card uses, so the stack and
-      // the card that leaves it are the same object at the same size.
-      const mesh = new THREE.Mesh(cardGeo, backMat);
-      // Euler XYZ applies z first: an in-plane wobble, then laid flat.
-      mesh.rotation.set(-Math.PI / 2, 0, rand(-1, 1) * ((1.7 * Math.PI) / 180));
-      mesh.position.set(rand(-0.009, 0.009), i * DECK_STEP, rand(-0.009, 0.009));
-      group.add(mesh);
-      cards.push(mesh);
-    }
+    // ONE visible back on top of the block. Eighteen individually-jittered
+    // patterned planes a hair apart shimmered and poked past the shoe walls —
+    // it read as clipped noise, not a deck. A real shoe shows exactly this:
+    // the paper edge of the brick, and the top card's back.
+    const top = new THREE.Mesh(cardGeo, backMat);
+    top.rotation.set(-Math.PI / 2, 0, (0.6 * Math.PI) / 180);
+    group.add(top);
     scene.add(group);
-    deck = { group, cards, body, disposables: [backMat, edgeMat, bodyGeo], remaining: DECK_CARDS };
+    deck = { group, top, body, disposables: [backMat, edgeMat, bodyGeo], remaining: DECK_CARDS };
     placeDeck();
     showDeck(DECK_CARDS);
   }
@@ -2292,6 +2289,7 @@ function createController(
     if (!a) return;
     deck.group.position.copy(a.first).multiplyScalar(TABLE_SCALE);
     deck.group.quaternion.copy(a.firstQuat);
+    deck.group.translateY(-DECK_STEP * 2); // bed the brick into the shoe mouth
     // Same scale as a dealt card, so the deck reads as these cards.
     deck.group.scale.setScalar(layout.cardScale);
   }
@@ -2300,19 +2298,16 @@ function createController(
       the next deal flies out of — never moves. */
   function showDeck(n: number) {
     if (!deck) return;
-    const vis = THREE.MathUtils.clamp(Math.round(n), 0, deck.cards.length);
+    const vis = THREE.MathUtils.clamp(Math.round(n), 0, DECK_CARDS);
     deck.remaining = vis;
-    for (let i = 0; i < deck.cards.length; i++) {
-      const card = deck.cards[i];
-      card.visible = i < vis;
-      card.castShadow = i === vis - 1; // only the top card needs to cast
-    }
     deck.group.visible = vis > 0;
-    deck.body.visible = vis > 0;
     const thick = Math.max(DECK_STEP, (vis - 1) * DECK_STEP);
-    // Inset so the card planes' edges stay proud of the block.
-    deck.body.scale.set(CARD_W * 0.955, thick, CARD_H * 0.955);
-    deck.body.position.set(0, ((vis - 1) * DECK_STEP) / 2, 0);
+    // The block is a touch NARROWER than the card so the top back always
+    // overhangs it cleanly and nothing pokes past the shoe's walls.
+    deck.body.scale.set(CARD_W * 0.94, thick, CARD_H * 0.94);
+    deck.body.position.set(0, thick / 2, 0);
+    deck.top.position.set(0, thick + 0.0012, 0);
+    deck.top.castShadow = true;
   }
 
   /** One card leaves the shoe. Floors at DECK_MIN_CARDS: an empty-looking shoe

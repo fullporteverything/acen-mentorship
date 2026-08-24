@@ -73,6 +73,9 @@ def pbr(name, color, metallic=0.0, rough=0.5, emission=None, emit_strength=0.0):
         b.inputs["Emission Color"].default_value = emission
         b.inputs["Emission Strength"].default_value = emit_strength
     nt.links.new(b.outputs[0], out.inputs[0])
+    # viewport display colour too, so SOLID shading and the outliner show
+    # the real hue instead of default white (glTF ignores this field)
+    m.diffuse_color = color
     return m
 
 
@@ -185,12 +188,28 @@ def glyph(body, font_path, name, height, mat=None, extrude=0.004,
     cu.resolution_u = resolution_u
     ob = link(bpy.data.objects.new(name, cu))
     ob = to_mesh(ob)
-    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
-    h = ob.dimensions.y
-    if h > 1e-6:
-        s = height / h
-        ob.scale = (s, s, s)
-        bpy.ops.object.transform_apply(scale=True)
+    # Centre on the ink and normalise the height by editing mesh data
+    # directly.
+    #
+    # bpy.ops.object.origin_set needs a 3D-view context and SILENTLY
+    # NO-OPS when the build is driven over blender-mcp (bpy.context.area
+    # is None there). It raises nothing, so every glyph quietly kept its
+    # font-metric offset instead of its ink centre: Card7S's corner "7"
+    # landed 0.136 low and collided with the spade beneath it, and the
+    # felt print inherited the same drift. Plain mesh maths has no
+    # context dependency and gives the identical result headlessly.
+    bb = ob.bound_box
+    cx = (min(v[0] for v in bb) + max(v[0] for v in bb)) / 2.0
+    cy = (min(v[1] for v in bb) + max(v[1] for v in bb)) / 2.0
+    cz = (min(v[2] for v in bb) + max(v[2] for v in bb)) / 2.0
+    h = max(v[1] for v in bb) - min(v[1] for v in bb)
+    s = (height / h) if h > 1e-6 else 1.0
+    for v in ob.data.vertices:
+        v.co.x = (v.co.x - cx) * s
+        v.co.y = (v.co.y - cy) * s
+        v.co.z = (v.co.z - cz) * s
+    ob.data.update()
+    ob.location = (0.0, 0.0, 0.0)
     if mat is not None:
         set_material(ob, mat)
     return ob

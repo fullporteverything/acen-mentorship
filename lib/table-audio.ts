@@ -23,6 +23,8 @@ type Voice =
   | "chipToss"
   | "chipStack"
   | "shuffle"
+  | "shaker"
+  | "pour"
   | "win"
   | "lose"
   | "push";
@@ -238,6 +240,104 @@ class TableAudio {
         for (let i = 0; i < hits; i++) {
           const at = t + i * r(0.02, 0.045);
           this.ping(ctx, at, r(1000, 1500), 0.07, 0.06);
+        }
+        break;
+      }
+
+      /**
+       * The cocktail shaker: ice in a tin. Four two-beat shakes over ~1.2 s —
+       * each beat is a dense bright rattle (the cubes), a short low thump (the
+       * tin's body) and two metallic partials (its ring), so it reads as metal
+       * rather than as a maraca. Every beat is independently jittered in time,
+       * pitch and level, so the four shakes never sound like one sample looped.
+       */
+      case "shaker": {
+        const shakes = 4;
+        const period = 0.3; // 4 x 0.3 = the 1.2 s the pour is cued off
+        for (let i = 0; i < shakes; i++) {
+          // The forward throw is struck harder than the catch on the way back.
+          for (const [off, level] of [
+            [0, 0.17],
+            [0.088, 0.115],
+          ] as const) {
+            const a = t + i * period + off + r(-0.007, 0.007);
+            // The cubes: a bright, dense rattle that dies almost at once.
+            this.noiseBurst(ctx, a, {
+              duration: r(0.1, 0.145),
+              gain: level,
+              type: "bandpass",
+              freq: r(3600, 5200),
+              freqEnd: r(1800, 2600),
+              q: 0.85,
+              attack: 0.002,
+            });
+            // The tin taking the hit.
+            this.noiseBurst(ctx, a + 0.002, {
+              duration: 0.075,
+              gain: level * 0.5,
+              type: "lowpass",
+              freq: r(250, 360),
+              attack: 0.002,
+            });
+            // Its metallic ring — two partials, the upper one quieter.
+            this.ping(ctx, a, r(2050, 2600), level * 0.3, 0.17, "triangle");
+            this.ping(ctx, a + 0.004, r(3150, 3950), level * 0.15, 0.11, "sine");
+          }
+        }
+        break;
+      }
+
+      /**
+       * The pour: a SUSTAINED liquid stream, ~1.5 s, not a burst. The shared
+       * noise buffer is looped through a band-pass that opens as the stream
+       * finds the bowl and closes again as it is cut off, wobbled by a slow LFO
+       * so it reads as liquid rather than as hiss, with bubbles rising in pitch
+       * as the glass fills.
+       */
+      case "pour": {
+        if (!this.noise) break;
+        const dur = 1.5;
+        const src = ctx.createBufferSource();
+        src.buffer = this.noise;
+        src.loop = true;
+        src.playbackRate.value = r(0.9, 1.1);
+
+        const hp = ctx.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.value = 420;
+
+        const bp = ctx.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.Q.value = 0.8;
+        bp.frequency.setValueAtTime(r(820, 980), t);
+        bp.frequency.linearRampToValueAtTime(r(2000, 2400), t + dur * 0.55);
+        bp.frequency.linearRampToValueAtTime(r(1350, 1650), t + dur);
+
+        // Splash wobble on the filter, so the stream breathes.
+        const lfo = ctx.createOscillator();
+        lfo.type = "sine";
+        lfo.frequency.value = r(6.5, 8.5);
+        const lfoDepth = ctx.createGain();
+        lfoDepth.gain.value = 260;
+        lfo.connect(lfoDepth).connect(bp.frequency);
+        lfo.start(t);
+        lfo.stop(t + dur + 0.05);
+
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0, t);
+        env.gain.linearRampToValueAtTime(0.135, t + 0.09);
+        env.gain.setValueAtTime(0.135, t + dur - 0.28);
+        env.gain.linearRampToValueAtTime(0.0001, t + dur);
+
+        src.connect(hp).connect(bp).connect(env).connect(this.master);
+        src.start(t);
+        src.stop(t + dur + 0.05);
+
+        // Bubbles: the resonance of the bowl climbs as the level rises.
+        for (let i = 0; i < 9; i++) {
+          const a = t + 0.14 + i * r(0.12, 0.18);
+          if (a > t + dur - 0.12) break;
+          this.ping(ctx, a, r(320, 520) * (1 + i * 0.09), 0.03, 0.05, "sine");
         }
         break;
       }

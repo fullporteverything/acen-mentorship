@@ -125,3 +125,18 @@ export function postSettle(input: SettleRequest): Promise<SettleResponse> {
 export function fetchLeaderboard(): Promise<LeaderboardResponse> {
   return request<LeaderboardResponse>("/api/table/leaderboard", { cache: "no-store" });
 }
+
+export interface StakeResponse {
+  balance: number;
+  stats: ChipStats;
+  /** False when the server refused — the member wasn't actually broke. */
+  staked: boolean;
+}
+
+/**
+ * "The House stakes you." Server-authoritative: only pays when the real
+ * balance is below the table minimum, so it can't top up a healthy stack.
+ */
+export function postStake(): Promise<StakeResponse> {
+  return request<StakeResponse>("/api/table/stake", { method: "POST" });
+}

@@ -6,6 +6,8 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { tableAudio } from "@/lib/table-audio";
+import { buildTableEnvironment } from "@/lib/table-environment";
+import { applyFeltMaps } from "@/lib/table-textures";
 import { RANKS, SUITS, type Card, type Outcome, type Suit } from "@/lib/blackjack";
 
 /**
@@ -44,6 +46,78 @@ import { RANKS, SUITS, type Card, type Outcome, type Suit } from "@/lib/blackjac
 
 export type TablePhase = "BETTING" | "PLAYER" | "DEALER" | "SETTLED";
 
+/**
+ * HOW MUCH MOTION THIS VIEWER GETS.
+ *
+ * The three tiers exist because the old boolean did not: `reducedMotion` used
+ * to mean "snap EVERYTHING to its final state", so a viewer whose OS has
+ * animation effects off (Windows → Settings → Accessibility → Visual effects →
+ * "Animation effects" Off, macOS → Reduce motion, and several remote-desktop /
+ * GPU-throttled setups, all of which report `prefers-reduced-motion: reduce`)
+ * saw cards and chips TELEPORT into place. That is indistinguishable from the
+ * animations being broken — it is exactly the "cards are just popping in and
+ * out of place" the owner has reported — and no headless harness can see it,
+ * because a Node harness has no media queries.
+ *
+ *   • "full" — everything, including the decorative layer.
+ *   • "calm" — what `prefers-reduced-motion: reduce` now maps to. Every clip
+ *     and every tween still PLAYS, at MOTION_CALM_SCALE of its duration; only
+ *     the decorative motion (camera sway, camera push-in, the dealer's idle
+ *     bob, martini slosh, the card's apex scale swell, the betting circle's
+ *     breathing) is suppressed. Nothing ever teleports.
+ *   • "snap" — the genuine all-or-nothing snap. It is now reachable ONLY from
+ *     an explicit developer toggle (`?motion=snap`), never from a media query.
+ */
+export type MotionTier = "full" | "calm" | "snap";
+
+/**
+ * What `?debug=1` reads out. Everything here is a fact the scene observed at
+ * runtime in a REAL browser — the things a headless harness cannot see.
+ */
+export interface SceneDiagnostics {
+  /** The WebGL renderer was created. */
+  webgl: boolean;
+  /** Renderer's actual API level, e.g. "WebGL2". */
+  webglVersion: string;
+  /** The glb finished loading (and, separately, was adopted). */
+  glbLoaded: boolean;
+  glbAdopted: boolean;
+  /** Times adoptGlb() actually ran — must never be more than 1. */
+  adoptCount: number;
+  /** Seconds from controller start to the glb being adopted; null until then. */
+  glbSeconds: number | null;
+  glbError: string | null;
+  /** Card atlas loaded. */
+  atlasLoaded: boolean;
+  /** Clip names found in the glb. */
+  clips: string[];
+  /** Clips that have bound cleanly and played at least once. */
+  clipsPlayed: string[];
+  /** Clips refused by the bind/motion guards, with the reason. */
+  clipsRefused: string[];
+  /** The dealer rig was found and is being driven. */
+  dealerRig: boolean;
+  /** The raw `prefers-reduced-motion` value the browser reports. */
+  prefersReducedMotion: string;
+  tier: MotionTier;
+  /** Cards dealt down each path since load — this is the whole argument. */
+  cardsViaClip: number;
+  cardsProcedural: number;
+  cardsSnapped: number;
+  chipsViaClip: number;
+  chipsProcedural: number;
+  chipsSnapped: number;
+  /** Live counts. */
+  liveMixers: number;
+  liveTweens: number;
+  /** Frame health. `maxRawDelta` is the largest UNCLAMPED frame gap seen: if a
+      visibility change ever fast-forwarded the scene this is where it shows. */
+  fps: number;
+  maxRawDelta: number;
+  clampedFrames: number;
+  hiddenPauses: number;
+}
+
 export interface TableSceneProps {
   playerHand: Card[];
   dealerHand: Card[];
@@ -58,13 +132,20 @@ export interface TableSceneProps {
   shuffleSeq: number;
   /** Settlement outcome for the win glow; null until SETTLED. */
   outcome: Outcome | null;
-  /** Snap all animations to their final state; static camera. */
-  reducedMotion: boolean;
+  /** How much motion this viewer gets — see MotionTier. */
+  motionTier: MotionTier;
+  /** Bumped by the refill prompt's Yes — runs shaker → pour → the glass fills. */
+  refillSeq: number;
   /** In-scene chip rack → the same handlers the DOM chip buttons call. */
   onPlaceBet: (denom: number) => void;
   onClearBet: () => void;
+  /** The player clicked an EMPTY glass: the DOM shows the "Refill sir?" prompt.
+      The scene NEVER refills on its own — that ritual is opt-in. */
+  onMartiniEmpty: () => void;
   /** Called once if the WebGL renderer cannot be created. */
   onFallback: () => void;
+  /** Live diagnostics feed for `?debug=1`. Called ~4×/s while mounted. */
+  onDiagnostics?: (d: SceneDiagnostics) => void;
 }
 
 /* ── Palette (black + gold noir — matches globals.css suite7-*) ──────────── */
@@ -165,6 +246,13 @@ const DECK_MIN_CARDS = 4;
 /** Stack step, in CARD-LOCAL units (the deck group carries the card scale). */
 const DECK_STEP = 0.0075;
 
+/**
+ * Duration multiplier for the "calm" tier. Every clip and every tween is
+ * retimed by this — 0.6 is brisk enough to read as "this UI is not dawdling"
+ * and slow enough that nothing ever reads as a jump cut.
+ */
+const MOTION_CALM_SCALE = 0.6;
+
 /* Authored clip lengths are retimed to these READ-ABLE durations (seconds).
    timeScale is derived per clip, so a re-authored glb retimes itself. */
 const DEAL_SECONDS = 1.12;
@@ -215,8 +303,30 @@ const MARTINI_RIM_R = 0.2;
 const MARTINI_APEX_Y = 0.25;
 const MARTINI_RIM_Y = 0.436;
 const MARTINI_LIQUID_R = 0.188;
-const SIP_SECONDS = 0.5;
-const POUR_SECONDS = 0.95;
+/**
+ * The DRINK.
+ *
+ * The glass is picked up, tilted toward the player, held, and set back down.
+ * DRINK_TILT is capped below the liquid cone's own complement: the cone's
+ * half-angle is atan(MARTINI_LIQUID_R / (MARTINI_RIM_Y − MARTINI_APEX_Y)) ≈
+ * 45.3°, and a horizontal plane cutting a cone stops being an ELLIPSE (and
+ * becomes an unbounded parabola) once the tilt reaches 90° − that, i.e. 44.7°.
+ * The surface geometry below is exact, so the tilt simply has to stay inside
+ * the range where an exact answer exists.
+ */
+const DRINK_SECONDS = 1.6;
+const DRINK_TILT = (37 * Math.PI) / 180;
+/** How far off the felt the glass is lifted, in WORLD units. */
+const DRINK_LIFT = 0.35;
+/** Where the glass is held while it tilts — roughly where a hand takes it. */
+const MARTINI_TILT_PIVOT_Y = 0.1;
+/** Clear space kept between the liquid surface and the lowest rim point. */
+const MARTINI_SURFACE_MARGIN = 0.004;
+/** Peak slosh tilt of the LIQUID SURFACE, radians. */
+const MARTINI_SLOSH_TILT = 0.16;
+/** The refill ritual: shaker, then the pour the liquid rises under. */
+const SHAKER_SECONDS = 1.2;
+const POUR_SECONDS = 1.5;
 
 /* ── Camera ──────────────────────────────────────────────────────────────── */
 
@@ -476,6 +586,26 @@ interface Tween {
   /** e = eased progress, k = raw progress, both 0→1. */
   update: (e: number, k: number) => void;
   done?: () => void;
+  /** Owner object, so everything one card/chip scheduled can be cancelled. */
+  tag?: object;
+}
+
+/** 0 before `a`, smoothly 1 across a→b, 1 until `c`, smoothly 0 across c→d. */
+function ramp(k: number, a: number, b: number, c: number, d: number): number {
+  if (k <= a || k >= d) return 0;
+  if (k < b) {
+    const u = (k - a) / Math.max(1e-6, b - a);
+    return u * u * (3 - 2 * u);
+  }
+  if (k <= c) return 1;
+  const u = (k - c) / Math.max(1e-6, d - c);
+  return 1 - u * u * (3 - 2 * u);
+}
+
+/** Smoothstep 0→1, clamped. */
+function smooth01(u: number): number {
+  const t = u < 0 ? 0 : u > 1 ? 1 : u;
+  return t * t * (3 - 2 * t);
 }
 
 /* ── The playable surface: felt polygon, rail overhang, obstacles ─────────── */
@@ -809,9 +939,11 @@ interface SyncProps {
   bankroll: number | null;
   shuffleSeq: number;
   outcome: Outcome | null;
-  reducedMotion: boolean;
+  motionTier: MotionTier;
+  refillSeq: number;
   onPlaceBet: (denom: number) => void;
   onClearBet: () => void;
+  onMartiniEmpty: () => void;
 }
 
 interface Controller {
@@ -836,6 +968,10 @@ interface CardEntry {
   dealing: boolean;
   /** True when the authored CardDeal drives this card. */
   usingClip: boolean;
+  /** Run once this card has finished travelling. A reveal or a sweep queued
+      while the card is still in the air would otherwise start a SECOND clip on
+      the same wrapper — two mixers writing one node, which is a real pop. */
+  onLanded: (() => void)[];
 }
 
 interface RackStack {
@@ -858,8 +994,64 @@ type HitTarget =
 const SUIT_KEYS: Record<Suit, string> = { "♠": "S", "♥": "H", "♦": "D", "♣": "C" };
 
 /** Throws if WebGL is unavailable — the caller falls back to DOM cards. */
-function createController(mount: HTMLDivElement): Controller {
+function createController(
+  mount: HTMLDivElement,
+  report?: (d: SceneDiagnostics) => void
+): Controller {
   const audio = tableAudio();
+  /**
+   * THE DEBUG LEDGER (`?debug=1`).
+   *
+   * Every number here is something only a real browser can tell us. The three
+   * card counters are the whole argument about "popping": a card can only ever
+   * be dealt down one of three paths, and if `snapped` is non-zero the motion
+   * tier is the cause; if `procedural` is non-zero the glb was not ready or a
+   * clip was refused; if `viaClip` is the only non-zero one, the authored
+   * curves are running and the problem is somewhere else entirely.
+   */
+  const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const diag = {
+    webgl: false,
+    webglVersion: "unknown",
+    glbLoaded: false,
+    glbAdopted: false,
+    adoptCount: 0,
+    glbSeconds: null as number | null,
+    glbError: null as string | null,
+    atlasLoaded: false,
+    clipsPlayed: new Set<string>(),
+    clipsRefused: new Map<string, string>(),
+    dealerRig: false,
+    prefersReducedMotion: "unknown",
+    cardsViaClip: 0,
+    cardsProcedural: 0,
+    cardsSnapped: 0,
+    chipsViaClip: 0,
+    chipsProcedural: 0,
+    chipsSnapped: 0,
+    fps: 0,
+    maxRawDelta: 0,
+    clampedFrames: 0,
+    hiddenPauses: 0,
+  };
+  try {
+    diag.prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "reduce"
+      : "no-preference";
+  } catch {
+    diag.prefersReducedMotion = "unavailable";
+  }
+  const refuse = (clip: string, why: string) => {
+    if (!diag.clipsRefused.has(clip)) diag.clipsRefused.set(clip, why);
+  };
+  try {
+    if (new URLSearchParams(window.location.search).has("debug")) {
+      (window as unknown as { __suite7Diag?: unknown }).__suite7Diag = diag;
+    }
+  } catch {
+    // SSR/odd environments — the ledger just stays internal.
+  }
+
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(CAM_FOV, 1, 0.1, 80);
   const camBase = CAM_BASE.clone();
@@ -873,6 +1065,10 @@ function createController(mount: HTMLDivElement): Controller {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   mount.appendChild(renderer.domElement);
+  diag.webgl = true;
+  diag.webglVersion = renderer.capabilities.isWebGL2 ? "WebGL2" : "WebGL1";
+  // The martini's liquid surface is a world-horizontal clipping plane.
+  renderer.localClippingEnabled = true;
 
   /* One-time diagnostics: silent failures used to look like "cards popped". */
   const warned = new Set<string>();
@@ -882,6 +1078,7 @@ function createController(mount: HTMLDivElement): Controller {
     console.warn(`[TableScene] ${message}`);
   };
 
+
   /* ── Image-based environment (gold + rails actually glint) ─────────────── */
 
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -890,6 +1087,16 @@ function createController(mount: HTMLDivElement): Controller {
   scene.environment = envRT.texture;
   scene.environmentIntensity = 0.42; // a hint of room, not a showroom
   roomScene.dispose();
+
+  /* ── The room itself (jazz bar): floor, shell, bokeh, haze ─────────────── */
+  const env = buildTableEnvironment({
+    tableRadius: 5.7,
+    tableDepth: 3.3,
+    anisotropy: renderer.capabilities.getMaxAnisotropy(),
+  });
+  scene.add(env.group);
+  /** Undo hook for the felt cloth maps (applied on glb adoption). */
+  let stopFelt: (() => void) | null = null;
 
   /** Scratch vectors — the render loop must never allocate. */
   const _vA = new THREE.Vector3();
@@ -1102,29 +1309,60 @@ function createController(mount: HTMLDivElement): Controller {
 
   /* ── Animation clock + tween list ─────────────────────────────────────── */
 
-  let reduced = false;
+  /**
+   * MOTION TIER — the single gate every animation in this file reads.
+   *
+   *   snap  — true ONLY on the explicit developer tier. Everything jumps.
+   *   decor — the decorative layer (camera sway/push-in, dealer idle bob,
+   *           martini slosh, apex scale swell, the circle's breathing).
+   *   scale — duration multiplier applied to every tween, every `at` delay and
+   *           every retimed clip.
+   *
+   * A "calm" viewer therefore gets snap=false, decor=false, scale=0.6: real,
+   * travelling, shortened motion with the flourishes taken off. Nothing about
+   * `prefers-reduced-motion` can make anything teleport any more.
+   */
+  let tier: MotionTier = "full";
+  let snap = false;
+  let decor = true;
+  let motionScale = 1;
+  const applyTier = (next: MotionTier) => {
+    tier = next;
+    snap = next === "snap";
+    decor = next === "full";
+    motionScale = next === "calm" ? MOTION_CALM_SCALE : 1;
+    env.setQuality(next === "full" ? "full" : "reduced");
+  };
+
   let now = 0;
   const tweens: Tween[] = [];
   const tween = (
     delay: number,
     dur: number,
     update: (e: number, k: number) => void,
-    done?: () => void
+    done?: () => void,
+    tag?: object
   ) => {
-    if (reduced) {
+    if (snap) {
       update(1, 1);
       done?.();
       return;
     }
-    tweens.push({ t0: now + delay, dur, update, done });
+    tweens.push({ t0: now + delay * motionScale, dur: dur * motionScale, update, done, tag });
   };
-  /** Fire `fn` after `delay` (immediately under reduced motion). */
-  const at = (delay: number, fn: () => void) => {
-    if (reduced || delay <= 0) {
+  /** Fire `fn` after `delay` (immediately on the snap tier). */
+  const at = (delay: number, fn: () => void, tag?: object) => {
+    if (snap || delay <= 0) {
       fn();
       return;
     }
-    tweens.push({ t0: now + delay, dur: 0.0001, update: () => {}, done: fn });
+    tweens.push({ t0: now + delay * motionScale, dur: 0.0001, update: () => {}, done: fn, tag });
+  };
+  /** Drop everything `tag` still has pending, WITHOUT running its `done`. */
+  const killTweens = (tag: object) => {
+    for (let i = tweens.length - 1; i >= 0; i--) {
+      if (tweens[i].tag === tag) tweens.splice(i, 1);
+    }
   };
   const stepTweens = () => {
     for (let i = tweens.length - 1; i >= 0; i--) {
@@ -1133,7 +1371,10 @@ function createController(mount: HTMLDivElement): Controller {
       const k = Math.min(1, (now - tw.t0) / tw.dur);
       tw.update(easeOutCubic(k), k);
       if (k >= 1) {
-        tweens.splice(i, 1);
+        // Re-find it: an update() that scheduled or killed tweens may have
+        // shifted the array under us.
+        const j = tweens.indexOf(tw);
+        if (j !== -1) tweens.splice(j, 1);
         tw.done?.();
       }
     }
@@ -1171,6 +1412,45 @@ function createController(mount: HTMLDivElement): Controller {
 
   /* One scoped AnimationMixer per animated instance, driven by the rAF dt. */
   const activeMixers = new Set<THREE.AnimationMixer>();
+  /** Mixers grouped by the object that owns them (a CardEntry, a chip). */
+  const mixersByTag = new Map<object, Set<THREE.AnimationMixer>>();
+  /**
+   * Stop and forget everything `tag` has running.
+   *
+   * THE BUG THIS EXISTS FOR: the hole-card reveal fires STEP_MS (600 ms) after
+   * the dealer's turn begins, but a card takes DEAL_SECONDS (1.12 s) to fly out
+   * of the shoe and the opening deal staggers the hole card to 1.2 s. On a
+   * natural — or on a fast hit/double — CardFlip was therefore started on a
+   * wrapper that CardDeal was still driving. Two AnimationMixers writing the
+   * same node's position/quaternion in one frame do not blend; the last one to
+   * update wins, and the card visibly snaps between the shoe and the felt every
+   * frame. That is "cards popping in and out of place", exactly.
+   */
+  function cancelScope(tag: object) {
+    killTweens(tag);
+    const set = mixersByTag.get(tag);
+    if (!set) return;
+    for (const mixer of set) {
+      mixer.stopAllAction();
+      activeMixers.delete(mixer);
+    }
+    mixersByTag.delete(tag);
+  }
+  function trackMixer(tag: object, mixer: THREE.AnimationMixer) {
+    let set = mixersByTag.get(tag);
+    if (!set) {
+      set = new Set();
+      mixersByTag.set(tag, set);
+    }
+    set.add(mixer);
+  }
+  function untrackMixer(tag: object | undefined, mixer: THREE.AnimationMixer) {
+    if (!tag) return;
+    const set = mixersByTag.get(tag);
+    if (!set) return;
+    set.delete(mixer);
+    if (set.size === 0) mixersByTag.delete(tag);
+  }
 
   /**
    * AUDIT GUARD. An AnimationAction whose tracks resolve to nothing still runs
@@ -1192,6 +1472,7 @@ function createController(mount: HTMLDivElement): Controller {
         `clip "${clip.name}" has a track for node "${nodeName}" that is not in the ` +
           `${label} hierarchy — falling back to the procedural animation.`
       );
+      refuse(clip.name, `unbound node "${nodeName}"`);
       return false;
     }
     return true;
@@ -1347,6 +1628,7 @@ function createController(mount: HTMLDivElement): Controller {
         `clip "${clip.name}" has a ${clip.duration} duration — no motion to play ` +
           `on the ${label}; using the procedural fallback.`
       );
+      refuse(clip.name, `duration ${clip.duration}`);
       return false;
     }
     const scale = clip.duration / Math.max(0.05, seconds);
@@ -1356,6 +1638,7 @@ function createController(mount: HTMLDivElement): Controller {
         `clip "${clip.name}" retimes to a non-finite timeScale (${scale}) on the ` +
           `${label}; using the procedural fallback.`
       );
+      refuse(clip.name, `non-finite timeScale ${scale}`);
       return false;
     }
     // Any track that actually moves or turns is enough.
@@ -1373,41 +1656,48 @@ function createController(mount: HTMLDivElement): Controller {
       `clip "${clip.name}" binds but every track is constant — it would make the ` +
         `${label} appear and disappear rather than move; using the procedural fallback.`
     );
+    refuse(clip.name, "every track constant");
     return false;
   }
 
   /** Play an authored clip once on `root`'s subtree, retimed to `seconds`.
       `snap` sets the exact rest pose on 'finished' (and immediately under
-      reducedMotion). Returns false when the clip cannot bind or has no motion
+      the snap tier). Returns false when the clip cannot bind or has no motion
       to show — in both cases the caller must run its procedural arc instead. */
   function playClip(
     root: THREE.Object3D,
     clip: THREE.AnimationClip,
     seconds: number,
     delay: number,
-    snap: () => void,
-    label = "instance"
+    land: () => void,
+    label = "instance",
+    tag?: object
   ): boolean {
-    if (reduced) {
-      snap();
+    if (snap) {
+      land();
       return true;
     }
     if (!bindsCleanly(root, clip, label)) return false;
     if (!hasMotion(clip, seconds, label)) return false;
+    // The calm tier plays the SAME curve, just faster — never a jump cut.
+    const dur = seconds * motionScale;
     const mixer = new THREE.AnimationMixer(root);
     const action = mixer.clipAction(clip);
     action.setLoop(THREE.LoopOnce, 1);
     action.clampWhenFinished = true;
-    action.timeScale = clip.duration / Math.max(0.05, seconds);
-    if (delay > 0) action.startAt(delay);
+    action.timeScale = clip.duration / Math.max(0.05, dur);
+    if (delay > 0) action.startAt(delay * motionScale);
     action.play();
     mixer.addEventListener("finished", () => {
       activeMixers.delete(mixer);
+      untrackMixer(tag, mixer);
       mixer.stopAllAction();
       mixer.uncacheRoot(root);
-      snap();
+      land();
     });
     activeMixers.add(mixer);
+    if (tag) trackMixer(tag, mixer);
+    diag.clipsPlayed.add(clip.name);
     return true;
   }
 
@@ -1819,6 +2109,23 @@ function createController(mount: HTMLDivElement): Controller {
       if (!hideFeltPrint(table)) {
         warnOnce("feltprint", `no "${MAT_FELT_PRINT}" material found — felt print left visible.`);
       }
+      // Real cloth. The glb's S7_Felt ships degenerate UVs (every vertex at
+      // (0,1)), so any map would sample one texel — applyFeltMaps regenerates
+      // planar UVs and lays down the weave/mottle/roughness maps.
+      table.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const mat = mesh.material as THREE.MeshStandardMaterial | undefined;
+        if (!mat || mat.name !== "S7_Felt" || stopFelt) return;
+        try {
+          stopFelt = applyFeltMaps(mat, {
+            geometry: mesh.geometry,
+            anisotropy: renderer.capabilities.getMaxAnisotropy(),
+          });
+        } catch (error) {
+          warnOnce("felt", `felt cloth maps failed: ${(error as Error).message}`);
+        }
+      });
     }
 
     // The template card/chip are clone/animation sources, never shown as-is.
@@ -1866,9 +2173,10 @@ function createController(mount: HTMLDivElement): Controller {
     playIntro(root);
   }
 
-  /** TableIntro + the camera push-in. Skipped entirely under reduced motion. */
+  /** TableIntro (the shoe walking on) plus the camera push-in, which is
+      decorative and so belongs to the "full" tier only. */
   function playIntro(root: THREE.Object3D) {
-    if (reduced) return;
+    if (snap) return;
     if (rows.player.length || rows.dealer.length) return; // mid-hand load
     const intro = glbClips.TableIntro;
     const shoeNode = root.getObjectByName(GLB_SHOE_NODE);
@@ -1884,6 +2192,7 @@ function createController(mount: HTMLDivElement): Controller {
       );
       if (!played) shoeNode.position.copy(GLB_SHOE_REST);
     }
+    if (!decor) return; // the shoe still walks on; the camera does not move
     camIntro = 1;
     tween(0, INTRO_SECONDS, (e) => {
       camIntro = 1 - e;
@@ -2017,7 +2326,7 @@ function createController(mount: HTMLDivElement): Controller {
   function deckRefill() {
     if (!deck) return;
     const from = deck.remaining;
-    if (reduced) {
+    if (snap) {
       showDeck(DECK_CARDS);
       return;
     }
@@ -2081,7 +2390,7 @@ function createController(mount: HTMLDivElement): Controller {
     // Same guard as every other clip: a rig primed to the idle's first pose is
     // never parked in some other authored pose while it waits.
     primeToClipStart(rig, idle);
-    if (reduced) return; // visible, but static
+    if (snap) return; // visible, but static
     if (!bindsCleanly(rig, idle, "dealer rig")) return;
     if (!hasMotion(idle, idle.duration, "dealer rig")) return;
     dealerMixer = new THREE.AnimationMixer(rig);
@@ -2090,6 +2399,12 @@ function createController(mount: HTMLDivElement): Controller {
     dealerIdleAction.clampWhenFinished = false;
     dealerIdleAction.setEffectiveWeight(1);
     dealerIdleAction.play();
+    // The idle BOB is decorative. On the calm tier the action still exists —
+    // stepDealer needs it as the base pose every one-shot blends back to — but
+    // it is paused on its first frame, so the dealer stands still between
+    // deals and still reaches for every card.
+    dealerIdleAction.paused = !decor;
+    diag.clipsPlayed.add(idle.name);
     activeMixers.add(dealerMixer);
   }
 
@@ -2138,7 +2453,7 @@ function createController(mount: HTMLDivElement): Controller {
   }
 
   function playDealerClip(name: string, seconds: number, delay: number) {
-    if (reduced || disposed) return;
+    if (snap || disposed) return;
     const mixer = dealerMixer;
     const idle = dealerIdleAction;
     const clip = glbClips[name];
@@ -2159,7 +2474,7 @@ function createController(mount: HTMLDivElement): Controller {
       action.reset();
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true;
-      action.setEffectiveTimeScale(clip.duration / Math.max(0.05, seconds));
+      action.setEffectiveTimeScale(clip.duration / Math.max(0.05, seconds * motionScale));
       action.enabled = true;
       action.setEffectiveWeight(0);
       action.play();
@@ -2171,7 +2486,7 @@ function createController(mount: HTMLDivElement): Controller {
       const seq = mine.seq;
       // Hand the bones back to the idle loop just before the reach resolves,
       // so the ramp is finished by the time the clip clamps.
-      at(Math.max(0, seconds - DEALER_FADE), () => {
+      at(Math.max(0, seconds - DEALER_FADE / Math.max(0.05, motionScale)), () => {
         if (mine.seq === seq) mine.target = 0;
       });
     });
@@ -2217,6 +2532,7 @@ function createController(mount: HTMLDivElement): Controller {
   let betHit: THREE.Mesh | null = null;
   let lastBet = 0;
   let lastShuffleSeq = -1;
+  let lastRefillSeq = -1;
   let settledHandled = false;
   let phase: TablePhase = "BETTING";
   let bankroll: number | null = null;
@@ -2225,6 +2541,7 @@ function createController(mount: HTMLDivElement): Controller {
   let camNudge = 0; // small push-in on a win
   let onPlaceBet: (denom: number) => void = () => {};
   let onClearBet: () => void = () => {};
+  let onMartiniEmpty: () => void = () => {};
 
   /* Cards ---------------------------------------------------------------- */
 
@@ -2301,9 +2618,15 @@ function createController(mount: HTMLDivElement): Controller {
       if (entry.dealing) return; // its deal tween reads `home` live
       const from = entry.group.position.clone();
       const to = groupPosFor(entry, entry.home, new THREE.Vector3());
-      tween(0, 0.24, (e) => {
-        entry.group.position.lerpVectors(from, to, e);
-      });
+      tween(
+        0,
+        0.24,
+        (e) => {
+          entry.group.position.lerpVectors(from, to, e);
+        },
+        undefined,
+        entry
+      );
     });
   }
 
@@ -2314,7 +2637,10 @@ function createController(mount: HTMLDivElement): Controller {
    */
   function flightScale(entry: CardEntry, k: number) {
     if (k <= DEAL_TOUCHDOWN) {
-      entry.squash.scale.setScalar(1 + 0.06 * Math.sin(Math.PI * (k / DEAL_TOUCHDOWN)));
+      // The apex swell is pure flourish — suppressed off the "full" tier.
+      entry.squash.scale.setScalar(
+        decor ? 1 + 0.06 * Math.sin(Math.PI * (k / DEAL_TOUCHDOWN)) : 1
+      );
       return;
     }
     const u = Math.min(1, ((k - DEAL_TOUCHDOWN) * DEAL_SECONDS) / 0.06);
@@ -2331,7 +2657,7 @@ function createController(mount: HTMLDivElement): Controller {
     group.scale.setScalar(layout.cardScale);
 
     const deal = glbClips.CardDeal;
-    const useClip = Boolean(deal) && !reduced;
+    const useClip = Boolean(deal) && !snap;
 
     const entry: CardEntry & { cardRef?: Card } = {
       group,
@@ -2344,7 +2670,15 @@ function createController(mount: HTMLDivElement): Controller {
       jitter,
       dealing: true,
       usingClip: false,
+      onLanded: [],
       cardRef: card,
+    };
+
+    /** The card has come to rest — run anything that was waiting for it. */
+    const landed = () => {
+      entry.dealing = false;
+      const queued = entry.onLanded.splice(0);
+      for (const fn of queued) fn();
     };
 
     if (useClip) {
@@ -2378,29 +2712,38 @@ function createController(mount: HTMLDivElement): Controller {
         DEAL_SECONDS,
         delay,
         () => {
-          entry.dealing = false;
           wrapper.position.copy(groupPosFor(entry, entry.home, _vA));
           entry.squash.scale.setScalar(1);
           restPose(deal, GLB_CARD_NODE, inner);
+          landed();
         },
-        "card wrapper"
+        "card wrapper",
+        entry
       );
 
       if (played) {
+        if (snap) diag.cardsSnapped++;
+        else diag.cardsViaClip++;
         at(delay, () => {
           audio.play("cardSlide");
           deckTake(); // the card that leaves is the one off the top of the stack
-        });
+        }, entry);
         // The author timed DealerDeal's reach to peak where CardDeal's card
         // clears the shoe lip, so the two start together and are retimed by the
         // same factor — slowing the card slows the hand with it.
         playDealerClip(DEALER_DEAL, DEAL_SECONDS, delay);
-        tween(delay, DEAL_SECONDS, (e, k) => {
-          const to = groupPosFor(entry, entry.home, _vA);
-          wrapper.position.set(to.x * e, to.y * e, to.z * e);
-          flightScale(entry, k);
-        });
-        at(delay + DEAL_SECONDS * DEAL_TOUCHDOWN, () => audio.play("cardLand"));
+        tween(
+          delay,
+          DEAL_SECONDS,
+          (e, k) => {
+            const to = groupPosFor(entry, entry.home, _vA);
+            wrapper.position.set(to.x * e, to.y * e, to.z * e);
+            flightScale(entry, k);
+          },
+          undefined,
+          entry
+        );
+        at(delay + DEAL_SECONDS * DEAL_TOUCHDOWN, () => audio.play("cardLand"), entry);
         return;
       }
       // Bind failed (already warned) — fall through to the procedural arc.
@@ -2415,7 +2758,7 @@ function createController(mount: HTMLDivElement): Controller {
       list.splice(list.indexOf(entry), 1);
     }
 
-    // Procedural deal (also the reduced-motion snap path): a real parabolic
+    // Procedural deal (also the snap-tier path): a real parabolic
     // arc out of the shoe, spin settling. Never an instant appear.
     const from = layout.metrics.shoeMouth;
     group.position.copy(from);
@@ -2423,10 +2766,12 @@ function createController(mount: HTMLDivElement): Controller {
     scene.add(group);
     list.push(entry);
     relayoutRow(row);
+    if (snap) diag.cardsSnapped++;
+    else diag.cardsProcedural++;
     at(delay, () => {
       audio.play("cardSlide");
       deckTake();
-    });
+    }, entry);
     playDealerClip(DEALER_DEAL, DEAL_SECONDS, delay);
     tween(
       delay,
@@ -2440,15 +2785,17 @@ function createController(mount: HTMLDivElement): Controller {
         flightScale(entry, k);
       },
       () => {
-        entry.dealing = false;
         entry.squash.scale.setScalar(1);
         group.position.copy(entry.home);
-      }
+        landed();
+      },
+      entry
     );
-    at(delay + DEAL_SECONDS * DEAL_TOUCHDOWN, () => audio.play("cardLand"));
+    at(delay + DEAL_SECONDS * DEAL_TOUCHDOWN, () => audio.play("cardLand"), entry);
   }
 
   function removeCard(entry: CardEntry) {
+    cancelScope(entry);
     scene.remove(entry.group);
     for (const m of entry.mats) m.dispose(); // textures stay cached
   }
@@ -2457,6 +2804,11 @@ function createController(mount: HTMLDivElement): Controller {
   function discardCard(entry: CardEntry, delay: number): boolean {
     const clip = glbClips.CardDiscard;
     if (!clip || !entry.usingClip) return false;
+    // Never leave a deal running underneath a sweep: two mixers on one wrapper
+    // fight frame by frame, which is the popping this whole pass is about.
+    cancelScope(entry);
+    entry.dealing = false;
+    entry.onLanded.length = 0;
     const wrapper = entry.group;
     // Anchored on the clip's FIRST keyframe so the sweep leaves from exactly
     // where the card is lying, whatever the author's start pose happens to be.
@@ -2472,13 +2824,20 @@ function createController(mount: HTMLDivElement): Controller {
         scene.remove(wrapper);
         for (const m of entry.mats) m.dispose();
       },
-      "card wrapper"
+      "card wrapper",
+      entry
     );
     if (!played) return false;
     discarding.add(entry);
-    tween(delay, DISCARD_SECONDS, (e) => {
-      wrapper.position.copy(base).multiplyScalar(1 - e);
-    });
+    tween(
+      delay,
+      DISCARD_SECONDS,
+      (e) => {
+        wrapper.position.copy(base).multiplyScalar(1 - e);
+      },
+      undefined,
+      entry
+    );
     return true;
   }
 
@@ -2488,7 +2847,10 @@ function createController(mount: HTMLDivElement): Controller {
    * disappeared" the authored clips exist to avoid.
    */
   function proceduralDiscard(entry: CardEntry, delay: number): boolean {
-    if (reduced || disposed) return false;
+    if (snap || disposed) return false;
+    cancelScope(entry);
+    entry.dealing = false;
+    entry.onLanded.length = 0;
     const node = entry.group;
     const from = node.position.clone();
     const to = layout.metrics.discardTo.clone();
@@ -2508,14 +2870,15 @@ function createController(mount: HTMLDivElement): Controller {
         discarding.delete(entry);
         scene.remove(node);
         for (const m of entry.mats) m.dispose();
-      }
+      },
+      entry
     );
     return true;
   }
 
   function clearRow(row: "player" | "dealer") {
     rows[row].forEach((entry, i) => {
-      if (!disposed && !reduced) {
+      if (!disposed && !snap) {
         if (discardCard(entry, i * 0.06)) return;
         if (proceduralDiscard(entry, i * 0.06)) return;
       }
@@ -2524,9 +2887,27 @@ function createController(mount: HTMLDivElement): Controller {
     rows[row].length = 0;
   }
 
-  /** Hole-card reveal: the authored CardFlip, or a lift-and-roll fallback. */
+  /**
+   * Hole-card reveal: the authored CardFlip, or a lift-and-roll fallback.
+   *
+   * A card that is STILL FLYING cannot be flipped — CardDeal is driving the
+   * same node, and starting CardFlip on top of it makes the card jump between
+   * the shoe and the felt every frame until the deal finishes. The reveal is
+   * queued behind the landing instead. (This is reachable in normal play: on a
+   * natural, runDealer() fires the reveal STEP_MS = 600 ms after the deal,
+   * while the hole card's own stagger does not even start until 1.2 s.)
+   */
   function flipHole(entry: CardEntry) {
+    if (entry.dealing) {
+      entry.faceDown = false;
+      entry.onLanded.push(() => revealHole(entry));
+      return;
+    }
     entry.faceDown = false;
+    revealHole(entry);
+  }
+
+  function revealHole(entry: CardEntry) {
     const { flip, group, card } = entry;
     audio.play("cardFlip");
     playDealerClip(DEALER_FLIP, FLIP_SECONDS, 0);
@@ -2544,15 +2925,22 @@ function createController(mount: HTMLDivElement): Controller {
           flip.rotation.z = 0;
           restPose(clip, GLB_CARD_NODE, card);
         },
-        "card wrapper"
+        "card wrapper",
+        entry
       );
       if (played) return;
     }
     const restY = groupPosFor(entry, entry.home, _vA).y;
-    tween(0, FLIP_SECONDS, (e, k) => {
-      flip.rotation.z = Math.PI * (1 - e);
-      group.position.y = restY + Math.sin(Math.PI * k) * 0.15 * TABLE_SCALE;
-    });
+    tween(
+      0,
+      FLIP_SECONDS,
+      (e, k) => {
+        flip.rotation.z = Math.PI * (1 - e);
+        group.position.y = restY + Math.sin(Math.PI * k) * 0.15 * TABLE_SCALE;
+      },
+      undefined,
+      entry
+    );
   }
 
   /* Chips ---------------------------------------------------------------- */
@@ -2575,7 +2963,7 @@ function createController(mount: HTMLDivElement): Controller {
       const rest = chipRest(i);
       const delay = n * 0.09;
 
-      if (toss && glbChipTemplate && !reduced) {
+      if (toss && glbChipTemplate && !snap) {
         // Authored ChipToss, retargeted: the clip ends on the betting circle at
         // glb-space (0, 0.0305, 0.90) — a parent offset makes that end land on
         // this chip's stack slot.
@@ -2616,6 +3004,8 @@ function createController(mount: HTMLDivElement): Controller {
           "chip wrapper"
         );
         if (played) {
+          if (snap) diag.chipsSnapped++;
+          else diag.chipsViaClip++;
           tween(delay, TOSS_SECONDS, (e) => {
             wrapper.position.y = yOffset * e;
           });
@@ -2625,7 +3015,7 @@ function createController(mount: HTMLDivElement): Controller {
         betStack.splice(betStack.indexOf(wrapper), 1);
       }
 
-      // Procedural toss (also the reduced-motion snap path).
+      // Procedural toss (also the snap-tier path).
       const chip = buildChipMesh(denom);
       const from = new THREE.Vector3(
         layout.metrics.betCenter.x + 0.9,
@@ -2637,6 +3027,14 @@ function createController(mount: HTMLDivElement): Controller {
       chip.rotation.y = spin;
       scene.add(chip);
       betStack.push(chip);
+      if (snap) diag.chipsSnapped++;
+      else diag.chipsProcedural++;
+      // A REAL tumble, not a yaw: the chip turns over twice about its own
+      // horizontal axis on the way in and lands flat, which is what the
+      // authored ChipToss does (it carries a 178.5° roll). A chip that only
+      // spins about y reads as sliding, and the owner asked for a flip.
+      const tumble = Math.PI * 4;
+      const lean = rand(-0.35, 0.35);
       tween(
         delay,
         TOSS_SECONDS,
@@ -2645,25 +3043,74 @@ function createController(mount: HTMLDivElement): Controller {
           chip.position.z = from.z + (rest.z - from.z) * e;
           chip.position.y = from.y + (rest.y - from.y) * e + Math.sin(Math.PI * k) * 0.35;
           chip.rotation.y = spin + (1 - e) * 2.2;
-          chip.rotation.x = (1 - e) * 0.5;
+          // Ends on 0 exactly, so the chip is dead flat when it settles.
+          chip.rotation.x = (1 - e) * tumble;
+          chip.rotation.z = (1 - e) * lean;
         },
         () => {
           chip.position.copy(rest);
-          chip.rotation.x = 0;
+          chip.rotation.set(0, spin, 0);
           audio.play("chipToss");
         }
       );
     });
   }
 
+  /** Instant removal — teardown and the snap tier only. */
   function clearBetStack() {
     for (const chip of betStack) scene.remove(chip);
     betStack.length = 0;
   }
 
+  /**
+   * The player took their bet back: the chips FLY HOME to the rack rather than
+   * blinking out. Each chip travels to the rack stack of its own denomination
+   * where one is identifiable, else to the nearest stack, on the authored
+   * ChipSweep curve (or the arcing fallback), and is disposed on arrival.
+   */
+  function returnBetStack() {
+    if (snap || disposed || betStack.length === 0) {
+      clearBetStack();
+      return;
+    }
+    const chips = betStack.splice(0);
+    const home = layout.rack.length
+      ? layout.rack[Math.floor(layout.rack.length / 2)]
+      : { x: layout.metrics.betCenter.x, z: layout.metrics.betCenter.y + 0.6 };
+    chips.forEach((chip, i) => {
+      if (chip.userData.tossing === true) {
+        // Still riding ChipToss — its own landing snap will tidy it away.
+        scene.remove(chip);
+        return;
+      }
+      const from = chip.position.clone();
+      const to = new THREE.Vector3(home.x, layout.chipRestY, home.z);
+      flyChip(chip, glbClips.ChipSweep, SWEEP_SECONDS, i * 0.045, from, to, "start", () => {
+        scene.remove(chip);
+      });
+    });
+  }
+
   function clearTransients() {
     for (const chip of transientChips) scene.remove(chip);
     transientChips.length = 0;
+  }
+
+  /** Settled/paid chips go back to the dealer's tray between hands, with
+      motion — the felt is never cleared by things simply ceasing to exist. */
+  function sweepTransients() {
+    if (snap || disposed || transientChips.length === 0) {
+      clearTransients();
+      return;
+    }
+    const chips = transientChips.splice(0);
+    const to = layout.metrics.payoutFrom;
+    chips.forEach((chip, i) => {
+      const from = chip.position.clone();
+      flyChip(chip, glbClips.ChipSweep, SWEEP_SECONDS, i * 0.04, from, to, "start", () => {
+        scene.remove(chip);
+      });
+    });
   }
 
   /** Local position of a clip's first or last keyframe for `nodeName`. */
@@ -2703,7 +3150,7 @@ function createController(mount: HTMLDivElement): Controller {
     anchor: "start" | "end",
     onArrive: () => void
   ) {
-    if (clip && glbChipTemplate && !reduced) {
+    if (clip && glbChipTemplate && !snap) {
       const pinWorld = anchor === "start" ? worldStart : worldEnd;
       const pinLocal = clipKeyLocal(
         clip,
@@ -2747,8 +3194,10 @@ function createController(mount: HTMLDivElement): Controller {
         scene.add(chip);
       }
     }
-    // Plain slide fallback: sink under the felt near the end, then vanish.
+    // Arcing fallback — a throw with a real tumble, never a slide.
     chip.position.copy(worldStart);
+    const tumble = Math.PI * 2;
+    const yaw0 = chip.rotation.y;
     transientChips.push(chip);
     const finish = () => {
       const idx = transientChips.indexOf(chip);
@@ -2764,7 +3213,8 @@ function createController(mount: HTMLDivElement): Controller {
         // A real arc, not a slide: the fallback has to read as a throw.
         chip.position.y =
           worldStart.y + (worldEnd.y - worldStart.y) * e + Math.sin(Math.PI * k) * 0.2 * TABLE_SCALE;
-        chip.rotation.y = (1 - e) * 1.8;
+        chip.rotation.y = yaw0 + (1 - e) * 1.8;
+        chip.rotation.x = (1 - e) * tumble;
       },
       finish
     );
@@ -2908,7 +3358,7 @@ function createController(mount: HTMLDivElement): Controller {
   function stepRack(dt: number) {
     for (const stack of rackStacks) {
       const want = stack.hovered ? 1 : 0;
-      const speed = reduced ? 1 : Math.min(1, dt * 12);
+      const speed = snap ? 1 : Math.min(1, dt * 12);
       stack.lift += (want - stack.lift) * speed;
       if (Math.abs(stack.lift - want) < 0.002) stack.lift = want;
       const top = stack.chips[stack.chips.length - 1];
@@ -2947,6 +3397,10 @@ function createController(mount: HTMLDivElement): Controller {
     hover: number;
     slosh: number;
     sloshVel: number;
+    /** Drink-in-progress: the glass's current lift/tilt, applied per frame. */
+    drinking: boolean;
+    lift: number;
+    tilt: number;
   }
 
   const martiniDisposables: { dispose(): void }[] = [];
@@ -3067,6 +3521,9 @@ function createController(mount: HTMLDivElement): Controller {
       hover: 0,
       slosh: 0,
       sloshVel: 0,
+      drinking: false,
+      lift: 0,
+      tilt: 0,
     };
   }
 
@@ -3086,38 +3543,97 @@ function createController(mount: HTMLDivElement): Controller {
     martini.hit.position.set(spot.x, m.top + h / 2, spot.z);
   }
 
-  /** Take a sip — or, on an empty glass, pour another round. */
+  /**
+   * Take a sip. The glass physically lifts and tilts toward the player while
+   * the LIQUID SURFACE stays level with the world (counter-rotated per frame
+   * in stepMartini) and drains one step through the tilted middle, then the
+   * glass sets back down with a settle wobble.
+   *
+   * An EMPTY glass never refills itself: it hands the moment to the DOM
+   * ("Refill sir?"), and the ritual comes back through refillSeq → runRefill.
+   */
   function sipMartini() {
-    const refill = martini.sips <= 0;
-    martini.sips = refill ? MARTINI_SIPS : martini.sips - 1;
+    if (martini.sips <= 0) {
+      onMartiniEmpty();
+      return;
+    }
+    if (martini.drinking) return;
+    martini.sips -= 1;
     writeMartiniSips(martini.sips);
     const from = martini.fill;
     const to = martini.sips / MARTINI_SIPS;
-    if (reduced) {
+    const pour = ++martini.pour;
+    if (snap) {
       martini.fill = to;
       martini.slosh = 0;
       martini.sloshVel = 0;
       return;
     }
+    martini.drinking = true;
+    if (decor) martini.sloshVel += 2.2; // picked up — the surface reacts
+    tween(
+      0,
+      DRINK_SECONDS,
+      (e) => {
+        if (martini.pour !== pour) return;
+        // Up–hold–down envelope; the drain happens across the tilted middle.
+        const arc = Math.sin(Math.PI * e) ** 1.4;
+        martini.lift = (DRINK_LIFT / (layout.martini.scale || 1)) * arc;
+        martini.tilt = DRINK_TILT * arc;
+        const k = THREE.MathUtils.clamp((e - 0.3) / 0.45, 0, 1);
+        martini.fill = from + (to - from) * k;
+      },
+      () => {
+        if (martini.pour !== pour) return;
+        martini.drinking = false;
+        martini.lift = 0;
+        martini.tilt = 0;
+        martini.fill = to;
+        if (decor) martini.sloshVel -= 1.6; // set down — a settle wobble
+      }
+    );
+  }
+
+  /**
+   * The refill ritual, fired by a refillSeq bump (the DOM prompt's "Yes"):
+   * the SHAKER rattles first, then the POUR starts and the level rises under
+   * it to full.
+   */
+  function runRefill() {
+    martini.sips = MARTINI_SIPS;
+    writeMartiniSips(MARTINI_SIPS);
+    const from = martini.fill;
     const pour = ++martini.pour;
-    tween(0, refill ? POUR_SECONDS : SIP_SECONDS, (e) => {
-      // stepTweens runs newest-first, so a stale tween would otherwise win.
+    if (snap) {
+      martini.fill = 1;
+      return;
+    }
+    tableAudio().play("shaker");
+    let poured = false;
+    tween(SHAKER_SECONDS, POUR_SECONDS, (e) => {
       if (martini.pour !== pour) return;
-      martini.fill = from + (to - from) * e;
+      if (!poured) {
+        poured = true;
+        tableAudio().play("pour");
+        if (decor) martini.sloshVel -= 2.6;
+      }
+      martini.fill = from + (1 - from) * e;
     });
-    martini.sloshVel += refill ? -2.6 : 3.4;
   }
 
   /** Per-frame: hover tick, level, and the damped slosh. */
   function stepMartini(dt: number) {
     const want = martini.hovered ? 1 : 0;
-    const ease = reduced ? 1 : Math.min(1, dt * 11);
+    const ease = snap ? 1 : Math.min(1, dt * 11);
     martini.hover += (want - martini.hover) * ease;
     if (Math.abs(martini.hover - want) < 0.002) martini.hover = want;
     martini.body.scale.setScalar(1 + martini.hover * 0.03);
     martini.glassMat.emissiveIntensity = martini.hover * 0.3;
+    // The drink: the BODY lifts and tilts…
+    martini.body.position.y = martini.lift;
+    martini.body.rotation.x = martini.tilt;
 
-    if (reduced) {
+    if (!decor && !martini.drinking) {
       martini.slosh = 0;
       martini.sloshVel = 0;
     } else {
@@ -3132,7 +3648,7 @@ function createController(mount: HTMLDivElement): Controller {
     const fill = Math.max(0.0001, martini.fill);
     martini.liquidPivot.scale.setScalar(fill);
     martini.liquidPivot.visible = martini.fill > 0.004;
-    martini.liquidPivot.rotation.x = martini.slosh * 0.16;
+    martini.liquidPivot.rotation.x = martini.slosh * 0.16 - martini.tilt;
     martini.liquidPivot.rotation.z = martini.slosh * 0.09;
   }
 
@@ -3257,7 +3773,7 @@ function createController(mount: HTMLDivElement): Controller {
     }
 
     // A small camera nudge on a win — 2%, then smoothly back.
-    if (won && !reduced) {
+    if (won && decor) {
       tween(0.05, 0.4, (e) => {
         camNudge = e * 0.02;
       });
@@ -3272,7 +3788,7 @@ function createController(mount: HTMLDivElement): Controller {
     audio.play("shuffle");
     deckRefill(); // the stack grows back as the shoe is reloaded
     const clip = glbClips.ShoeRefill;
-    if (!clip || reduced || disposed) return;
+    if (!clip || snap || disposed) return;
     // ShoeRefill also drives the Shoe node (a constant hold) — keep only the
     // card tracks so the clip binds against a lone card wrapper.
     const cardTracks = clip.tracks.filter((t) => t.name.startsWith(`${GLB_CARD_NODE}.`));
@@ -3306,16 +3822,23 @@ function createController(mount: HTMLDivElement): Controller {
   }
 
   function sync(p: SyncProps) {
-    reduced = p.reducedMotion;
+    if (p.motionTier !== tier) applyTier(p.motionTier);
     phase = p.phase;
     bankroll = p.bankroll;
     onPlaceBet = p.onPlaceBet;
     onClearBet = p.onClearBet;
+    onMartiniEmpty = p.onMartiniEmpty;
 
     if (lastShuffleSeq === -1) lastShuffleSeq = p.shuffleSeq;
     else if (p.shuffleSeq !== lastShuffleSeq) {
       lastShuffleSeq = p.shuffleSeq;
       playShoeRefill();
+    }
+
+    if (lastRefillSeq === -1) lastRefillSeq = p.refillSeq;
+    else if (p.refillSeq !== lastRefillSeq) {
+      lastRefillSeq = p.refillSeq;
+      runRefill();
     }
 
     // Fresh two-card deal? Interleave the stagger like a live dealer:
@@ -3348,8 +3871,10 @@ function createController(mount: HTMLDivElement): Controller {
       tossChips(delta); // covers per-click adds AND double-down
     } else if (p.betChips < lastBet) {
       lastBet = p.betChips;
-      clearBetStack();
-      clearTransients();
+      // Order matters: sweep what is already loose BEFORE the bet stack joins
+      // the transient list, or the chips just launched would be re-swept.
+      sweepTransients();
+      returnBetStack();
     } else {
       lastBet = p.betChips;
     }
@@ -3380,13 +3905,14 @@ function createController(mount: HTMLDivElement): Controller {
     for (const mixer of activeMixers) mixer.update(dt); // glb clip instances
     stepRack(dt);
     stepMartini(dt);
+    env.update(dt);
     stepDealer(dt);
 
     // Betting circle breathes while the player is deciding.
     ringMat.opacity =
-      phase === "BETTING" && !reduced ? 0.26 + 0.16 * (0.5 + 0.5 * Math.sin(now * 2.1)) : 0.28;
+      phase === "BETTING" && decor ? 0.26 + 0.16 * (0.5 + 0.5 * Math.sin(now * 2.1)) : 0.28;
 
-    if (reduced) {
+    if (!decor) {
       camera.position.copy(camBase);
     } else {
       // Intro push-in, then a subtle slow sway (≈ ±0.5°) so it feels alive.
@@ -3497,6 +4023,9 @@ function createController(mount: HTMLDivElement): Controller {
     renderer.domElement.removeEventListener("click", onClick);
     observer.disconnect();
     tweens.length = 0;
+    stopFelt?.();
+    stopFelt = null;
+    env.dispose();
     for (const mixer of activeMixers) mixer.stopAllAction();
     activeMixers.clear();
     clearRow("player");
@@ -3560,9 +4089,11 @@ export default function TableScene({
   bankroll,
   shuffleSeq,
   outcome,
-  reducedMotion,
+  motionTier,
+  refillSeq,
   onPlaceBet,
   onClearBet,
+  onMartiniEmpty,
   onFallback,
 }: TableSceneProps) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -3601,9 +4132,11 @@ export default function TableScene({
       bankroll,
       shuffleSeq,
       outcome,
-      reducedMotion,
+      motionTier,
+      refillSeq,
       onPlaceBet,
       onClearBet,
+      onMartiniEmpty,
     });
   }, [
     playerHand,
@@ -3614,9 +4147,11 @@ export default function TableScene({
     bankroll,
     shuffleSeq,
     outcome,
-    reducedMotion,
+    motionTier,
+    refillSeq,
     onPlaceBet,
     onClearBet,
+    onMartiniEmpty,
   ]);
 
   return <div ref={mountRef} style={{ position: "absolute", inset: 0 }} aria-hidden />;

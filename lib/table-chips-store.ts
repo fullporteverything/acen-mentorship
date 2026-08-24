@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { members, tableChips, tableGrants } from "@/lib/db/schema";
@@ -243,6 +243,40 @@ export async function applyHandResult(
     .returning(CHIP_COLUMNS);
 
   return updated ? toState(updated) : getChipState(discordId, displayName);
+}
+
+/**
+ * "The House stakes you." — the broke-player rescue, SERVER-authoritative.
+ *
+ * Grants a fresh stack ONLY when the member's real balance is below the
+ * minimum bet; otherwise it changes nothing and returns the current state
+ * with staked=false. The condition lives in the SQL WHERE, so two racing
+ * requests cannot both stake. This endpoint existing matters: the client
+ * used to grant the stake locally only, which desynced it from the server
+ * and made every later settle fail validation (bet > server balance) —
+ * silently ending saving for the session.
+ */
+export const STAKE_AMOUNT = 500;
+export const STAKE_BELOW = 25; // the table's minimum bet
+
+export async function stakeIfBroke(
+  discordId: string,
+  displayName?: string | null
+): Promise<{ state: ChipState; staked: boolean }> {
+  await ensureTableChipsTables();
+  await getChipState(discordId, displayName); // row exists
+  const memberId = await resolveMemberId(discordId, displayName);
+
+  const [updated] = await db
+    .update(tableChips)
+    .set({ balance: STAKE_AMOUNT, updatedAt: new Date() })
+    .where(
+      and(eq(tableChips.memberId, memberId), lt(tableChips.balance, STAKE_BELOW))
+    )
+    .returning(CHIP_COLUMNS);
+
+  if (updated) return { state: toState(updated), staked: true };
+  return { state: await getChipState(discordId, displayName), staked: false };
 }
 
 /**

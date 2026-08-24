@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import TableScene from "@/components/TableScene";
+import TableScene, { type MotionTier } from "@/components/TableScene";
 import { tableAudio } from "@/lib/table-audio";
 import {
   RESHUFFLE_BELOW,
@@ -17,6 +17,7 @@ import {
 import {
   fetchChipState,
   postSettle,
+  postStake,
   type ChipStats,
   type NewGrant,
 } from "@/lib/table-chips-client";
@@ -93,7 +94,11 @@ export default function TableGame() {
   const [shuffleNote, setShuffleNote] = useState(false);
   // 3D scene support: reduced motion snaps the scene's animations; only a
   // WebGL init failure drops back to the DOM card rows.
-  const [reducedMotion, setReducedMotion] = useState(false);
+  const [motionTier, setMotionTier] = useState<MotionTier>("full");
+  const [refillSeq, setRefillSeq] = useState(0);
+  const [refillPrompt, setRefillPrompt] = useState(false);
+  /** True while the LAST server sync failed — the amber "not saving" dot. */
+  const [syncFailed, setSyncFailed] = useState(false);
   const [webglFailed, setWebglFailed] = useState(false);
   // Table dressing: mute toggle + the house-rules panel. Neither touches play.
   const [muted, setMuted] = useState(false);
@@ -161,6 +166,7 @@ export default function TableGame() {
         // still playable. Hands won't be reported until the next reload.
         if (cancelled) return;
         onlineRef.current = false;
+        setSyncFailed(true);
         let chips = DEFAULT_CHIPS;
         try {
           const raw = window.localStorage.getItem(CHIPS_KEY);
@@ -180,18 +186,24 @@ export default function TableGame() {
     };
   }, []);
 
-  // prefers-reduced-motion → all dealing delays collapse to zero.
+  // Motion tier: prefers-reduced-motion now maps to "calm" (shortened but
+  // REAL motion — nothing teleports); the genuine snap tier is only reachable
+  // via the explicit ?motion=snap developer override. Only snap collapses the
+  // DOM dealing timers to zero.
   useEffect(() => {
     try {
+      const explicit = new URLSearchParams(window.location.search).get("motion");
       const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-      reducedRef.current = mq.matches;
-      setReducedMotion(mq.matches);
-      const onChange = () => {
-        reducedRef.current = mq.matches;
-        setReducedMotion(mq.matches);
+      const resolve = (): MotionTier =>
+        explicit === "snap" ? "snap" : explicit === "full" ? "full" : mq.matches ? "calm" : "full";
+      const apply = () => {
+        const tier = resolve();
+        reducedRef.current = tier === "snap";
+        setMotionTier(tier);
       };
-      mq.addEventListener("change", onChange);
-      return () => mq.removeEventListener("change", onChange);
+      apply();
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
     } catch {
       return undefined;
     }
@@ -251,7 +263,11 @@ export default function TableGame() {
         // optimistic number in place rather than yanking the stack around.
         setChips((bankrollRef.current ?? DEFAULT_CHIPS) + settlement.delta);
         toPhase("SETTLED");
-        if (onlineRef.current) {
+        // ALWAYS attempt the report. onlineRef only remembers whether the
+        // LAST call failed (for the indicator) — it never permanently stops
+        // trying, which is what used to strand a whole session unsaved after
+        // one transient failure.
+        {
           const wasDoubled = stakeRef.current > baseStakeRef.current;
           void postSettle({
             bet: baseStakeRef.current,
@@ -268,9 +284,12 @@ export default function TableGame() {
               } catch {
                 // cache only
               }
+              onlineRef.current = true;
+              setSyncFailed(false);
             })
             .catch(() => {
               onlineRef.current = false;
+              setSyncFailed(true);
             });
         }
       }, t);
@@ -329,7 +348,23 @@ export default function TableGame() {
     if (phaseRef.current !== "BETTING") return;
     const chips = bankrollRef.current;
     if (chips === null || chips >= MIN_BET) return;
+    // Optimistic for feel, but the grant is SERVER-authoritative — the old
+    // client-only stake desynced the balances, which made every later settle
+    // fail validation and silently stopped hands from saving.
     setChips(STAKE_AMOUNT);
+    postStake()
+      .then((res) => {
+        bankrollRef.current = res.balance;
+        setBankroll(res.balance);
+        setStats(res.stats);
+        try {
+          window.localStorage.setItem(CHIPS_KEY, String(res.balance));
+        } catch {
+          // cache only
+        }
+        setSyncFailed(false);
+      })
+      .catch(() => setSyncFailed(true));
   }, [setChips]);
 
   // ── PLAYER ─────────────────────────────────────────────────────────────
@@ -570,6 +605,37 @@ export default function TableGame() {
   );
 
   /* Bankroll + live bet, as a corner readout over the felt. */
+  const onMartiniEmpty = useCallback(() => setRefillPrompt(true), []);
+  const acceptRefill = useCallback(() => {
+    setRefillPrompt(false);
+    setRefillSeq((seq) => seq + 1);
+  }, []);
+
+  const refillPromptEl = refillPrompt ? (
+    <div
+      className="suite7-refill"
+      role="dialog"
+      aria-label="Refill the martini?"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setRefillPrompt(false);
+      }}
+    >
+      <p className="suite7-refill-line">Refill, sir?</p>
+      <div className="suite7-refill-actions">
+        <button type="button" className="suite7-refill-btn" onClick={acceptRefill} autoFocus>
+          Yes
+        </button>
+        <button
+          type="button"
+          className="suite7-refill-btn suite7-refill-no"
+          onClick={() => setRefillPrompt(false)}
+        >
+          No
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   const bankReadout = (
     <div className="suite7-bank">
       <ChipStack bankroll={bankroll} />
@@ -583,6 +649,14 @@ export default function TableGame() {
         <span className="suite7-bank-label">Bet</span>
         <span className="suite7-bank-value">{bet === 0 ? "—" : formatChips(bet)}</span>
       </div>
+      {syncFailed ? (
+        <span
+          className="suite7-bank-offline"
+          role="status"
+          title="Offline — hands aren't being saved right now"
+          aria-label="Offline — hands aren't being saved right now"
+        />
+      ) : null}
       {shuffleNote && phase === "BETTING" ? (
         <span className="suite7-bank-note">shuffling the shoe…</span>
       ) : null}
@@ -721,9 +795,11 @@ export default function TableGame() {
           bankroll={bankroll}
           shuffleSeq={shuffleSeq}
           outcome={result?.outcome ?? null}
-          reducedMotion={reducedMotion}
+          motionTier={motionTier}
+          refillSeq={refillSeq}
           onPlaceBet={addChip}
           onClearBet={clearBet}
+          onMartiniEmpty={onMartiniEmpty}
           onFallback={handleGlFallback}
         />
       </div>
@@ -738,6 +814,8 @@ export default function TableGame() {
       </div>
 
       <div className="suite7-hud suite7-hud-tools">{tools}</div>
+
+      {refillPromptEl}
       {panels}
 
       <div className="suite7-hud suite7-stage-banner" aria-live="polite">

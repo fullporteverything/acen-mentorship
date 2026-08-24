@@ -22,9 +22,10 @@ import s7_props as P
 import s7_clips as K
 import s7_table5 as T5
 import s7_dealer as DL
+import s7_martini as MT
 
 OBJECTS = ("Table", "Shoe", "DiscardTray", "ChipTray", "Card7S", "Chip7",
-           "Table5", "Dealer")
+           "Table5", "Dealer", "Martini", "MartiniLiquid")
 CLIPS = ("CardDeal", "CardFlip", "CardDiscard", "ChipToss",
          "ChipPayout", "ChipSweep", "ShoeRefill", "TableIntro",
          "DealerIdle", "DealerDeal", "DealerFlip", "DealerSweep")
@@ -43,6 +44,7 @@ def build_all():
     P.build_props()
     K.build_clips()
     DL.build_all()
+    MT.build_martini()
     bpy.data.objects["Card7S"].location = (0.0, 0.0, K.CARD_REST_Z)
     bpy.data.objects["Chip7"].location = (T.BET_CIRCLE[0], T.BET_CIRCLE[1],
                                           K.CHIP_REST_Z)

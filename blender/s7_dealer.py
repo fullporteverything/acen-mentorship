@@ -44,40 +44,47 @@ TAU = 2.0 * math.pi
 # the void -- no intersection with the table, which is the whole point of
 # the notch.
 DX, DY = 0.0, 1.70
-WAIST_Z, NECK_Z = -0.08, 1.65   # NECK_Z must equal TORSO[-1][0]
+WAIST_Z, NECK_Z = -0.08, 1.66   # NECK_Z is the top of the COLLAR BAND
 
-# (z, width, depth) up the torso.
+# (z, width, depth) up the torso -- and it STOPS at the base of the neck.
 #
-# SCALE NOTE. The first pass built a 0.92-wide, 1.08-tall torso. Against a
-# 6.0 table that is 15% of the table's width where a real dealer is ~25%,
-# and it put the neck only 1.0 above the felt when a standing dealer's neck
-# is ~1.7 above a table that meets them at the waist. He read as a doll set
-# behind the table. Everything below is that first pass at human scale.
-#
-# DY moved 1.62 -> 1.70 as well: at the wider shoulder the torso front was
-# landing at y 1.29 against a notch boundary of 1.302, i.e. just inside the
-# tabletop. The dealer now stands clear of it at every x.
+# SPRINT 3. Sprint 2's torso ran all the way to 1.65, tapering 1.38 -> 0.42
+# over 0.33 of height. At the site's real camera that single continuous
+# taper is a cone, and a cone on a boxy torso is a lampshade -- which is
+# exactly what the owner saw. The torso now ends at 1.43 with a SHORT
+# trapezius, and the neck, collar band and collar shadow are separate,
+# narrow pieces above it.
 TORSO = (
     (-0.08, 0.93, 0.54),
     (0.24, 0.99, 0.57),
     (0.60, 1.11, 0.61),
     (0.92, 1.23, 0.64),
-    (1.16, 1.32, 0.66),
-    (1.32, 1.38, 0.65),      # shoulder line
-    (1.42, 1.26, 0.60),
-    (1.52, 0.84, 0.51),
-    (1.60, 0.51, 0.42),
-    (1.65, 0.42, 0.38),      # flat neck cap
-)
+    (1.02, 1.30, 0.65),
+    (1.14, 1.40, 0.65),
+    (1.22, 1.44, 0.64),      # deltoid line, the widest point
+    (1.28, 1.35, 0.61),
+    (1.33, 1.16, 0.58),      # trapezius
+    (1.38, 0.82, 0.50),
+    (1.43, 0.46, 0.43),      # neck base -- matches NECK[0] so the top cap
+)                            # is hidden under the collar, not a pale shelf
+
+# The neck is ~30% of the shoulder width, which is what a neck actually is.
+NECK = ((1.43, 0.42, 0.40), (1.52, 0.395, 0.375), (1.60, 0.385, 0.365))
+
+# A short band with a fold, capped flat and DARK so it reads as the shadow
+# inside a collar rather than as a head.
+COLLAR = ((1.495, 0.425, 0.408), (1.545, 0.468, 0.448),
+          (1.610, 0.460, 0.440), (1.660, 0.425, 0.408))
+
+BOW_Z = 1.545            # bow tie sits on the band
+BOW_HALF = 0.215         # half-width; ~0.43 total reads at the site framing
 
 RING_N = 28
 SE_E = 2.4                   # softer than a rounded box, firmer than an oval
 
 # joints, dealer's RIGHT is +X (they face -Y, toward the player).
-# The arms reach forward and down so the hands rest at the felt edge, which
-# at this x is y = 1.03.
-SHOULDER = (0.66, DY, 1.26)
-ELBOW = (0.74, DY - 0.20, 0.62)
+SHOULDER = (0.58, DY, 1.10)
+ELBOW = (0.72, DY - 0.20, 0.60)
 WRIST = (0.68, DY - 0.50, 0.20)
 FINGERS = (0.64, DY - 0.68, 0.13)
 
@@ -203,7 +210,7 @@ def thicken(obj, t):
     return obj
 
 
-JACKET_TOP = 1.34
+JACKET_TOP = 1.40
 JACKET_BOTTOM = -0.06
 BUTTON_Z = 0.72          # below this the jacket is closed
 LAPEL_GAP = 22.0         # half-angle of the opening at the collar
@@ -212,6 +219,34 @@ LAPEL_GAP = 22.0         # half-angle of the opening at the collar
 def jacket_gap(z):
     t = (z - BUTTON_Z) / (JACKET_TOP - BUTTON_Z)
     return LAPEL_GAP * max(0.0, min(1.0, t))
+
+
+def scale_mesh(obj, sx, sy, sz, about=None):
+    """Scale mesh data in place. Ops-free, so it cannot silently no-op the
+    way the view-context operators do over MCP."""
+    if about is None:
+        about = (0.0, 0.0, 0.0)
+    ax, ay, az = about
+    for v in obj.data.vertices:
+        v.co.x = ax + (v.co.x - ax) * sx
+        v.co.y = ay + (v.co.y - ay) * sy
+        v.co.z = az + (v.co.z - az) * sz
+    obj.data.update()
+    return obj
+
+
+def shade(obj, smooth=True):
+    """Smooth the QUADS and leave n-gon caps flat.
+
+    Parts are separate objects until the final join, so their vertices are
+    never merged -- every part boundary stays a hard edge for free, and the
+    caps stay crisp. That is the same thing an auto-smooth angle buys, done
+    by construction.
+    """
+    for p in obj.data.polygons:
+        p.use_smooth = smooth and len(p.vertices) <= 4
+    obj.data.update()
+    return obj
 
 
 def torso_wd_at(z):
@@ -241,70 +276,104 @@ def torso_depth_at(z):
 def build_parts():
     """Every part, tagged with the bone it rides. [(obj, bone)]
 
-    An ACTUAL SUIT, not a vest: the first pass wrapped the torso in a closed
-    dark shell and it read as a barrel from the player side. What makes a
-    suit legible at a glance is the OPENING -- lapels framing a V of shirt
-    and tie -- so the jacket is an open-front shell with real lapels, and
-    the sleeves get cuffs.
+    SPRINT 3 rebuild of the silhouette. The clothing logic from sprint 2 --
+    open-front jacket, lapels, gold V -- is kept because it works. What is
+    new is real shirt anatomy at the neck (band, points, collar shadow, bow
+    tie), rounded deltoids, joint spheres that close the arm gaps, and
+    smooth shading.
     """
-    shirt = C.pbr("S7_DealerShirt", C.srgb("#2a251a"), 0.0, 0.58)
-    jacket = C.pbr("S7_DealerJacket", C.srgb("#0a0806"), 0.0, 0.34)
-    lapelm = C.pbr("S7_DealerLapel", C.srgb("#0d0b08"), 0.0, 0.30)  # satin
+    # the shirt must be a clearly LIGHTER value than the jacket or the V
+    # closes up at distance -- but still near-black, per the palette
+    shirt = C.pbr("S7_DealerShirt", C.srgb("#332c20"), 0.0, 0.56)
+    jacket = C.pbr("S7_DealerJacket", C.srgb("#0a0806"), 0.0, 0.46)
+    lapelm = C.pbr("S7_DealerLapel", C.srgb("#12100b"), 0.0, 0.38)
     goldm = C.pbr("S7_DealerGold", C.GOLD, 0.85, 0.28)
     glove = C.pbr("S7_DealerGlove", C.srgb("#0a0a0a"), 0.0, 0.62)
-    shade = C.pbr("S7_DealerNeck", C.srgb("#050403"), 0.0, 0.80)
+    shade_m = C.pbr("S7_DealerNeck", C.srgb("#030302"), 0.0, 0.85)
+    bowm = C.pbr("S7_DealerBow", C.srgb("#080706"), 0.0, 0.36)
 
     parts = []
 
-    # shirt torso ---------------------------------------------------------
+    # torso ---------------------------------------------------------------
     body = loft("D_Shirt", [se_ring(w, d, z) for z, w, d in TORSO])
     C.set_material(body, shirt)
+    shade(body)
     parts.append((body, "chest"))
 
-    # neck: a FLAT dark disc reading as the collar shadow. NO head.
-    _, nw, nd = TORSO[-1]
-    cap = loft("D_Neck", [se_ring(nw * 0.94, nd * 0.94, NECK_Z + 0.001),
-                          se_ring(nw * 0.90, nd * 0.90, NECK_Z + 0.002)])
-    C.set_material(cap, shade)
+    # neck ----------------------------------------------------------------
+    neck = loft("D_NeckCol", [se_ring(w, d, z) for z, w, d in NECK],
+                cap_start=False, cap_end=False)
+    C.set_material(neck, shirt)
+    shade(neck)
+    parts.append((neck, "neck"))
+
+    # collar band, with a fold, open at the top
+    band = loft("D_Collar", [se_ring(w, d, z) for z, w, d in COLLAR],
+                cap_start=False, cap_end=False)
+    C.set_material(band, shirt)
+    shade(band)
+    parts.append((band, "neck"))
+
+    # the collar SHADOW: a flat dark disc closing the band. NO head.
+    _, cw, cd = COLLAR[-1]
+    cap = loft("D_NeckShadow",
+               [se_ring(cw * 0.90, cd * 0.90, NECK_Z - 0.045),
+                se_ring(cw * 0.86, cd * 0.86, NECK_Z - 0.030)])
+    C.set_material(cap, shade_m)
     parts.append((cap, "neck"))
 
-    c0w, c0d = torso_wd_at(1.500)
-    c1w, c1d = torso_wd_at(1.590)
-    collar = loft("D_Collar", [se_ring(c0w * 1.05, c0d * 1.05, 1.500),
-                               se_ring(c1w * 1.05, c1d * 1.05, 1.590)],
-                  cap_start=False, cap_end=False)
-    C.set_material(collar, jacket)
-    parts.append((collar, "neck"))
+    # collar POINTS turning down over the lapels
+    for sgn in (1.0, -1.0):
+        # small and tucked: they turn down over the jacket's top edge, they
+        # do not sail out across the chest as flaps
+        a_in, a_out = 262.0, 286.0
+        rows = []
+        for t, z, sc in ((0.0, 1.522, 1.005), (0.55, 1.478, 1.065),
+                         (1.0, 1.436, 1.115)):
+            w = COLLAR[1][1] * sc
+            d = COLLAR[1][2] * sc
+            near = se_point(w, d, z, 270.0 + sgn * (a_in - 270.0) * (1.0 - 0.55 * t))
+            far = se_point(w, d, z, 270.0 + sgn * (a_out - 270.0) * (1.0 + 0.10 * t))
+            rows.append([near, far] if sgn > 0 else [far, near])
+        pt = open_loft("D_CollarPt%d" % int(sgn), rows)
+        thicken(pt, 0.012)
+        C.set_material(pt, shirt)
+        parts.append((pt, "neck"))
 
-    # gold tie in the V ---------------------------------------------------
-    tie_rings = []
-    for z, wdt in ((0.64, 0.090), (0.96, 0.084), (1.30, 0.064), (1.48, 0.040)):
-        d = torso_depth_at(z)
-        tie_rings.append([
-            (DX - wdt / 2, DY - d / 2 - 0.010, z),
-            (DX + wdt / 2, DY - d / 2 - 0.010, z),
-            (DX + wdt / 2, DY - d / 2 + 0.012, z),
-            (DX - wdt / 2, DY - d / 2 + 0.012, z),
-        ])
-    tie = loft("D_Tie", tie_rings)
-    C.set_material(tie, goldm)
-    parts.append((tie, "chest"))
+    # BOW TIE -- the single detail that says "dealer" in silhouette --------
+    by = DY - COLLAR[1][2] / 2.0 - 0.030
+    for sgn in (1.0, -1.0):
+        wing = limb("D_Bow%d" % int(sgn),
+                    (sgn * 0.030, by + 0.010, BOW_Z),
+                    (sgn * BOW_HALF, by + 0.030, BOW_Z + 0.004),
+                    [(0.0, 0.055, 0.055), (0.45, 0.070, 0.150),
+                     (1.0, 0.062, 0.132)], n=12)
+        C.set_material(wing, bowm)
+        parts.append((wing, "neck"))
+    knot = limb("D_BowKnot", (0.0, by - 0.008, BOW_Z - 0.048),
+                (0.0, by - 0.008, BOW_Z + 0.048),
+                [(0.0, 0.062, 0.072), (0.5, 0.070, 0.082),
+                 (1.0, 0.062, 0.072)], n=12)
+    C.set_material(knot, bowm)
+    parts.append((knot, "neck"))
+
+    # gold tie-line is retired: a bow tie and a long tie together is nobody
+    # -- the V now carries the shirt, and the gold accent is the lapel pin
 
     # jacket: open front ---------------------------------------------------
-    zs = [JACKET_BOTTOM, 0.16, 0.44, BUTTON_Z, 0.88, 1.06, 1.22, JACKET_TOP]
+    zs = [JACKET_BOTTOM, 0.16, 0.44, BUTTON_Z, 0.88, 1.06, 1.20, 1.31,
+          JACKET_TOP]
     jrings = []
     for z in zs:
         w, d = torso_wd_at(z)
         jrings.append(open_ring(w * 1.045, d * 1.06, z, jacket_gap(z)))
     jk = open_loft("D_Jacket", jrings)
-    thicken(jk, 0.020)
+    thicken(jk, 0.022)
     C.set_material(jk, jacket)
+    shade(jk)
     parts.append((jk, "chest"))
 
-    # lapels: a strip lying ON the chest, folded outward from the opening.
-    # First pass displaced the tip along -Y, which stood the lapels off the
-    # body like a shelf and lit them like two pale triangles. Walking around
-    # the body instead keeps them flat, which is what a lapel is.
+    # lapels lie ON the chest, folded outward from the opening
     for side, dirn in (("R", 1.0), ("L", -1.0)):
         rows = []
         for z in zs:
@@ -319,11 +388,10 @@ def build_parts():
                            270.0 + dirn * (g + spread))
             rows.append([e, tip] if dirn > 0 else [tip, e])
         lp = open_loft("D_Lapel" + side, rows)
-        thicken(lp, 0.014)
+        thicken(lp, 0.020)          # real thickness at the edge
         C.set_material(lp, lapelm)
         parts.append((lp, "chest"))
 
-    # phi lapel pin, dealer's left lapel
     pin = C.glyph("ϕ", C.SEGUISYM, "D_Pin", 0.094, goldm,
                   extrude=0.004, resolution_u=2)
     pz = 1.02
@@ -332,50 +400,67 @@ def build_parts():
     pin.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
     parts.append((pin, "chest"))
 
-    # arms: sleeve, cuff, link, glove --------------------------------------
+    # arms ------------------------------------------------------------------
     for side, sx in (("R", 1.0), ("L", -1.0)):
         sh = (sx * SHOULDER[0], SHOULDER[1], SHOULDER[2])
         el = (sx * ELBOW[0], ELBOW[1], ELBOW[2])
         wr = (sx * WRIST[0], WRIST[1], WRIST[2])
         fg = (sx * FINGERS[0], FINGERS[1], FINGERS[2])
-        cuff = tuple(Vector(el).lerp(Vector(wr), 0.84))
+        cuff = tuple(Vector(el).lerp(Vector(wr), 0.80))
 
-        bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=10,
-                                             radius=0.220, location=sh)
-        pad = bpy.context.active_object
-        pad.name = "D_Shoulder" + side
-        C.set_material(pad, jacket)
-        parts.append((pad, "upperarm_" + side))
-
+        # No deltoid sphere. A ball at the shoulder is a pauldron -- it
+        # shades as its own object and reads as a robot joint however small
+        # it gets. The shoulder is now the torso's own widest rings, and the
+        # sleeve emerges from BELOW it the way an arm actually hangs.
         ua = limb("D_SleeveU" + side, sh, el,
-                  [(0.0, 0.39, 0.375), (0.5, 0.352, 0.338), (1.0, 0.308, 0.30)])
+                  [(0.0, 0.330, 0.318), (0.5, 0.305, 0.294),
+                   (1.0, 0.272, 0.264)])
         C.set_material(ua, jacket)
+        shade(ua)
         parts.append((ua, "upperarm_" + side))
 
+        # ELBOW: sphere on the joint itself, on the PARENT bone, so the
+        # forearm swings about its centre. This is what closes the visible
+        # gap that made the arms read as segmented tubes.
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=10,
+                                             radius=0.146, location=el)
+        eb = bpy.context.active_object
+        eb.name = "D_Elbow" + side
+        C.set_material(eb, jacket)
+        shade(eb)
+        parts.append((eb, "upperarm_" + side))
+
         fa = limb("D_SleeveF" + side, el, cuff,
-                  [(0.0, 0.308, 0.30), (0.6, 0.262, 0.252), (1.0, 0.228, 0.219)])
+                  [(0.0, 0.285, 0.276), (0.55, 0.232, 0.222),
+                   (1.0, 0.192, 0.184)])          # real taper to the wrist
         C.set_material(fa, jacket)
+        shade(fa)
         parts.append((fa, "forearm_" + side))
 
+        # CUFF: wider than the sleeve it leaves, so it overhangs
         cf = limb("D_Cuff" + side, cuff, wr,
-                  [(0.0, 0.210, 0.201), (1.0, 0.192, 0.183)])
+                  [(0.0, 0.238, 0.230), (0.72, 0.232, 0.224),
+                   (1.0, 0.206, 0.198)])
         C.set_material(cf, shirt)
+        shade(cf)
         parts.append((cf, "forearm_" + side))
 
         bpy.ops.mesh.primitive_uv_sphere_add(segments=10, ring_count=6,
-                                             radius=0.032,
-                                             location=(cuff[0] + sx * 0.093,
-                                                       cuff[1] - 0.045,
-                                                       cuff[2] - 0.018))
+                                             radius=0.030,
+                                             location=(cuff[0] + sx * 0.100,
+                                                       cuff[1] - 0.048,
+                                                       cuff[2] - 0.020))
         link = bpy.context.active_object
         link.name = "D_Link" + side
         C.set_material(link, goldm)
+        shade(link)
         parts.append((link, "forearm_" + side))
 
         hd = limb("D_Hand" + side, wr, fg,
-                  [(0.0, 0.183, 0.174), (0.25, 0.225, 0.123),
-                   (0.75, 0.215, 0.099), (1.0, 0.141, 0.063)])
+                  [(0.0, 0.190, 0.180), (0.25, 0.232, 0.128),
+                   (0.75, 0.222, 0.102), (1.0, 0.146, 0.066)])
         C.set_material(hd, glove)
+        shade(hd)
         parts.append((hd, "hand_" + side))
 
     return parts
@@ -399,11 +484,11 @@ def build_rig():
         return b
 
     mk("hips", (DX, DY, WAIST_Z), (DX, DY, 0.55))
-    mk("chest", (DX, DY, 0.55), (DX, DY, 1.32), "hips")
-    mk("neck", (DX, DY, 1.32), (DX, DY, NECK_Z), "chest")
+    mk("chest", (DX, DY, 0.55), (DX, DY, 1.43), "hips")
+    mk("neck", (DX, DY, 1.43), (DX, DY, NECK_Z), "chest")
     for side, sx in (("R", 1.0), ("L", -1.0)):
-        mk("shoulder_" + side, (sx * 0.14, DY, 1.26),
-           (sx * SHOULDER[0], DY, 1.26), "chest")
+        mk("shoulder_" + side, (sx * 0.14, DY, 1.10),
+           (sx * SHOULDER[0], DY, 1.10), "chest")
         mk("upperarm_" + side, (sx * SHOULDER[0], SHOULDER[1], SHOULDER[2]),
            (sx * ELBOW[0], ELBOW[1], ELBOW[2]), "shoulder_" + side)
         mk("forearm_" + side, (sx * ELBOW[0], ELBOW[1], ELBOW[2]),

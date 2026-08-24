@@ -500,3 +500,98 @@ none of the newer modules, while `public/brand/` held assets those files
 could not produce. Everything that builds the assets is now committed:
 `s7_common s7_table s7_table5 s7_props s7_clips s7_dealer s7_build
 cards_atlas card7 martini render_chips`. No more zipping.
+
+---
+---
+
+# Sprint 3 · WORKORDER-3 — the dealer's silhouette
+
+**Tri count 61,570 of the ~140k budget. Dealer alone: 3,972 of his 35k.**
+Object, rig, bone and clip names all unchanged; `DealerIdle` still loops.
+
+## The test render is the headline
+
+`blender/shots/dealer-sprint2-before.png` and `-sprint3-after.png` are the
+same frame from the site's camera — `(0, 7.25, 11.63)` → `(0, -0.20, -0.75)`,
+fov 36, aspect 1.78, table present.
+
+**This is the finding of the sprint.** Sprint 2 declared the lampshade
+solved on the strength of close-up viewport checks at 20–40° from two
+metres away. At the site's actual camera — 31° down, figure at 18.5% of
+frame width — it was still obviously a lampshade. The close-up was not a
+weaker version of the real view, it was a *different* view that happened
+to hide the exact defect. `s7_shot.py` now reproduces the site camera
+exactly, and nothing about this model should be judged any other way.
+
+The conversion is worth keeping: the glb is +Y up, so Blender `(bx,by,bz)`
+arrives as `(bx, bz, -by)` and the site then applies `TABLE_SCALE = 1.9`.
+A site point `(X,Y,Z)` is therefore Blender `(X/S, -Z/S, Y/S)`. The scale
+cancels out of the field of view, so the framing matches without touching
+the scene.
+
+## What was actually wrong, and what fixed it
+
+**1. The cone.** The torso ran unbroken to 1.65, tapering 1.38 → 0.42 over
+0.33 of height. One continuous taper on a boxy torso *is* a lampshade. The
+torso now stops at 1.43 with a short trapezius, and above it sit four
+separate, narrow pieces: a neck (0.42 wide, 31% of the shoulders), a collar
+band with a fold, a flat dark disc closing it, and turned-down collar points.
+
+**2. The bow tie** — 0.43 wide, wings plus a knot, on the band. The single
+highest-value detail: it is the one shape that says "dealer" in silhouette.
+
+**3. The pale shelf.** After the cone went, a bright slab appeared across
+the shoulders. It was not the torso's cap — it was the **trapezius in shirt
+fabric**, because the jacket stopped at 1.30 and left the shoulders bare.
+At a 31° down-angle that lit slope reads as a tabletop. `JACKET_TOP` 1.30 →
+1.40 so the jacket covers the shoulders up to the collar, which is what a
+suit jacket does.
+
+**4. The orbs.** Rounding the shoulders with spheres produced two black
+balls — a pauldron, not a deltoid. Shrinking and lowering them did not help:
+a sphere at the shoulder shades as its own object and reads as a robot joint
+at *any* size. They are gone. The shoulder is now the torso's own widest
+rings (`w` is the X extent, so widening 1.02→1.28 broadens him side-to-side
+only), and the sleeve emerges from below it the way an arm hangs.
+
+**5. Blown specular.** Two pale tabs sat on the chest through several
+iterations. They were not geometry — they were the lapel facets at roughness
+0.26, which is patent leather. Jacket 0.34 → 0.46, lapel → 0.38. A material
+value can masquerade as a modelling bug; check it before re-cutting geometry.
+
+**6. Arms and shading.** Elbow joint spheres sit *on the pivot* and on the
+PARENT bone, so the forearm swings about their centre and no gap can open —
+that is what stops the arms reading as segmented tubes. Forearms taper
+0.285 → 0.192; the cuff is wider than the sleeve it leaves, so it overhangs.
+Smooth shading is set per polygon on the curved parts and left off n-gon
+caps; because parts are separate objects until the final join their vertices
+never merge, so every part boundary stays a hard edge by construction —
+the same thing an auto-smooth angle buys.
+
+**Retired:** the gold tie-line. A bow tie and a long tie together is nobody.
+The gold accent is now the ϕ lapel pin alone.
+
+## Martini
+
+`Martini` (glass + olive + pick) and `MartiniLiquid` are **sibling nodes,
+not parent and child** — verified in the glb JSON, both with no parent. That
+is the requirement: the site tilts the glass and leaves the liquid level, so
+they can be neither welded nor parented. Origin is at the glass base, which
+is the point it rests on and therefore the point to tilt about. Glass and
+liquid use Principled transmission, exported as `KHR_materials_transmission`
+and `KHR_materials_ior`. `martini.py` is untouched — that still renders the
+Cycles sprite.
+
+## Verified
+
+Re-import into a fresh scene, **and** by reading the glb JSON directly:
+10 meshes, 22 nodes, skin `DealerRig`, 12 animations, extensions
+`KHR_materials_transmission` / `KHR_materials_ior`, `Icosphere` absent.
+The JSON check is the one that counts — this Blender adds a phantom
+`Icosphere` on *import* that was never in the file.
+
+## Still not right, if someone wants another pass
+
+At 18.5% of frame width the arms still read a little tubular, and the collar
+points are barely legible at that size. Both are cheap to improve — there
+are 31k tris spare on him. Neither is what made him look like a robot.

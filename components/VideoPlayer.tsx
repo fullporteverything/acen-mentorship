@@ -36,6 +36,8 @@ export default function VideoPlayer({
   const durationRef = useRef(initialWatchProgress?.duration || 0);
   const lastSavedAtRef = useRef(0);
   const [fullscreen, setFullscreen] = useState(false);
+  /** True while the viewer is away — tab hidden or window unfocused. */
+  const [away, setAway] = useState(false);
   const [watchPercent, setWatchPercent] = useState(
     initialWatchProgress?.percent || 0
   );
@@ -190,6 +192,37 @@ export default function VideoPlayer({
         ? "protected playback is unavailable"
         : "";
 
+  // Away guard: while the tab is hidden or the window unfocused, the video
+  // blurs out — a member can't leave a lesson playing on a second monitor and
+  // record it while working elsewhere. The subtle part: clicking INTO the
+  // player moves focus to the iframe and fires window.blur, but
+  // document.hasFocus() stays true while any embedded context holds focus —
+  // so the check runs a tick later and only blurs when focus truly left.
+  useEffect(() => {
+    const onBlur = () => {
+      window.setTimeout(() => {
+        if (!document.hasFocus()) setAway(true);
+      }, 0);
+    };
+    const back = () => setAway(false);
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") setAway(true);
+      else if (document.hasFocus()) setAway(false);
+    };
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", back);
+    window.addEventListener("pointerdown", back);
+    window.addEventListener("keydown", back);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", back);
+      window.removeEventListener("pointerdown", back);
+      window.removeEventListener("keydown", back);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   return (
     <div style={{ width: "100%" }}>
       <div
@@ -224,6 +257,17 @@ export default function VideoPlayer({
           </div>
         ) : (
           <>
+            <div
+              aria-hidden={away}
+              style={{
+                position: "absolute",
+                inset: 0,
+                filter: away ? "blur(26px) brightness(0.45) saturate(0.7)" : "none",
+                // A slight zoom hides the blur's bright edge fringe.
+                transform: away ? "scale(1.08)" : "none",
+                transition: "filter 0.35s ease, transform 0.35s ease",
+              }}
+            >
             <KinescopePlayer
               options={playerOptions}
               onCreate={onPlayerCreate}
@@ -245,6 +289,52 @@ export default function VideoPlayer({
               discordId={discordId}
               discordUsername={discordUsername}
             />
+            </div>
+            {away ? (
+              <button
+                type="button"
+                onClick={() => {
+                  window.focus();
+                  setAway(false);
+                }}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 6,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                  border: "none",
+                  background: "rgba(5,4,2,0.35)",
+                  cursor: "pointer",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "Georgia, serif",
+                    fontSize: "10px",
+                    letterSpacing: "4px",
+                    textTransform: "uppercase",
+                    color: "#e3c071",
+                  }}
+                >
+                  Hidden while you&apos;re away
+                </span>
+                <span
+                  style={{
+                    fontFamily: "Georgia, serif",
+                    fontStyle: "italic",
+                    fontSize: "11px",
+                    letterSpacing: "1px",
+                    color: "rgba(245,240,240,0.55)",
+                  }}
+                >
+                  click to return
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={toggleFullscreen}

@@ -94,7 +94,15 @@ export interface TabLockOptions {
 
 function defaultChannel(): ChannelLike | null {
   if (typeof BroadcastChannel === "undefined") return null;
-  return new BroadcastChannel(TAB_CHANNEL) as unknown as ChannelLike;
+  try {
+    return new BroadcastChannel(TAB_CHANNEL) as unknown as ChannelLike;
+  } catch {
+    // Constructing one can throw in a partitioned or otherwise restricted
+    // context. Returning null takes the fail-open path; letting it throw would
+    // propagate out of SessionGuard's effect and take the dashboard with it —
+    // a tab-tidiness feature must never be able to break the site.
+    return null;
+  }
 }
 
 export function createTabLock(options: TabLockOptions): TabLockHandle {

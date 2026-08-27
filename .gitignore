@@ -41,6 +41,9 @@ next-env.d.ts
 .vercel
 .env*
 
-# Next 16 auto-generates these on build — not intended for the repo.
-/AGENTS.md
+# AGENTS.md is TRACKED on purpose — it carries the owner's standing
+# instructions and has to survive a fresh clone. `next dev` doesn't replace it:
+# it upserts only its own block between the nextjs-agent-rules markers (see
+# node_modules/next/dist/server/lib/generate-agent-files.js), so hand-written
+# content around that block is safe. Commit the block with your work.
 /CLAUDE.md

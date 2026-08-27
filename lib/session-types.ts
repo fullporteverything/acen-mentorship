@@ -82,3 +82,11 @@ export interface AnomalyVerdict {
 
 /** Score at or above which a session is revoked and the account flagged. */
 export const ANOMALY_REVOKE_SCORE = 70;
+
+/** One heartbeat's worth of where-and-what, kept for anomaly scoring. */
+export interface SessionSighting {
+  at: string;
+  ip: string | null;
+  country: string | null;
+  fingerprint: string | null;
+}

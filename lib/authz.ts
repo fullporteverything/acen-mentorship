@@ -7,6 +7,7 @@ import {
   type RoleCheckResult,
   verifyDiscordMembership,
 } from "@/lib/discord-membership";
+import { isSessionCurrent } from "@/lib/session-store";
 import { progressViewerIds } from "@/lib/progress-link";
 
 export interface MemberIdentity {
@@ -25,6 +26,20 @@ export class AuthorizationError extends Error {
   ) {
     super(message);
     this.name = "AuthorizationError";
+  }
+}
+
+/**
+ * The caller's seat is gone: another device took it, an admin kicked it, or
+ * the anomaly watch revoked it. A plain `AuthorizationError` so every existing
+ * `catch` keeps working unchanged (API routes still answer 401) — the subclass
+ * exists only so the page-level handler can send them to a gate that explains
+ * THIS instead of the generic "role missing" copy.
+ */
+export class SessionSupersededError extends AuthorizationError {
+  constructor(message = "This session is no longer the account's active session") {
+    super(401, message);
+    this.name = "SessionSupersededError";
   }
 }
 
@@ -52,6 +67,11 @@ export function authorizationErrorResponse(error: unknown): NextResponse {
  * unreachable dead code.
  */
 export function rethrowTemporaryAuthorizationError(error: unknown): never {
+  // Checked before the generic branch: a superseded session is still logged
+  // in as far as the proxy is concerned, so a bare `/` would bounce straight
+  // back to /dashboard and loop. The `error` query both stops that bounce and
+  // lets CrackedGate say what actually happened.
+  if (error instanceof SessionSupersededError) redirect("/?error=SessionActive");
   if (error instanceof AuthorizationError) {
     if (error.status === 503) redirect("/?error=Verification");
     if (error.status === 403) redirect("/?error=AccessDenied");
@@ -102,6 +122,59 @@ async function revalidateMembership(discordId: string): Promise<RoleCheckResult>
   return result;
 }
 
+/**
+ * A kick has to land promptly, so this cache is deliberately tiny: at most
+ * SESSION_CHECK_TTL_MS of staleness between an admin revoking a session and
+ * that session stopping. It exists because `requireMember` runs on every
+ * protected page render and every API call, and a Neon round-trip on each of
+ * those is a real cost. Kept on globalThis so it survives dev HMR reloads,
+ * matching app/api/security/check-ip/route.ts.
+ */
+const SESSION_CHECK_TTL_MS = 5_000;
+const SESSION_CACHE_MAX = 500;
+const globalSessionCache = globalThis as unknown as {
+  __dojoSessionCurrentCache?: Map<string, { current: boolean; at: number }>;
+};
+const sessionCurrentCache =
+  globalSessionCache.__dojoSessionCurrentCache ??
+  (globalSessionCache.__dojoSessionCurrentCache = new Map<
+    string,
+    { current: boolean; at: number }
+  >());
+
+/**
+ * Is the caller's seat still theirs?
+ *
+ * FAILS OPEN. A Neon outage, a cold-start timeout or a missing table must look
+ * like "carry on", never like a kick — the alternative is an infrastructure
+ * hiccup silently signing out the entire membership, which is a far worse
+ * failure than briefly honouring a session that has been superseded. The
+ * genuine refusals (revoked row found) are authoritative answers, not errors.
+ */
+async function seatIsStillOurs(
+  discordId: string,
+  sessionId: string
+): Promise<boolean> {
+  const key = `${discordId}:${sessionId}`;
+  const now = Date.now();
+  const cached = sessionCurrentCache.get(key);
+  if (cached && now - cached.at < SESSION_CHECK_TTL_MS) return cached.current;
+
+  try {
+    const current = await isSessionCurrent(discordId, sessionId);
+    if (sessionCurrentCache.size > SESSION_CACHE_MAX) {
+      for (const [entryKey, entry] of sessionCurrentCache) {
+        if (now - entry.at >= SESSION_CHECK_TTL_MS) sessionCurrentCache.delete(entryKey);
+      }
+    }
+    sessionCurrentCache.set(key, { current, at: now });
+    return current;
+  } catch (error) {
+    console.error("[authz] session registry unavailable", error);
+    return true;
+  }
+}
+
 /** Returns a fresh, Discord-role-verified identity or throws a fail-closed error. */
 export async function requireMember(): Promise<MemberIdentity> {
   const session = await auth();
@@ -130,6 +203,22 @@ export async function requireMember(): Promise<MemberIdentity> {
   }
   if (!roleCheck.member && !roleCheck.unavailable) {
     throw new AuthorizationError(403, "Discord membership is required");
+  }
+
+  // ONE LIVE SEAT. The sid rides in the JWT; the registry says whether it is
+  // still the session this account is using. A session that was kicked by an
+  // admin, revoked by the anomaly watch, or superseded once it went quiet
+  // stops working here — on the very next request, without waiting for the
+  // JWT to expire. Admins are exempt from the seat LIMIT (they may hold
+  // several live sessions) but not from an explicit revocation: the registry
+  // check is the same for them.
+  //
+  // A token minted before this shipped carries no sid and nothing to compare
+  // against, so it is left alone rather than logging the whole membership out
+  // on deploy; those tokens age out on their own.
+  const sessionId = user.sessionId?.trim();
+  if (sessionId && !(await seatIsStillOurs(discordId, sessionId))) {
+    throw new SessionSupersededError();
   }
 
   const ownerIds = Array.from(

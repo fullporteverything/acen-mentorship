@@ -755,3 +755,73 @@ export type HomeworkReviewRow = typeof homeworkRubricReviews.$inferSelect;
 export type JournalRow = typeof journals.$inferSelect;
 export type TableChipsRow = typeof tableChips.$inferSelect;
 export type TableGrantRow = typeof tableGrants.$inferSelect;
+
+/**
+ * One row per session that has ever held (or tried to hold) an account's single
+ * seat. See lib/session-types.ts for the rule and lib/session-store.ts for the
+ * writes — the table is self-created at runtime to match this definition, so
+ * there is no separate migration step.
+ *
+ * Rows are never deleted: a revoked session keeps its `revoked_at` /
+ * `revoke_reason` so the admin monitor and the anomaly audit can say what
+ * happened to a seat and when. "Live" is `revoked_at IS NULL` AND a
+ * `last_seen_at` inside SESSION_IDLE_MS — the JWT alone proves nothing.
+ */
+export const memberSessions = pgTable(
+  "member_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    memberId: uuid("member_id").references(() => members.id),
+    discordId: varchar("discord_id", { length: 32 }).notNull(),
+    sessionId: varchar("session_id", { length: 64 }).notNull(),
+    displayName: text("display_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    ip: varchar("ip", { length: 64 }),
+    /** ISO-3166 alpha-2 from the IP lookup, when available. */
+    country: varchar("country", { length: 2 }),
+    userAgent: text("user_agent"),
+    /** Opaque browser/device hash. A SIGNAL, never an identity. */
+    fingerprint: varchar("fingerprint", { length: 64 }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokeReason: varchar("revoke_reason", { length: 32 }),
+  },
+  (table) => [
+    unique("member_sessions_session_id_unique").on(table.sessionId),
+    // The seat lookup: newest live session for one account.
+    index("member_sessions_account_live_index").on(
+      table.discordId,
+      table.revokedAt,
+      table.lastSeenAt.desc()
+    ),
+  ]
+);
+
+/**
+ * Heartbeat history — where and on what an account has been seen. Feeds the
+ * anomaly scorer (lib/session-anomaly.ts), which is why a sighting is written
+ * only when the ip / country / fingerprint CHANGED from the previous one: a
+ * member reading a lesson for an hour must not cost sixty rows, and a quiet
+ * session carries no signal worth storing.
+ */
+export const memberSessionSightings = pgTable(
+  "member_session_sightings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    discordId: varchar("discord_id", { length: 32 }).notNull(),
+    sessionId: varchar("session_id", { length: 64 }),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    ip: varchar("ip", { length: 64 }),
+    country: varchar("country", { length: 2 }),
+    fingerprint: varchar("fingerprint", { length: 64 }),
+  },
+  (table) => [
+    index("member_session_sightings_account_at_index").on(
+      table.discordId,
+      table.at.desc()
+    ),
+  ]
+);
+
+export type MemberSessionRow = typeof memberSessions.$inferSelect;
+export type MemberSessionSightingRow = typeof memberSessionSightings.$inferSelect;

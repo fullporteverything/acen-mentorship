@@ -12,6 +12,12 @@ declare module "next-auth" {
       discordId?: string;
       /** Signed JWT proof that the required role was verified at login. */
       memberVerifiedAt?: number;
+      /**
+       * The single seat this browser holds, minted at sign-in and checked
+       * against the session registry on every protected request. Absent on
+       * tokens issued before one-session enforcement shipped.
+       */
+      sessionId?: string;
       /** Discord avatar hash ("a_"-prefixed = animated GIF available). */
       avatarHash?: string;
       /** Discord profile banner hash ("a_"-prefixed = animated). */
@@ -29,6 +35,8 @@ declare module "next-auth/jwt" {
   interface JWT {
     discordId?: string;
     memberVerifiedAt?: number;
+    /** Session id for the single-seat registry (see lib/session-store). */
+    sid?: string;
     avatarHash?: string;
     bannerHash?: string;
     accentColor?: number;

@@ -3,6 +3,7 @@ import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import VpnGuard from "@/components/VpnGuard";
 import ScreenGuard from "@/components/ScreenGuard";
 import RightClickGuard from "@/components/RightClickGuard";
+import SessionGuard from "@/components/SessionGuard";
 import SiteMeditation from "@/components/SiteMeditation";
 import SiteTerminal from "@/components/SiteTerminal";
 import { getSecurityMember } from "@/lib/security-store";
@@ -14,6 +15,7 @@ import { getOnboardingStatus } from "@/lib/onboarding-store";
  *   VpnGuard  — blocks VPN/proxy/datacenter IPs
  *   ScreenGuard — deters + logs screen-recording attempts, tagged to the member
  *   RightClickGuard — suppresses the context menu site-wide (deterrent only)
+ *   SessionGuard — beats the heartbeat that holds this account's single seat
  */
 export default async function DashboardLayout({
   children,
@@ -50,6 +52,13 @@ export default async function DashboardLayout({
            the Lectures pages. Admins are exempt, and that call is made HERE
            on the server — the client is never asked. */}
         <RightClickGuard isAdmin={isAdmin} />
+        {/* SUITE 7 — SINGLE SESSION. Holds this account's one seat by
+           heartbeat, and puts up a final overlay when the server says the
+           seat is no longer ours. Admins beat too — they can be signed out
+           from another device and ended by another administrator — they just
+           never see the one-seat wording. Mounted for everyone: a session
+           that stops beating is a seat that expires. */}
+        <SessionGuard isAdmin={isAdmin} />
         <SiteMeditation />
         {/* SUITE 7 — CONSOLE. Mounted ONLY for administrators, and that
            decision is made HERE, on the server, from the session +

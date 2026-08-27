@@ -273,9 +273,21 @@ function gateCopy(code?: string): GateCopy {
     case "NotInServer":
       return {
         label: "The Gate Refused You",
-        headline: "The dojo doesn’t know you yet.",
+        headline: "Suite 7 doesn’t know you yet.",
         subline:
-          "This Discord account isn’t in the server yet — join first, then sign in again.",
+          "This Discord account isn’t in the Suite 7 server yet — join first, then sign in again.",
+        showArt: false,
+      };
+    // One live session per account. The newcomer is refused rather than the
+    // session already in use being booted — so this is a member with two
+    // browsers open far more often than it is anything sinister. No cracked
+    // gate: nothing was broken, and it clears itself within minutes.
+    case "SessionActive":
+      return {
+        label: "The Room Is Occupied",
+        headline: "Your account is already open elsewhere.",
+        subline:
+          "Suite 7 allows one active session per account. Sign out on the other device — or leave it closed for a few minutes and let that session expire — then sign in again.",
         showArt: false,
       };
     case "RoleMissing":
@@ -302,6 +314,8 @@ function friendlyCode(code: string): string {
   switch (code) {
     case "NotInServer":
       return "Not a member of the Discord server";
+    case "SessionActive":
+      return "Another session is already signed in";
     case "RoleMissing":
       return "Mentorship role not assigned yet";
     case "AccessDenied":

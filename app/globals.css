@@ -2188,3 +2188,104 @@ body.suite7-noselect [data-allow-context] {
     background: #fff;
   }
 }
+
+/* ── Session ended overlay ────────────────────────────────────────────────
+   components/SessionGuard.tsx. Deliberately a sibling of
+   .security-strike-screen above: same fixed blackout, same gold-hairline
+   panel on a near-black gradient, same Georgia. It reads as the same house
+   speaking, and the two never appear together — a member whose seat is gone
+   has nothing left to be warned about. This one has no dismiss control at
+   all, so the panel carries its single action instead of the fixed bottom
+   bar the strike screen uses. */
+.session-ended-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  padding: 32px 20px;
+  overflow-y: auto;
+  background: radial-gradient(120% 90% at 50% 0%, #0b0906 0%, var(--void, #000) 68%);
+  color: var(--cream, #f5f0f0);
+  font-family: Georgia, serif;
+  text-align: center;
+  animation: session-ended-in 420ms ease-out both;
+}
+.session-ended-mark {
+  position: absolute;
+  top: 7%;
+  right: 8%;
+  color: rgba(231, 192, 113, 0.055);
+  font-size: min(22vw, 180px);
+  line-height: 1;
+  pointer-events: none;
+}
+.session-ended-box {
+  position: relative;
+  width: min(600px, 100%);
+  padding: clamp(30px, 6vw, 58px);
+  border: 1px solid rgba(231, 192, 113, 0.2);
+  background: linear-gradient(145deg, rgba(231, 192, 113, 0.045), rgba(0, 0, 0, 0.2));
+}
+.session-ended-label {
+  margin-bottom: 22px;
+  color: rgba(231, 192, 113, 0.72);
+  font-size: 10px;
+  font-variant: small-caps;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+.session-ended-box h1 {
+  color: var(--gold, #e3c071);
+  font-size: clamp(25px, 4.4vw, 38px);
+  font-weight: 400;
+  letter-spacing: 2px;
+}
+.session-ended-divider {
+  width: 48px;
+  height: 1px;
+  margin: 24px auto;
+  background: linear-gradient(90deg, transparent, var(--gold, #e3c071), transparent);
+}
+.session-ended-box > p:not(.session-ended-label) {
+  margin-top: 10px;
+  color: rgba(245, 240, 240, 0.62);
+  font-size: clamp(14px, 2.4vw, 16px);
+  line-height: 1.7;
+}
+.session-ended-actions {
+  margin-top: 32px;
+}
+.session-ended-actions button {
+  padding: 12px 26px;
+  border: 1px solid rgba(231, 192, 113, 0.45);
+  background: transparent;
+  color: var(--gold, #e3c071);
+  font: 10px Georgia, serif;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 220ms ease, color 220ms ease;
+}
+.session-ended-actions button:hover,
+.session-ended-actions button:focus-visible {
+  border-color: rgba(231, 192, 113, 0.85);
+  color: var(--gold-hi, #f7e8ac);
+}
+
+@keyframes session-ended-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 760px) {
+  .session-ended-mark { display: none; }
+  .session-ended-actions button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The fade is decoration; the message is the point. Land it instantly. */
+  .session-ended-screen { animation: none; }
+  .session-ended-actions button { transition: none; }
+}

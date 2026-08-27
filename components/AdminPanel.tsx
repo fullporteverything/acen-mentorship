@@ -6,6 +6,7 @@ import { LESSONS } from "@/lib/lessons-config";
 import VideoUpload from "@/components/VideoUpload";
 import VideoLibrary from "@/components/VideoLibrary";
 import StudentProgress from "@/components/StudentProgress";
+import SessionAdmin from "@/components/SessionAdmin";
 import RetryButton from "@/components/RetryButton";
 import {
   loadAdminSecurity,
@@ -387,6 +388,9 @@ function AdminPanelBody() {
       {activeTab === "announcements" && <AnnouncementsSection />}
 
       {activeTab === "security" && <>
+      {/* Live Sessions — who holds a seat right now, and how to free one */}
+      <SessionAdmin />
+
       <section style={cardStyle}>
         <p style={sectionLabel}>Security Members</p>
         {loading ? (

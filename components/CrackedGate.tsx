@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState } from "react";
 import Link from "next/link";
 import SupportLink from "@/components/SupportLink";
 
@@ -15,29 +16,61 @@ import SupportLink from "@/components/SupportLink";
  */
 export default function CrackedGate({
   code,
+  resetToken,
   signOutAction,
 }: {
   code?: string;
+  /**
+   * Signed, five-minute, single-account proof that Discord just authenticated
+   * this visitor — minted in the sign-in callback, and ONLY when the refusal
+   * was "your account is already open elsewhere". Its presence is what gates
+   * the clear-my-sessions button, and the account it clears is the one sealed
+   * inside it, so a student can never reach another student's sessions.
+   */
+  resetToken?: string;
   /** Server action that signs out then lands on a clean login page. */
   signOutAction?: () => Promise<void>;
 }) {
   const copy = gateCopy(code);
+  /**
+   * A session gate does not fade in.
+   *
+   * The cracked-gate drama belongs to "we don't know you" — it earns its
+   * entrance. Being told your account is already open somewhere is a full
+   * stop, and a screen that eases itself in over a second and a half reads as
+   * decoration you might be able to wait out or click past. `initial={false}`
+   * makes framer-motion skip the entrance entirely: it is simply there, already
+   * finished, the moment the page paints.
+   */
+  const instant = code === "SessionActive" || code === "SessionExpired";
+  // Offered only on the too-many-sessions refusal, and only when a token
+  // actually came with it. No token, no button — there would be nothing to
+  // prove who is asking.
+  const canClear = code === "SessionActive" && Boolean(resetToken);
   return (
     <motion.div
       style={{
         position: "fixed",
         inset: 0,
         zIndex: 200,
-        background:
-          "radial-gradient(ellipse at 50% 40%, #180404 0%, #050000 55%, #000000 100%)",
+        background: instant
+          ? "#000000"
+          : "radial-gradient(ellipse at 50% 40%, #180404 0%, #050000 55%, #000000 100%)",
         display: "grid",
         placeItems: "center",
         overflow: "hidden",
       }}
-      initial={{ opacity: 0 }}
+      initial={instant ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
     >
+      {/* This gate paints over the login page, wordmark and all, so a session
+          refusal would otherwise be unbranded black. Put it back. */}
+      {instant && (
+        <div className="brand-vertical" aria-hidden>
+          Suite 7&nbsp;&nbsp;Mentorship
+        </div>
+      )}
       <motion.div
         style={{
           display: "flex",
@@ -47,7 +80,7 @@ export default function CrackedGate({
           padding: "0 32px",
           maxWidth: 520,
         }}
-        initial={{ opacity: 0, y: 18 }}
+        initial={instant ? false : { opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.9, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
       >
@@ -59,13 +92,16 @@ export default function CrackedGate({
         <motion.p
           style={{
             marginTop: copy.showArt ? 44 : 0,
-            fontSize: 11,
-            letterSpacing: 5,
-            color: "rgba(231,192,113,0.55)",
+            fontSize: instant ? 13 : 11,
+            letterSpacing: instant ? 4 : 5,
+            // Crimson for a refusal, gold for everything else. Gold is the
+            // site's ordinary voice and this is not an ordinary message.
+            color: instant ? "#b21d3b" : "rgba(231,192,113,0.55)",
+            fontVariant: instant ? "small-caps" : undefined,
             textTransform: "uppercase",
             fontFamily: "Georgia, serif",
           }}
-          initial={{ opacity: 0 }}
+          initial={instant ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.7 }}
         >
@@ -74,16 +110,18 @@ export default function CrackedGate({
 
         <motion.h1
           style={{
-            marginTop: 20,
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: 32,
+            marginTop: instant ? 26 : 20,
+            fontFamily: instant
+              ? "Georgia, Cambria, 'Times New Roman', serif"
+              : "'Cormorant Garamond', Georgia, serif",
+            fontSize: instant ? 19 : 32,
             fontWeight: 400,
-            color: "#F5F0F0",
-            letterSpacing: 1,
-            fontStyle: "italic",
-            lineHeight: 1.3,
+            color: instant ? "rgba(245,240,240,0.92)" : "#F5F0F0",
+            letterSpacing: instant ? 0.6 : 1,
+            fontStyle: instant ? "normal" : "italic",
+            lineHeight: instant ? 1.7 : 1.3,
           }}
-          initial={{ opacity: 0 }}
+          initial={instant ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.9, delay: 0.9 }}
         >
@@ -100,7 +138,7 @@ export default function CrackedGate({
               lineHeight: 1.8,
               color: "rgba(245,240,240,0.62)",
             }}
-            initial={{ opacity: 0 }}
+            initial={instant ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 1.05 }}
           >
@@ -118,7 +156,7 @@ export default function CrackedGate({
               fontFamily: "Georgia, serif",
               textTransform: "uppercase",
             }}
-            initial={{ opacity: 0 }}
+            initial={instant ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 1.1 }}
           >
@@ -133,7 +171,7 @@ export default function CrackedGate({
             gap: 14,
             alignItems: "center",
           }}
-          initial={{ opacity: 0 }}
+          initial={instant ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 1.25 }}
         >
@@ -161,8 +199,93 @@ export default function CrackedGate({
           )}
           <SupportLink>Get access help</SupportLink>
         </motion.div>
+
+        {canClear && <ClearSessions token={resetToken!} />}
       </motion.div>
     </motion.div>
+  );
+}
+
+/**
+ * "Sign me out everywhere" — the member's own way out of a stuck session,
+ * without waiting for the idle window or asking an administrator.
+ *
+ * The token is the authority here, not this component: it is signed, it is
+ * bound to one account, and the endpoint reads the account from INSIDE it, so
+ * nothing rendered or typed on this page can point it at anybody else.
+ */
+function ClearSessions({ token }: { token: string }) {
+  const [state, setState] = useState<"idle" | "working" | "done" | "failed">("idle");
+  const [message, setMessage] = useState("");
+
+  async function clear() {
+    if (state === "working" || state === "done") return;
+    setState("working");
+    try {
+      const res = await fetch("/api/security/session/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setState("failed");
+        setMessage(
+          typeof data?.error === "string"
+            ? data.error
+            : "Could not clear your sessions."
+        );
+        return;
+      }
+      setState("done");
+      // Straight back to a clean sign-in. `replace` so the browser Back button
+      // cannot return to a gate whose token has now been spent.
+      window.location.replace("/");
+    } catch {
+      setState("failed");
+      setMessage("Could not reach the server. Try again.");
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 26, textAlign: "center" }}>
+      <button
+        type="button"
+        onClick={clear}
+        disabled={state === "working" || state === "done"}
+        style={{
+          background: "none",
+          border: 0,
+          padding: 0,
+          color: "rgba(245,240,240,0.5)",
+          fontFamily: "Georgia, serif",
+          fontSize: 12,
+          letterSpacing: 1.4,
+          textDecoration: "underline",
+          textUnderlineOffset: 5,
+          cursor: state === "working" ? "default" : "pointer",
+        }}
+      >
+        {state === "working"
+          ? "Signing out everywhere…"
+          : state === "done"
+            ? "Signed out — returning…"
+            : "Sign out of all my sessions"}
+      </button>
+      {state === "failed" && (
+        <p
+          style={{
+            marginTop: 12,
+            fontFamily: "Georgia, serif",
+            fontSize: 12,
+            color: "#b21d3b",
+          }}
+        >
+          {message}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -284,10 +407,9 @@ function gateCopy(code?: string): GateCopy {
     // gate: nothing was broken, and it clears itself within minutes.
     case "SessionActive":
       return {
-        label: "The Room Is Occupied",
-        headline: "Your account is already open elsewhere.",
-        subline:
-          "Suite 7 allows one active session per account. Sign out on the other device — or leave it closed for a few minutes and let that session expire — then sign in again.",
+        label: "Session limit reached",
+        headline: "You already have an active session.",
+        subline: "Please close the other browser or device first.",
         showArt: false,
       };
     // Nobody took their seat and nobody kicked them — their sign-in simply

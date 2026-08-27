@@ -2206,56 +2206,74 @@ body.suite7-noselect [data-allow-context] {
   justify-items: center;
   padding: 32px 20px;
   overflow-y: auto;
-  background: radial-gradient(120% 90% at 50% 0%, #0b0906 0%, var(--void, #000) 68%);
+  /* Dead black, not a gradient. This is a full stop, not a mood. */
+  background: var(--void, #000);
   color: var(--cream, #f5f0f0);
-  font-family: Georgia, serif;
+  font-family: Georgia, Cambria, "Times New Roman", serif;
   text-align: center;
-  animation: session-ended-in 420ms ease-out both;
+  /* NO ANIMATION, deliberately. A gate that fades in reads as a decorative
+     overlay you might be able to wait out or click past. Appearing instantly,
+     already complete, reads as the decision it is. */
 }
+/* The suit mark is gone: at 22vw it competed with the message. */
 .session-ended-mark {
-  position: absolute;
-  top: 7%;
-  right: 8%;
-  color: rgba(231, 192, 113, 0.055);
-  font-size: min(22vw, 180px);
-  line-height: 1;
+  display: none;
+}
+/* Vertical wordmark down the left, matching the login screen, so the gate is
+   unmistakably part of the site rather than a browser error. */
+.session-ended-brand {
+  position: fixed;
+  left: 28px;
+  top: 50%;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: translateY(-50%);
+  transform-origin: center;
+  rotate: 180deg;
+  letter-spacing: 0.3em;
+  font-size: 11px;
+  color: rgba(231, 192, 113, 0.55);
+  text-transform: uppercase;
+  user-select: none;
   pointer-events: none;
 }
+/* No card, no border, no panel — the words sit on the black. */
 .session-ended-box {
   position: relative;
-  width: min(600px, 100%);
-  padding: clamp(30px, 6vw, 58px);
-  border: 1px solid rgba(231, 192, 113, 0.2);
-  background: linear-gradient(145deg, rgba(231, 192, 113, 0.045), rgba(0, 0, 0, 0.2));
+  width: min(620px, 100%);
+  padding: 0;
+  border: 0;
+  background: none;
 }
 .session-ended-label {
-  margin-bottom: 22px;
-  color: rgba(231, 192, 113, 0.72);
-  font-size: 10px;
+  margin-bottom: 26px;
+  /* Crimson carries the stop. Gold is the site's ordinary voice; this is not
+     an ordinary message. */
+  color: var(--crimson, #b21d3b);
+  font-size: 13px;
   font-variant: small-caps;
   letter-spacing: 4px;
   text-transform: uppercase;
 }
 .session-ended-box h1 {
-  color: var(--gold, #e3c071);
-  font-size: clamp(25px, 4.4vw, 38px);
+  color: rgba(245, 240, 240, 0.92);
+  font-size: clamp(16px, 2.6vw, 19px);
   font-weight: 400;
-  letter-spacing: 2px;
-}
-.session-ended-divider {
-  width: 48px;
-  height: 1px;
-  margin: 24px auto;
-  background: linear-gradient(90deg, transparent, var(--gold, #e3c071), transparent);
-}
-.session-ended-box > p:not(.session-ended-label) {
-  margin-top: 10px;
-  color: rgba(245, 240, 240, 0.62);
-  font-size: clamp(14px, 2.4vw, 16px);
+  letter-spacing: 0.6px;
   line-height: 1.7;
 }
+/* The rule under the headline is what made this look like a card. */
+.session-ended-divider {
+  display: none;
+}
+.session-ended-box > p:not(.session-ended-label) {
+  margin-top: 14px;
+  color: rgba(245, 240, 240, 0.78);
+  font-size: clamp(15px, 2.4vw, 17px);
+  line-height: 1.8;
+}
 .session-ended-actions {
-  margin-top: 32px;
+  margin-top: 38px;
 }
 .session-ended-actions button {
   padding: 12px 26px;
@@ -2274,18 +2292,12 @@ body.suite7-noselect [data-allow-context] {
   color: var(--gold-hi, #f7e8ac);
 }
 
-@keyframes session-ended-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 @media (max-width: 760px) {
-  .session-ended-mark { display: none; }
   .session-ended-actions button { width: 100%; }
+  /* The wordmark would sit under the text on a phone. */
+  .session-ended-brand { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* The fade is decoration; the message is the point. Land it instantly. */
-  .session-ended-screen { animation: none; }
   .session-ended-actions button { transition: none; }
 }

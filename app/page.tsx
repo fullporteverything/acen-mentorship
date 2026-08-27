@@ -10,6 +10,11 @@ export default async function LoginPage({
   const params = await searchParams;
   const rawError = params.error;
   const errorCode = Array.isArray(rawError) ? rawError[0] : rawError;
+  // Signed, five-minute, account-bound proof that Discord just authenticated
+  // this visitor — the only thing that authorises the "sign out everywhere"
+  // button on a page shown to somebody who is not signed in.
+  const rawReset = params.reset;
+  const resetToken = Array.isArray(rawReset) ? rawReset[0] : rawReset;
 
   // CrackedGate's "Try Again". A visitor who reaches /?error=… while still
   // holding a session would otherwise loop: "/" → middleware bounce →
@@ -42,7 +47,11 @@ export default async function LoginPage({
       </div>
 
       {/* Center login card (also renders CrackedGate overlay when errorCode is present) */}
-      <LoginCard errorCode={errorCode} signOutAction={signOutAndRetry} />
+      <LoginCard
+        errorCode={errorCode}
+        resetToken={resetToken}
+        signOutAction={signOutAndRetry}
+      />
     </main>
   );
 }

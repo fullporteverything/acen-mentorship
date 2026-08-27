@@ -64,7 +64,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           const { getActiveSession } = await import("@/lib/session-store");
           const active = await getActiveSession(discordId);
-          if (active) return "/?error=SessionActive";
+          if (active) {
+            // Discord has just authenticated this person FOR THIS ACCOUNT —
+            // the role check above passed — so we can hand them a short-lived,
+            // account-bound token that authorises exactly one thing: clearing
+            // their own sessions. It is what stands in for a session on the
+            // gate they are about to see, which is by definition shown to
+            // somebody who is not signed in. See lib/session-reset-token.ts.
+            const { mintResetToken } = await import("@/lib/session-reset-token");
+            const reset = await mintResetToken(discordId, process.env.AUTH_SECRET);
+            // No secret configured means no token, which means the gate simply
+            // does not offer the button. Failing closed is correct: with no way
+            // to verify, there must be no way to act.
+            return reset
+              ? `/?error=SessionActive&reset=${encodeURIComponent(reset)}`
+              : "/?error=SessionActive";
+          }
         } catch (error) {
           // Neon hiccup, table not yet created, cold-start timeout. An
           // infrastructure failure must never read as "your account is in

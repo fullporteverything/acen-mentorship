@@ -30,9 +30,12 @@ function cornerIndex(pos: "tl" | "br"): CSSProperties {
 
 export default function LoginCard({
   errorCode,
+  resetToken,
   signOutAction,
 }: {
   errorCode?: string;
+  /** Signed proof that Discord just authenticated this visitor. See app/page. */
+  resetToken?: string;
   /** Server action: sign out, then land back on a clean login page. */
   signOutAction?: () => Promise<void>;
 } = {}) {
@@ -92,7 +95,13 @@ export default function LoginCard({
     <>
       <AnimatePresence>{entering && <ThresholdOverlay />}</AnimatePresence>
       <AnimatePresence>
-        {errored && <CrackedGate code={errorCode} signOutAction={signOutAction} />}
+        {errored && (
+          <CrackedGate
+            code={errorCode}
+            resetToken={resetToken}
+            signOutAction={signOutAction}
+          />
+        )}
       </AnimatePresence>
 
       <motion.div

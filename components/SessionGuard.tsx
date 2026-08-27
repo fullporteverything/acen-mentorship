@@ -146,17 +146,13 @@ export default function SessionGuard({ isAdmin = false }: SessionGuardProps) {
   if (leads === false) {
     return (
       <div className="session-ended-screen" role="alertdialog" aria-modal="true">
-        <div className="session-ended-mark" aria-hidden>
-          ♠
+        <div className="session-ended-brand" aria-hidden>
+          Suite 7&nbsp;&nbsp;Mentorship
         </div>
         <div className="session-ended-box">
-          <p className="session-ended-label">Already open</p>
-          <h1>Suite 7 is open in another tab.</h1>
-          <div className="session-ended-divider" />
-          <p>
-            One tab at a time, one device at a time. Switch to the tab you
-            already have open, or move your session to this one.
-          </p>
+          <p className="session-ended-label">Session limit reached</p>
+          <h1>Suite 7 is already open in another window.</h1>
+          <p>Please close the other tab or device first.</p>
           <div className="session-ended-actions">
             <button type="button" onClick={() => tabLock.current?.seize()}>
               Use this tab instead
@@ -171,13 +167,12 @@ export default function SessionGuard({ isAdmin = false }: SessionGuardProps) {
 
   return (
     <div className="session-ended-screen" role="alertdialog" aria-modal="true">
-      <div className="session-ended-mark" aria-hidden>
-        ♠
+      <div className="session-ended-brand" aria-hidden>
+        Suite 7&nbsp;&nbsp;Mentorship
       </div>
       <div className="session-ended-box">
         <p className="session-ended-label">Session ended</p>
-        <h1>The seat has been taken.</h1>
-        <div className="session-ended-divider" />
+        <h1>This session is no longer active.</h1>
         {/* Admins can be signed out from elsewhere and can be ended by another
             administrator, so they beat like everyone else — but the one-seat
             language is a member rule and would only confuse them. */}

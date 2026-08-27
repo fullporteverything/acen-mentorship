@@ -4,6 +4,7 @@ import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getFingerprint } from "@/lib/device-fingerprint";
 import { SESSION_HEARTBEAT_MS } from "@/lib/session-types";
+import { createTabLock, type TabLockHandle } from "@/lib/tab-lock";
 
 interface SessionGuardProps {
   isAdmin?: boolean;
@@ -30,14 +31,28 @@ const ENDPOINT = "/api/security/session/heartbeat";
  */
 export default function SessionGuard({ isAdmin = false }: SessionGuardProps) {
   const [ended, setEnded] = useState(false);
+  /**
+   * ONE TAB TOO. The server cannot tell tabs apart — they all send the same
+   * cookie — so a second tab is stopped here instead. `null` means the lock has
+   * not been decided yet; nothing is rendered and no beat is sent until it is,
+   * so a follower never fights the leader for the seat.
+   */
+  const [leads, setLeads] = useState<boolean | null>(null);
+  const tabLock = useRef<TabLockHandle | null>(null);
   // Mirrors `ended` for the async beat, which closes over state that may be a
   // render behind — and for the interval, which must stop asking once the
   // answer is in.
   const endedRef = useRef(false);
   const inFlight = useRef(false);
 
+  const leadsRef = useRef(false);
+
   const beat = useCallback(async () => {
     if (endedRef.current) return;
+    // Only the tab holding the lock beats. If followers beat too they would
+    // keep the seat warm from a window nobody is looking at, and the "one tab"
+    // rule would be cosmetic.
+    if (!leadsRef.current) return;
     // The visible/focus beats can pile onto the interval beat; one at a time
     // is plenty and keeps a slow network from queueing requests behind itself.
     if (inFlight.current) return;
@@ -73,9 +88,31 @@ export default function SessionGuard({ isAdmin = false }: SessionGuardProps) {
   }, []);
 
   useEffect(() => {
+    const lock = createTabLock({
+      tabId: crypto.randomUUID(),
+      onLeadershipChange: (isLeader) => {
+        leadsRef.current = isLeader;
+        setLeads(isLeader);
+      },
+    });
+    tabLock.current = lock;
+    // A tab going away hands the lock on immediately rather than making the
+    // next tab wait out the ping timeout.
+    const onUnload = () => lock.release();
+    window.addEventListener("pagehide", onUnload);
+    return () => {
+      window.removeEventListener("pagehide", onUnload);
+      lock.release();
+      tabLock.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     // Once the overlay is up it stays up (see below), so there is nothing left
     // to ask the server and no reason to hold listeners open.
     if (ended) return;
+    // Followers hold no seat and ask the server nothing.
+    if (leads !== true) return;
 
     // Beat immediately: a member who has just landed on the dashboard should
     // hold their seat now, not in a minute.
@@ -104,7 +141,31 @@ export default function SessionGuard({ isAdmin = false }: SessionGuardProps) {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onFocus);
     };
-  }, [beat, ended]);
+  }, [beat, ended, leads]);
+
+  if (leads === false) {
+    return (
+      <div className="session-ended-screen" role="alertdialog" aria-modal="true">
+        <div className="session-ended-mark" aria-hidden>
+          ♠
+        </div>
+        <div className="session-ended-box">
+          <p className="session-ended-label">Already open</p>
+          <h1>Suite 7 is open in another tab.</h1>
+          <div className="session-ended-divider" />
+          <p>
+            One tab at a time, one device at a time. Switch to the tab you
+            already have open, or move your session to this one.
+          </p>
+          <div className="session-ended-actions">
+            <button type="button" onClick={() => tabLock.current?.seize()}>
+              Use this tab instead
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!ended) return null;
 

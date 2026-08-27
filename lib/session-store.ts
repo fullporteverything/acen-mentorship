@@ -653,3 +653,27 @@ export async function pruneSightings(windowMs: number): Promise<number> {
     .returning({ id: memberSessionSightings.id });
   return rows.length;
 }
+
+/**
+ * Every seat row for one account, newest first, INCLUDING revoked ones.
+ *
+ * Diagnostic only. `revokeReason` is the thing worth reading: it says whether a
+ * seat ended because somebody signed out, because it went quiet and a later
+ * sign-in superseded it, or because an admin ended it — which is the
+ * difference between the several ways a "why did it let me in?" can happen.
+ */
+export async function listAccountSessions(
+  discordId: string,
+  limit = 20
+): Promise<MemberSession[]> {
+  await ensureSessionTables();
+
+  const rows = await db
+    .select(SESSION_COLUMNS)
+    .from(memberSessions)
+    .where(eq(memberSessions.discordId, discordId))
+    .orderBy(desc(memberSessions.createdAt))
+    .limit(Math.min(100, Math.max(1, limit)));
+
+  return rows.map(toMemberSession);
+}

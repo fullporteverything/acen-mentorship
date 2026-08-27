@@ -1,3 +1,4 @@
+import { baselineIsWarm, type SessionBaseline } from "./session-baseline";
 import {
   ANOMALY_REVOKE_SCORE,
   type AnomalySignal,
@@ -73,10 +74,31 @@ const CO_OCCURRENCE_WINDOW_MS = 30 * 60_000;
 const WEIGHTS = {
   /** Distinct fingerprints inside the window. 2 scores nothing: that is the browser-update case. */
   devices: { 3: 28, 4: 40, 5: 45 },
+  /**
+   * Fingerprints this account has NEVER used, co-occurring with familiar ones.
+   * Only ever applied to a warm baseline. Weighted at a lower count than the
+   * absolute tier because "unknown on a settled profile" is much stronger
+   * evidence than "distinct on an account we know nothing about" — but still
+   * capped below the revoke bar, so it cannot act alone.
+   */
+  unknownDevices: { 2: 30, 3: 45 },
+  /**
+   * Devices BEYOND this account's own established normal. Warm baseline only.
+   * Catches the case where the extra devices are all individually familiar but
+   * there are suddenly more of them at once than this account has ever shown.
+   */
+  excessDevices: { 2: 28, 3: 40, 4: 45 },
   /** Distinct IPs inside the window. 3 scores nothing: that is an afternoon of mobile data. */
   ips: { 4: 10, 6: 18 },
   /** Distinct countries inside the window. Coarse — see the comment on the signal below. */
   countries: { 2: 15, 3: 30 },
+  /**
+   * Sign-ins today as a MULTIPLE of this account's normal day. Warm baseline
+   * only. Modest on purpose: a member who is genuinely busy, or bouncing
+   * between two of their own machines, churns sessions innocently — this is
+   * corroboration, never a case on its own.
+   */
+  sessionChurn: { 3: 15, 5: 25 },
   /** Hosting/VPN egress. Kept small: it is a lifestyle choice, not evidence. */
   datacenter: 10,
 } as const;
@@ -86,6 +108,7 @@ interface Timed {
   ip: string | null;
   country: string | null;
   fingerprint: string | null;
+  sessionId: string | null;
 }
 
 function zeroVerdict(summary: string): AnomalyVerdict {
@@ -100,6 +123,7 @@ function normalise(sightings: SessionSighting[]): Timed[] {
       ip: s.ip?.trim() || null,
       country: s.country?.trim().toUpperCase() || null,
       fingerprint: s.fingerprint?.trim() || null,
+      sessionId: s.sessionId?.trim() || null,
     }))
     .filter((s) => Number.isFinite(s.t))
     .sort((a, b) => a.t - b.t);
@@ -126,6 +150,25 @@ function maxDistinctInWindow(
   return best;
 }
 
+/** Most distinct non-null values seen on any single calendar day. */
+function maxDistinctPerDay(
+  rows: Timed[],
+  pick: (row: Timed) => string | null
+): number {
+  const byDay = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const value = pick(row);
+    if (!value) continue;
+    const key = new Date(row.t).toISOString().slice(0, 10);
+    const bucket = byDay.get(key);
+    if (bucket) bucket.add(value);
+    else byDay.set(key, new Set([value]));
+  }
+  let best = 0;
+  for (const set of byDay.values()) if (set.size > best) best = set.size;
+  return best;
+}
+
 /** Highest weight whose threshold the count reaches; 0 when it reaches none. */
 function tier(count: number, table: Readonly<Record<number, number>>): number {
   let score = 0;
@@ -148,7 +191,7 @@ function formatSpan(ms: number): string {
 
 export function evaluateSessionAnomaly(
   sightings: SessionSighting[],
-  opts?: { datacenterIp?: boolean }
+  opts?: { datacenterIp?: boolean; baseline?: SessionBaseline | null }
 ): AnomalyVerdict {
   const rows = normalise(sightings ?? []);
 
@@ -166,7 +209,61 @@ export function evaluateSessionAnomaly(
   const countries = maxDistinctInWindow(rows, (r) => r.country);
   const datacenterIp = opts?.datacenterIp === true;
 
-  const deviceScore = tier(devices, WEIGHTS.devices);
+  /**
+   * BASELINE-RELATIVE DEVICE SCORING.
+   *
+   * With a warm profile the question stops being "how many devices?" and
+   * becomes "how many devices this account has never used, appearing WHILE the
+   * familiar ones are still active?" — which is the shape of somebody else
+   * logging in, and is not the shape of a browser update (old fingerprint out,
+   * new one in) or of a member who simply owns three machines.
+   *
+   * Because unknown-and-concurrent is far stronger evidence than merely
+   * distinct, it earns weight at a LOWER count: two strangers on a settled
+   * one-laptop account says more than four devices on an account we know
+   * nothing about. The two are scored separately and the HIGHER is taken, not
+   * the sum — they are two readings of one thing, and adding them would double
+   * count the same devices.
+   *
+   * Cold profile (under BASELINE_WARMUP_DAYS) → absolute thresholds only. A
+   * baseline built from two days is just the last two days wearing a lab coat.
+   */
+  const baseline = opts?.baseline ?? null;
+  const warm = baselineIsWarm(baseline);
+  const known = new Set(baseline?.knownFingerprints ?? []);
+  const unknownDevices = warm
+    ? new Set(
+        rows
+          .map((r) => r.fingerprint)
+          .filter((fp): fp is string => typeof fp === "string" && fp.length > 0)
+          .filter((fp) => !known.has(fp))
+      ).size
+    : 0;
+
+  /**
+   * A WARM PROFILE SUPERSEDES THE ABSOLUTE TIER — it does not merely add to it.
+   *
+   * This is the half of the baseline that reduces false positives, and getting
+   * it wrong makes the whole thing pointless: if the blanket "3 devices = 28"
+   * rule still applied, the member who genuinely uses a laptop, a phone and a
+   * tablet would keep scoring for it forever, no matter how settled their
+   * profile got. The absolute tier is what you fall back on when you know
+   * nothing about an account; once you know the account, you score the
+   * DEPARTURE from what you know:
+   *
+   *   unknown  — devices this account has never used
+   *   excess   — devices beyond its own established normal
+   *
+   * The higher of the two, never the sum: they are two readings of the same
+   * devices and adding them would double count.
+   */
+  const excessDevices = Math.max(0, devices - (baseline?.typicalDevices ?? 0));
+  const deviceScore = warm
+    ? Math.max(
+        tier(unknownDevices, WEIGHTS.unknownDevices),
+        tier(excessDevices, WEIGHTS.excessDevices)
+      )
+    : tier(devices, WEIGHTS.devices);
   const ipScore = tier(ips, WEIGHTS.ips);
   // "impossible_travel" is a COARSE PROXY and nothing more: distinct country
   // codes inside a tight window. It is NOT travel-time math — we have no
@@ -188,15 +285,32 @@ export function evaluateSessionAnomaly(
   const travelScore = datacenterIp ? 0 : tier(countries, WEIGHTS.countries);
   const datacenterScore = datacenterIp ? WEIGHTS.datacenter : 0;
 
+  /**
+   * SESSION CHURN — the signal that exists because of one-seat enforcement.
+   *
+   * Refusing concurrent sign-ins does not stop sharing; it makes it SERIAL.
+   * Two people take turns, each signing in once the other's seat goes idle.
+   * Nothing co-occurs, so devices/IPs/countries all stay quiet — but the
+   * account starts signing in six times a day when it used to sign in once.
+   * Measured as a multiple of this account's own normal, which is the only way
+   * the number means anything: "six sign-ins" is alarming for one member and a
+   * Tuesday for another.
+   */
+  const sessionsToday = maxDistinctPerDay(rows, (r) => r.sessionId);
+  const normalSessions = Math.max(1, baseline?.typicalSessionsPerDay ?? 0);
+  const churnRatio = warm ? sessionsToday / normalSessions : 0;
+  const churnScore = warm ? tier(churnRatio, WEIGHTS.sessionChurn) : 0;
+
   const signals: AnomalySignal[] = [];
   if (travelScore > 0) signals.push("impossible_travel");
   if (ipScore > 0) signals.push("many_ips");
   if (deviceScore > 0) signals.push("many_devices");
+  if (churnScore > 0) signals.push("session_churn");
   if (datacenterScore > 0) signals.push("datacenter_ip");
 
   const score = Math.min(
     100,
-    deviceScore + ipScore + travelScore + datacenterScore
+    deviceScore + ipScore + travelScore + datacenterScore + churnScore
   );
 
   const spanMs = rows[rows.length - 1].t - rows[0].t;
@@ -211,10 +325,23 @@ export function evaluateSessionAnomaly(
     ips === 0 ? "no usable IPs" : plural(ips, "IP address", "IP addresses"),
     plural(countries, "country", "countries"),
   ];
+  const unfamiliar =
+    warm && unknownDevices > 0
+      ? `, ${plural(unknownDevices, "of them unfamiliar", "of them unfamiliar")}`
+      : "";
+  const churn =
+    churnScore > 0
+      ? `; ${plural(sessionsToday, "sign-in", "sign-ins")} today against a normal of ${normalSessions}`
+      : "";
   const summary =
-    `${observed[0]}, ${observed[1]} and ${observed[2]} within ${where}` +
+    `${observed[0]}${unfamiliar}, ${observed[1]} and ${observed[2]} within ${where}` +
     (datacenterIp ? ", from a hosting/VPN address" : "") +
-    (signals.length === 0 ? " — nothing unusual." : ".");
+    churn +
+    (signals.length === 0
+      ? warm
+        ? " — nothing unusual for this account."
+        : " — nothing unusual."
+      : ".");
 
   return {
     score,

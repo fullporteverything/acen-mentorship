@@ -823,5 +823,22 @@ export const memberSessionSightings = pgTable(
   ]
 );
 
+/**
+ * Per-account behavioural profile, rebuilt nightly from the sightings above.
+ * Purely derived: safe to truncate, it rebuilds itself on the next run.
+ */
+export const memberSessionBaseline = pgTable("member_session_baseline", {
+  discordId: varchar("discord_id", { length: 32 }).primaryKey(),
+  observedDays: integer("observed_days").notNull().default(0),
+  typicalDevices: integer("typical_devices").notNull().default(0),
+  typicalIps: integer("typical_ips").notNull().default(0),
+  typicalCountries: integer("typical_countries").notNull().default(0),
+  typicalSessionsPerDay: integer("typical_sessions_per_day").notNull().default(0),
+  knownFingerprints: jsonb("known_fingerprints").$type<string[]>().notNull().default([]),
+  knownCountries: jsonb("known_countries").$type<string[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type MemberSessionRow = typeof memberSessions.$inferSelect;
 export type MemberSessionSightingRow = typeof memberSessionSightings.$inferSelect;
+export type MemberSessionBaselineRow = typeof memberSessionBaseline.$inferSelect;

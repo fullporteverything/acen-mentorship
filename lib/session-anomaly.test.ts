@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { evaluateSessionAnomaly } from "./session-anomaly";
+import type { SessionBaseline } from "./session-baseline";
 import { ANOMALY_REVOKE_SCORE, type SessionSighting } from "./session-types";
 
 const T0 = Date.parse("2026-08-27T12:00:00.000Z");
@@ -13,9 +14,12 @@ function sighting(
   minutes: number,
   ip: string | null,
   country: string | null,
-  fingerprint: string | null
+  fingerprint: string | null,
+  // Defaults to one seat: the ordinary case, and what every pre-existing test
+  // here means. Session churn is exercised explicitly further down.
+  sessionId: string | null = "seat-1"
 ): SessionSighting {
-  return { at: at(minutes), ip, country, fingerprint };
+  return { at: at(minutes), ip, country, fingerprint, sessionId };
 }
 
 describe("session anomaly scoring — false positives (the ones that cost a member their access)", () => {
@@ -223,8 +227,8 @@ describe("session anomaly scoring — the pattern worth catching", () => {
 describe("session anomaly scoring — degenerate input", () => {
   it("ignores unparseable timestamps rather than guessing", () => {
     const sightings: SessionSighting[] = [
-      { at: "not-a-date", ip: "203.0.113.1", country: "DE", fingerprint: "fp-a" },
-      { at: "also-not-a-date", ip: "203.0.113.2", country: "BR", fingerprint: "fp-b" },
+      { at: "not-a-date", ip: "203.0.113.1", country: "DE", fingerprint: "fp-a", sessionId: "seat-1" },
+      { at: "also-not-a-date", ip: "203.0.113.2", country: "BR", fingerprint: "fp-b", sessionId: "seat-1" },
       sighting(0, "203.0.113.3", "US", "fp-c"),
     ];
 
@@ -329,5 +333,136 @@ describe("session anomaly scoring — rotating-exit VPN on a genuine multi-devic
     expect(verdict.signals).toContain("many_devices");
     expect(verdict.signals).toContain("many_ips");
     expect(verdict.signals).not.toContain("impossible_travel");
+  });
+});
+
+describe("session anomaly scoring — against a warm per-account baseline", () => {
+  const warm = (over: Partial<SessionBaseline> = {}): SessionBaseline => ({
+    observedDays: 30,
+    typicalDevices: 1,
+    typicalIps: 2,
+    typicalCountries: 1,
+    typicalSessionsPerDay: 1,
+    knownFingerprints: ["fp-laptop"],
+    knownCountries: ["DE"],
+    ...over,
+  });
+
+  it("stops flagging a genuine three-device member once their profile is settled", () => {
+    // Absolute thresholds score 3 devices at 28. With a profile saying all
+    // three are this account's own, they are not strangers and score nothing.
+    const sightings = [
+      sighting(0, "203.0.113.10", "DE", "fp-laptop"),
+      sighting(3, "203.0.113.11", "DE", "fp-phone"),
+      sighting(6, "203.0.113.12", "DE", "fp-tablet"),
+      sighting(9, "203.0.113.10", "DE", "fp-laptop"),
+    ];
+
+    const baseline = warm({
+      typicalDevices: 3,
+      knownFingerprints: ["fp-laptop", "fp-phone", "fp-tablet"],
+    });
+
+    const verdict = evaluateSessionAnomaly(sightings, { baseline });
+
+    expect(verdict.signals).not.toContain("many_devices");
+    expect(verdict.actionable).toBe(false);
+  });
+
+  it("catches TWO strangers on a settled one-laptop account, which absolute thresholds miss entirely", () => {
+    const sightings = [
+      sighting(0, "203.0.113.10", "DE", "fp-laptop"),
+      sighting(4, "198.51.100.7", "DE", "fp-stranger-a"),
+      sighting(8, "192.0.2.31", "DE", "fp-stranger-b"),
+      sighting(12, "203.0.113.10", "DE", "fp-laptop"),
+    ];
+
+    // Three distinct devices: the absolute tier scores this 28, nowhere near
+    // the bar. The profile is what makes two of them meaningful.
+    const cold = evaluateSessionAnomaly(sightings);
+    const scored = evaluateSessionAnomaly(sightings, { baseline: warm() });
+
+    expect(scored.score).toBeGreaterThan(cold.score);
+    expect(scored.signals).toContain("many_devices");
+  });
+
+  it("does not treat a browser update as a stranger", () => {
+    // The new fingerprint is already in the known set — the nightly rebuild
+    // picked it up — and the old one has stopped appearing.
+    const sightings = [
+      sighting(0, "203.0.113.10", "DE", "fp-chrome-139"),
+      sighting(20, "203.0.113.10", "DE", "fp-chrome-139"),
+      sighting(40, "203.0.113.10", "DE", "fp-chrome-139"),
+    ];
+
+    const baseline = warm({
+      knownFingerprints: ["fp-chrome-139", "fp-chrome-138"],
+    });
+
+    const verdict = evaluateSessionAnomaly(sightings, { baseline });
+
+    expect(verdict.actionable).toBe(false);
+    expect(verdict.signals).not.toContain("many_devices");
+  });
+
+  it("flags session churn: many sign-ins against an account that normally signs in once", () => {
+    // The post-enforcement sharing shape. Nothing co-occurs — each seat is
+    // used alone — so devices/IPs/countries stay quiet and only the sign-in
+    // rate gives it away.
+    const sightings = [
+      sighting(0, "203.0.113.10", "DE", "fp-laptop", "seat-1"),
+      sighting(30, "203.0.113.10", "DE", "fp-laptop", "seat-2"),
+      sighting(60, "203.0.113.10", "DE", "fp-laptop", "seat-3"),
+      sighting(90, "203.0.113.10", "DE", "fp-laptop", "seat-4"),
+      sighting(120, "203.0.113.10", "DE", "fp-laptop", "seat-5"),
+    ];
+
+    const verdict = evaluateSessionAnomaly(sightings, { baseline: warm() });
+
+    expect(verdict.signals).toContain("session_churn");
+    expect(verdict.summary).toContain("against a normal of 1");
+  });
+
+  it("does not flag churn for an account that normally signs in that often", () => {
+    const sightings = [
+      sighting(0, "203.0.113.10", "DE", "fp-laptop", "seat-1"),
+      sighting(30, "203.0.113.10", "DE", "fp-laptop", "seat-2"),
+      sighting(60, "203.0.113.10", "DE", "fp-laptop", "seat-3"),
+      sighting(90, "203.0.113.10", "DE", "fp-laptop", "seat-4"),
+    ];
+
+    const verdict = evaluateSessionAnomaly(sightings, {
+      baseline: warm({ typicalSessionsPerDay: 4 }),
+    });
+
+    expect(verdict.signals).not.toContain("session_churn");
+    expect(verdict.actionable).toBe(false);
+  });
+
+  it("churn alone is never enough to act on", () => {
+    const sightings = Array.from({ length: 8 }, (_, i) =>
+      sighting(i * 15, "203.0.113.10", "DE", "fp-laptop", `seat-${i}`)
+    );
+
+    const verdict = evaluateSessionAnomaly(sightings, { baseline: warm() });
+
+    expect(verdict.signals).toContain("session_churn");
+    expect(verdict.actionable).toBe(false);
+  });
+
+  it("ignores a COLD profile entirely and falls back to absolute thresholds", () => {
+    const sightings = [
+      sighting(0, "203.0.113.10", "DE", "fp-stranger-a"),
+      sighting(4, "198.51.100.7", "DE", "fp-stranger-b"),
+      sighting(8, "192.0.2.31", "DE", "fp-stranger-c"),
+    ];
+
+    // Two days of history is not a profile — it is the last two days wearing
+    // a lab coat, and must not be scored against.
+    const cold = { ...warm(), observedDays: 2 };
+
+    expect(evaluateSessionAnomaly(sightings, { baseline: cold })).toEqual(
+      evaluateSessionAnomaly(sightings)
+    );
   });
 });

@@ -68,7 +68,18 @@ export type AnomalySignal =
   | "impossible_travel"
   | "many_ips"
   | "many_devices"
-  | "datacenter_ip";
+  | "datacenter_ip"
+  /**
+   * Far more sign-ins in a day than this account normally makes. Only
+   * meaningful against a warm baseline (lib/session-baseline).
+   *
+   * This one exists BECAUSE of one-seat enforcement. Once concurrent sharing
+   * is refused, sharing does not stop — it goes SERIAL: two people taking
+   * turns, each signing in after the other's seat goes idle. That leaves no
+   * co-occurrence for the other signals to see, and looks instead like an
+   * account that suddenly signs in six times a day instead of once.
+   */
+  | "session_churn";
 
 export interface AnomalyVerdict {
   /** 0..100. Higher is more suspicious. */
@@ -89,4 +100,6 @@ export interface SessionSighting {
   ip: string | null;
   country: string | null;
   fingerprint: string | null;
+  /** Which seat produced this beat. Drives the session-churn baseline. */
+  sessionId: string | null;
 }

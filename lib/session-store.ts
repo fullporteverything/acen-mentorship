@@ -1,14 +1,16 @@
 import "server-only";
 
-import { and, desc, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
 
 import { db, dbTransaction } from "@/lib/db/client";
 import {
+  memberSessionBaseline,
   memberSessionSightings,
   memberSessions,
   members,
 } from "@/lib/db/schema";
 import { decideClaim } from "./session-claim";
+import type { SessionBaseline } from "./session-baseline";
 import {
   SESSION_IDLE_MS,
   type MemberSession,
@@ -98,6 +100,21 @@ export async function ensureSessionTables(): Promise<void> {
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS member_session_sightings_account_at_index
       ON member_session_sightings (discord_id, at DESC)
+  `);
+  // Per-account behavioural profile, rebuilt nightly from the sightings above.
+  // Derived data only: safe to TRUNCATE, it rebuilds itself on the next run.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS member_session_baseline (
+      discord_id varchar(32) PRIMARY KEY,
+      observed_days integer NOT NULL DEFAULT 0,
+      typical_devices integer NOT NULL DEFAULT 0,
+      typical_ips integer NOT NULL DEFAULT 0,
+      typical_countries integer NOT NULL DEFAULT 0,
+      typical_sessions_per_day integer NOT NULL DEFAULT 0,
+      known_fingerprints jsonb NOT NULL DEFAULT '[]'::jsonb,
+      known_countries jsonb NOT NULL DEFAULT '[]'::jsonb,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
   `);
 
   sessionTablesEnsured = true;
@@ -489,6 +506,7 @@ export async function recentSightings(
       ip: memberSessionSightings.ip,
       country: memberSessionSightings.country,
       fingerprint: memberSessionSightings.fingerprint,
+      sessionId: memberSessionSightings.sessionId,
     })
     .from(memberSessionSightings)
     .where(
@@ -504,5 +522,111 @@ export async function recentSightings(
     ip: row.ip,
     country: row.country,
     fingerprint: row.fingerprint,
+    sessionId: row.sessionId,
   }));
+}
+
+/* ── Per-account baseline ─────────────────────────────────────────────────
+   Derived, disposable, and read on the heartbeat path — so every failure here
+   degrades to "no baseline", which the scorer treats as a cold profile and
+   falls back to absolute thresholds. Losing a profile costs accuracy, never
+   access. */
+
+function toBaseline(row: {
+  observedDays: number;
+  typicalDevices: number;
+  typicalIps: number;
+  typicalCountries: number;
+  typicalSessionsPerDay: number;
+  knownFingerprints: unknown;
+  knownCountries: unknown;
+}): SessionBaseline {
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+  return {
+    observedDays: row.observedDays,
+    typicalDevices: row.typicalDevices,
+    typicalIps: row.typicalIps,
+    typicalCountries: row.typicalCountries,
+    typicalSessionsPerDay: row.typicalSessionsPerDay,
+    knownFingerprints: strings(row.knownFingerprints),
+    knownCountries: strings(row.knownCountries),
+  };
+}
+
+const BASELINE_COLUMNS = {
+  observedDays: memberSessionBaseline.observedDays,
+  typicalDevices: memberSessionBaseline.typicalDevices,
+  typicalIps: memberSessionBaseline.typicalIps,
+  typicalCountries: memberSessionBaseline.typicalCountries,
+  typicalSessionsPerDay: memberSessionBaseline.typicalSessionsPerDay,
+  knownFingerprints: memberSessionBaseline.knownFingerprints,
+  knownCountries: memberSessionBaseline.knownCountries,
+};
+
+export async function getBaseline(
+  discordId: string
+): Promise<SessionBaseline | null> {
+  await ensureSessionTables();
+  const [row] = await db
+    .select(BASELINE_COLUMNS)
+    .from(memberSessionBaseline)
+    .where(eq(memberSessionBaseline.discordId, discordId))
+    .limit(1);
+  return row ? toBaseline(row) : null;
+}
+
+export async function putBaseline(
+  discordId: string,
+  baseline: SessionBaseline
+): Promise<void> {
+  await ensureSessionTables();
+  await db
+    .insert(memberSessionBaseline)
+    .values({
+      discordId,
+      observedDays: baseline.observedDays,
+      typicalDevices: baseline.typicalDevices,
+      typicalIps: baseline.typicalIps,
+      typicalCountries: baseline.typicalCountries,
+      typicalSessionsPerDay: baseline.typicalSessionsPerDay,
+      knownFingerprints: baseline.knownFingerprints,
+      knownCountries: baseline.knownCountries,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: memberSessionBaseline.discordId,
+      set: {
+        observedDays: baseline.observedDays,
+        typicalDevices: baseline.typicalDevices,
+        typicalIps: baseline.typicalIps,
+        typicalCountries: baseline.typicalCountries,
+        typicalSessionsPerDay: baseline.typicalSessionsPerDay,
+        knownFingerprints: baseline.knownFingerprints,
+        knownCountries: baseline.knownCountries,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+/** Accounts with any sighting inside the window — the rebuild's work list. */
+export async function accountsWithSightings(windowMs: number): Promise<string[]> {
+  await ensureSessionTables();
+  const since = new Date(Date.now() - Math.max(0, windowMs));
+  const rows = await db
+    .selectDistinct({ discordId: memberSessionSightings.discordId })
+    .from(memberSessionSightings)
+    .where(gt(memberSessionSightings.at, since));
+  return rows.map((row) => row.discordId);
+}
+
+/** Drops sighting rows older than the window. Keeps the table from growing forever. */
+export async function pruneSightings(windowMs: number): Promise<number> {
+  await ensureSessionTables();
+  const cutoff = new Date(Date.now() - Math.max(0, windowMs));
+  const rows = await db
+    .delete(memberSessionSightings)
+    .where(lt(memberSessionSightings.at, cutoff))
+    .returning({ id: memberSessionSightings.id });
+  return rows.length;
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { requireMemberOrResponse } from "@/lib/authz";
-import { recentSightings, touchSession } from "@/lib/session-store";
+import { getBaseline, recentSightings, touchSession } from "@/lib/session-store";
 import { evaluateSessionAnomaly } from "@/lib/session-anomaly";
 import { applyAnomalyConsequence } from "@/lib/session-consequence";
 
@@ -88,12 +88,18 @@ export async function POST(req: NextRequest) {
 
   let flagged = false;
   try {
-    const sightings = await recentSightings(identity.discordId, ANOMALY_WINDOW_MS);
+    const [sightings, baseline] = await Promise.all([
+      recentSightings(identity.discordId, ANOMALY_WINDOW_MS),
+      // A missing or cold profile is not a problem: the scorer falls back to
+      // its absolute thresholds, which are the conservative ones. Losing a
+      // baseline costs accuracy, never access.
+      getBaseline(identity.discordId).catch(() => null),
+    ]);
     // `datacenterIp` is left unset: resolving it means an outbound lookup, and
     // one of those per member per minute is both slow and rate-limited by the
     // provider. The VPN/proxy determination already happens on its own cadence
     // in /api/security/check-ip.
-    const verdict = evaluateSessionAnomaly(sightings);
+    const verdict = evaluateSessionAnomaly(sightings, { baseline });
     flagged = verdict.actionable;
     if (flagged) {
       console.warn(

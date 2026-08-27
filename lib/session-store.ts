@@ -38,16 +38,17 @@ import {
 let sessionTablesEnsured = false;
 
 /**
- * The administrator works from several devices on purpose (phone for the
- * Discord side, desktop for review), so the one-seat rule does not apply to
- * them. They are NOT exempt from explicit revocation — an admin_kick or an
- * anomaly revoke still ends an admin session, and `isSessionCurrent` treats
- * their rows exactly like anyone else's.
+ * NOBODY IS EXEMPT FROM THE ONE-SEAT RULE — the administrator included.
+ *
+ * There was an exemption here, on the reasoning that the admin works from a
+ * phone and a desktop at once. It is gone at the owner's request: an exempt
+ * account cannot test the rule, and a rule its author never experiences is a
+ * rule nobody notices is broken. If the admin needs a second device now, they
+ * sign out on the first, which releases that seat immediately.
+ *
+ * Getting stuck is self-healing rather than permanent: a seat that stops
+ * beating frees itself after SESSION_IDLE_MS.
  */
-function isSeatExempt(discordId: string): boolean {
-  const admin = process.env.ADMIN_DISCORD_ID?.trim();
-  return Boolean(admin) && discordId === admin;
-}
 
 /** The moment before which a session is considered to have stopped beating. */
 function idleCutoff(now = Date.now()): Date {
@@ -229,8 +230,6 @@ export async function claimSession(input: {
 
   const { discordId, sessionId } = input;
   const memberId = await resolveMemberId(discordId, input.displayName);
-  const seatExempt = isSeatExempt(discordId);
-
   return dbTransaction(async (tx) => {
     // (2) Serialize every claim for this one account. Namespaced so the hash
     // cannot collide with an advisory lock taken for some other purpose.
@@ -255,22 +254,18 @@ export async function claimSession(input: {
       .orderBy(desc(memberSessions.lastSeenAt))
       .limit(1);
 
-    const verdict = seatExempt
-      ? ({ grant: true } as const)
-      : decideClaim({
-          now,
-          incomingSessionId: sessionId,
-          existing: incumbent
-            ? {
-                sessionId: incumbent.sessionId,
-                lastSeenAt: incumbent.lastSeenAt.getTime(),
-                revokedAt: incumbent.revokedAt
-                  ? incumbent.revokedAt.getTime()
-                  : null,
-              }
-            : null,
-          idleMs: SESSION_IDLE_MS,
-        });
+    const verdict = decideClaim({
+      now,
+      incomingSessionId: sessionId,
+      existing: incumbent
+        ? {
+            sessionId: incumbent.sessionId,
+            lastSeenAt: incumbent.lastSeenAt.getTime(),
+            revokedAt: incumbent.revokedAt ? incumbent.revokedAt.getTime() : null,
+          }
+        : null,
+      idleMs: SESSION_IDLE_MS,
+    });
 
     if (!verdict.grant) {
       return {
@@ -282,18 +277,16 @@ export async function claimSession(input: {
 
     // Only ever reached when nothing live is holding the seat, so this closes
     // out rows that stopped beating — never a session somebody is using.
-    if (!seatExempt) {
-      await tx
-        .update(memberSessions)
-        .set({ revokedAt: new Date(), revokeReason: "superseded" })
-        .where(
-          and(
-            eq(memberSessions.discordId, discordId),
-            isNull(memberSessions.revokedAt),
-            ne(memberSessions.sessionId, sessionId)
-          )
-        );
-    }
+    await tx
+      .update(memberSessions)
+      .set({ revokedAt: new Date(), revokeReason: "superseded" })
+      .where(
+        and(
+          eq(memberSessions.discordId, discordId),
+          isNull(memberSessions.revokedAt),
+          ne(memberSessions.sessionId, sessionId)
+        )
+      );
 
     await tx
       .insert(memberSessions)
@@ -484,6 +477,36 @@ export async function revokeSessions(
     .where(
       and(
         eq(memberSessions.discordId, discordId),
+        isNull(memberSessions.revokedAt)
+      )
+    )
+    .returning({ sessionId: memberSessions.sessionId });
+
+  return revoked.length;
+}
+
+/**
+ * Revokes ONE seat, by id.
+ *
+ * Signing out must end the session doing the signing out and nothing else.
+ * `revokeSessions` (plural, by account) is the admin kick and the anomaly
+ * revoke, and is deliberately account-wide. Wiring sign-out to THAT meant
+ * signing out on a phone silently killed the laptop — and it meant the "Try
+ * Again" button on the one-session gate released whichever seat the browser
+ * was holding, which is the opposite of what that gate is for.
+ */
+export async function revokeSession(
+  sessionId: string,
+  reason: SessionRevokeReason
+): Promise<number> {
+  await ensureSessionTables();
+
+  const revoked = await db
+    .update(memberSessions)
+    .set({ revokedAt: new Date(), revokeReason: reason })
+    .where(
+      and(
+        eq(memberSessions.sessionId, sessionId),
         isNull(memberSessions.revokedAt)
       )
     )

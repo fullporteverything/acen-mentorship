@@ -19,12 +19,24 @@
 export const SESSION_HEARTBEAT_MS = 60_000;
 
 /**
- * No heartbeat for this long and the seat is free again. Three missed beats —
- * generous enough to survive a tab suspend, a tunnel hiccup or a sleeping
- * phone, short enough that a member who closes the laptop can sign in from
- * the desktop a few minutes later without calling for help.
+ * No heartbeat for this long and the seat is free again.
+ *
+ * TEN beats, not three. Three was tuned for a tab in the foreground and did
+ * not survive contact with Chrome: a hidden tab has its timers throttled, and
+ * after a few minutes Chrome may freeze or discard it outright. A member who
+ * leaves the lesson in a background tab then stops beating through no fault of
+ * their own — and at three minutes that quietly released their seat, so a
+ * second sign-in sailed straight through the gate that was supposed to stop
+ * it. Holding the seat longer makes the one-session rule STRICTER, not looser.
+ *
+ * It costs the legitimate holder nothing: their own seat is theirs regardless
+ * of how long it has been quiet (isSessionCurrent does not check the idle
+ * window — the request being served is itself proof of life). The only price
+ * is that switching devices without signing out means a wait, and there are
+ * two immediate outs: signing out releases that one seat at once, and the
+ * admin kick is instant.
  */
-export const SESSION_IDLE_MS = 3 * SESSION_HEARTBEAT_MS;
+export const SESSION_IDLE_MS = 10 * SESSION_HEARTBEAT_MS;
 
 /** Why a session stopped being the current one. Persisted for the audit. */
 export type SessionRevokeReason =

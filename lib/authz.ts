@@ -225,9 +225,9 @@ export async function requireMember(): Promise<MemberIdentity> {
   // still the session this account is using. A session that was kicked by an
   // admin, revoked by the anomaly watch, or superseded once it went quiet
   // stops working here — on the very next request, without waiting for the
-  // JWT to expire. Admins are exempt from the seat LIMIT (they may hold
-  // several live sessions) but not from an explicit revocation: the registry
-  // check is the same for them.
+  // JWT to expire. Nobody is exempt — the administrator included; the seat
+  // exemption that used to live in auth.ts and lib/session-store is gone, so
+  // the person who owns the rule is subject to it and can test it.
   //
   // A token minted before this shipped carries no sid, so there is no seat to
   // compare against and one-seat enforcement simply would not apply to it.

@@ -58,11 +58,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // logging in. "Live" is a heartbeat inside SESSION_IDLE_MS, so a
         // closed laptop frees the seat on its own (see lib/session-store).
         //
-        // The admin legitimately works across devices (phone for Discord,
-        // desktop for review), so they are exempt from the seat limit — but
-        // not from an explicit revoke; see lib/authz.
-        const adminId = process.env.ADMIN_DISCORD_ID?.trim();
-        if (adminId && discordId === adminId) return true;
+        // NOBODY IS EXEMPT, the administrator included. There was an admin
+        // exemption here; it is gone at the owner's request, so that the
+        // person who owns the rule is subject to it and can actually test it.
         try {
           const { getActiveSession } = await import("@/lib/session-store");
           const active = await getActiveSession(discordId);
@@ -182,12 +180,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      */
     async signOut(message) {
       const token = "token" in message ? message.token : null;
-      const discordId =
-        typeof token?.discordId === "string" ? token.discordId : undefined;
-      if (!discordId) return;
+      // ONE SEAT, BY ID — not every seat on the account.
+      //
+      // This used to revoke by discordId, which had two bad consequences:
+      // signing out on a phone killed the laptop, and the "Try Again" button
+      // on the one-session gate released whatever seat the browser was
+      // holding — turning the gate's own escape hatch into a way past it.
+      // A sign-out ends the session doing the signing out. Nothing else.
+      //
+      // No sid means a token from before seat tracking, or an aborted
+      // sign-in that never got one; either way it holds no seat to release.
+      const sessionId = typeof token?.sid === "string" ? token.sid : undefined;
+      if (!sessionId) return;
       try {
-        const { revokeSessions } = await import("@/lib/session-store");
-        await revokeSessions(discordId, "signed_out");
+        const { revokeSession } = await import("@/lib/session-store");
+        await revokeSession(sessionId, "signed_out");
       } catch (error) {
         // Never let a registry failure break sign-out itself; the seat still
         // frees itself once the heartbeat lapses.

@@ -135,12 +135,24 @@ export function createTabLock(options: TabLockOptions): TabLockHandle {
    * believing it leads. The flag does not depend on delivery timing.
    */
   let sawIncumbent = false;
+  /**
+   * Has leadership been DECIDED yet?
+   *
+   * Without this, `setLeader(false)` on a tab that started as a follower is a
+   * no-op — the value never changed — so the callback never fires and the
+   * caller is left holding its "undecided" initial state forever. SessionGuard
+   * renders nothing while undecided, so the second window came up fully usable
+   * and the lock looked like it had simply not run. The first decision must be
+   * announced even when it matches the starting value.
+   */
+  let resolved = false;
   let lastLeaderSeen = now();
   let claimTimer: number | null = null;
   let watchTimer: number | null = null;
 
   const setLeader = (value: boolean) => {
-    if (leader === value) return;
+    if (resolved && leader === value) return;
+    resolved = true;
     leader = value;
     onLeadershipChange(value);
   };
@@ -181,9 +193,14 @@ export function createTabLock(options: TabLockOptions): TabLockHandle {
         // Someone else holds it. If we also think we do, the tie-break decides
         // — otherwise a race could leave two tabs both believing they lead.
         if (leader && claimWinner(tabId, message.tabId) !== tabId) setLeader(false);
-        else if (!leader && claimTimer !== null) {
-          clearTimer(claimTimer);
-          claimTimer = null;
+        else if (!leader) {
+          if (claimTimer !== null) {
+            clearTimer(claimTimer);
+            claimTimer = null;
+          }
+          // Somebody else holds the lock: that is this tab's answer, and it
+          // has to be announced or the caller never learns it is a follower.
+          setLeader(false);
         }
         break;
       case "seize":

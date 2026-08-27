@@ -92,9 +92,18 @@ function mountTab(bus: ReturnType<typeof createBus>, clock: ReturnType<typeof cr
     setTimer: clock.setTimer,
     clearTimer: clock.clearTimer,
   });
-  const isLeader = () => {
+  /**
+   * `null` means the lock never told us anything.
+   *
+   * This used to collapse to `false`, which made "explicitly a follower" and
+   * "never decided" indistinguishable — and that is precisely the bug that
+   * shipped: a follower was never notified, the guard stayed in its undecided
+   * state, and the second window came up fully usable. Never let a default
+   * stand in for an answer that was never given.
+   */
+  const isLeader = (): boolean | null => {
     const calls = onLeadershipChange.mock.calls;
-    return calls.length ? Boolean(calls[calls.length - 1][0]) : false;
+    return calls.length ? Boolean(calls[calls.length - 1][0]) : null;
   };
   return { handle, onLeadershipChange, isLeader };
 }
@@ -113,7 +122,8 @@ describe("one tab leads", () => {
     const clock = createClock();
     const only = mountTab(bus, clock, "tab-1");
 
-    expect(only.isLeader()).toBe(false);
+    // Undecided until the claim window closes — not yet a follower.
+    expect(only.isLeader()).toBeNull();
     clock.advance(CLAIM_TIMEOUT_MS);
 
     expect(only.isLeader()).toBe(true);
@@ -129,9 +139,28 @@ describe("one tab leads", () => {
     const second = mountTab(bus, clock, "tab-2");
     clock.advance(CLAIM_TIMEOUT_MS * 3);
 
+    // Must be an explicit `false`, NOT an unanswered null — the caller can
+    // only render "already open in another tab" if it is actually told.
     expect(second.isLeader()).toBe(false);
+    expect(second.onLeadershipChange).toHaveBeenCalledWith(false);
     // And the incumbent is not disturbed by the newcomer.
     expect(first.isLeader()).toBe(true);
+  });
+
+  it("tells a follower it is a follower as soon as it hears the incumbent", () => {
+    // The regression that produced two fully usable windows: the follower was
+    // correctly denied the lock but never informed, so the UI that depends on
+    // knowing never rendered.
+    const bus = createBus();
+    const clock = createClock();
+    mountTab(bus, clock, "tab-1");
+    clock.advance(CLAIM_TIMEOUT_MS);
+
+    const second = mountTab(bus, clock, "tab-2");
+
+    // Immediately — before its own claim window has even elapsed.
+    expect(second.onLeadershipChange).toHaveBeenCalledWith(false);
+    expect(second.isLeader()).not.toBeNull();
   });
 
   it("a backgrounded leader still answers, so a foreground tab cannot steal the lock", () => {

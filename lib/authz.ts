@@ -43,6 +43,19 @@ export class SessionSupersededError extends AuthorizationError {
   }
 }
 
+/**
+ * The caller holds a valid-looking token that predates seat tracking, so there
+ * is nothing to enforce against. Distinct from SessionSupersededError purely so
+ * the copy is honest: nobody took their seat and nobody kicked them — they just
+ * need to sign in again. Same 401, so API callers see no change.
+ */
+export class SessionExpiredError extends AuthorizationError {
+  constructor(message = "This session predates seat tracking; sign in again") {
+    super(401, message);
+    this.name = "SessionExpiredError";
+  }
+}
+
 /** Converts the centralized authorization outcome into a safe API response. */
 export function authorizationErrorResponse(error: unknown): NextResponse {
   if (error instanceof AuthorizationError) {
@@ -72,6 +85,9 @@ export function rethrowTemporaryAuthorizationError(error: unknown): never {
   // back to /dashboard and loop. The `error` query both stops that bounce and
   // lets CrackedGate say what actually happened.
   if (error instanceof SessionSupersededError) redirect("/?error=SessionActive");
+  // Same reasoning as above — still logged in as far as the proxy is
+  // concerned, so a bare `/` would bounce back to /dashboard and loop.
+  if (error instanceof SessionExpiredError) redirect("/?error=SessionExpired");
   if (error instanceof AuthorizationError) {
     if (error.status === 503) redirect("/?error=Verification");
     if (error.status === 403) redirect("/?error=AccessDenied");
@@ -213,11 +229,18 @@ export async function requireMember(): Promise<MemberIdentity> {
   // several live sessions) but not from an explicit revocation: the registry
   // check is the same for them.
   //
-  // A token minted before this shipped carries no sid and nothing to compare
-  // against, so it is left alone rather than logging the whole membership out
-  // on deploy; those tokens age out on their own.
+  // A token minted before this shipped carries no sid, so there is no seat to
+  // compare against and one-seat enforcement simply would not apply to it.
+  // Rather than let those ride until the JWT ages out — during which a shared
+  // login stays shareable — they are refused outright. The cost is that
+  // everyone signs in once on the deploy that ships this, which the owner
+  // asked for, and it doubles as the flush that puts every member on a tracked
+  // seat immediately instead of gradually.
   const sessionId = user.sessionId?.trim();
-  if (sessionId && !(await seatIsStillOurs(discordId, sessionId))) {
+  if (!sessionId) {
+    throw new SessionExpiredError();
+  }
+  if (!(await seatIsStillOurs(discordId, sessionId))) {
     throw new SessionSupersededError();
   }
 

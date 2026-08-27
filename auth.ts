@@ -19,6 +19,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/",
     error: "/",
   },
+  /**
+   * SHORT SESSIONS ON PURPOSE.
+   *
+   * The default is 30 days, which meant a student signed in once and every
+   * later visit skipped the login page entirely — the proxy saw a valid token
+   * and bounced them straight to /dashboard. Eight hours is about one study
+   * session: come back tomorrow and you sign in again.
+   *
+   * Auth.js always stamps an expiry on the session cookie (see
+   * @auth/core/lib/actions/callback), so a true dies-when-the-browser-closes
+   * cookie is not reachable through config. This is the lever that exists and
+   * it gets the same practical result.
+   *
+   * This is NOT what protects against a member whose Discord role was pulled.
+   * lib/authz re-verifies the role against Discord every 60 seconds, so
+   * revoked access stops working within the minute however long the session
+   * lasts. This setting governs the login wall, not access.
+   */
+  session: {
+    strategy: "jwt",
+    maxAge: 8 * 60 * 60,
+  },
   callbacks: {
     async signIn({ account, profile, user }) {
       if (!account?.access_token) return false;

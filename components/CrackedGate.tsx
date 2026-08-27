@@ -290,6 +290,18 @@ function gateCopy(code?: string): GateCopy {
           "Suite 7 allows one active session per account. Sign out on the other device — or leave it closed for a few minutes and let that session expire — then sign in again.",
         showArt: false,
       };
+    // Nobody took their seat and nobody kicked them — their sign-in simply
+    // predates seat tracking, or the eight-hour session ran out. Say that
+    // plainly; implying something went wrong would have members messaging the
+    // admin about a working site.
+    case "SessionExpired":
+      return {
+        label: "Sign In Again",
+        headline: "Your session has ended.",
+        subline:
+          "Sessions last a single sitting rather than staying open indefinitely. Sign in with Discord to pick up where you left off.",
+        showArt: false,
+      };
     case "RoleMissing":
     // A plain AccessDenied is almost always this same case arriving without a
     // reason code, so it gets the same benefit of the doubt.
@@ -316,6 +328,8 @@ function friendlyCode(code: string): string {
       return "Not a member of the Discord server";
     case "SessionActive":
       return "Another session is already signed in";
+    case "SessionExpired":
+      return "Session ended — sign in again";
     case "RoleMissing":
       return "Mentorship role not assigned yet";
     case "AccessDenied":

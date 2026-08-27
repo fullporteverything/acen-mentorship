@@ -140,3 +140,22 @@ export interface StakeResponse {
 export function postStake(): Promise<StakeResponse> {
   return request<StakeResponse>("/api/table/stake", { method: "POST" });
 }
+
+export interface GrantResponse {
+  balance: number;
+  stats: ChipStats;
+  granted: number;
+}
+
+/**
+ * ADMIN ONLY — "the House tops up its own rack". The server enforces admin
+ * via requireAdmin; a member calling this gets a 403 regardless of what the
+ * client believes. Negative amounts subtract (floored at zero).
+ */
+export function postGrant(amount: number): Promise<GrantResponse> {
+  return request<GrantResponse>("/api/table/grant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amount }),
+  });
+}

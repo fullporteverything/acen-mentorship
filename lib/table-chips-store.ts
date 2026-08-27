@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { members, tableChips, tableGrants } from "@/lib/db/schema";
@@ -340,6 +340,48 @@ export async function claimGrants(
  * are excluded. Discord ids are deliberately NOT selected — nothing that
  * reaches the leaderboard response should identify an account.
  */
+/** SQL predicate excluding the house account from player-facing standings. */
+function notAdmin() {
+  const admin = process.env.ADMIN_DISCORD_ID?.trim();
+  return admin ? ne(tableChips.discordId, admin) : undefined;
+}
+
+/**
+ * Admin-only chip grant — "the House tops up its own rack".
+ *
+ * Callers MUST have proven they are an admin server-side before reaching this
+ * (app/api/table/grant does). Amount is bounded so a typo can't write an
+ * absurd number, and the balance is floored at 0 so a negative grant can
+ * subtract without going below zero. Admins are excluded from the leaderboard
+ * (see getLeaderboard), so this can never distort the players' standings.
+ */
+export const MAX_GRANT = 1_000_000;
+
+export async function grantChips(
+  discordId: string,
+  amount: number,
+  displayName?: string | null
+): Promise<ChipState> {
+  await ensureTableChipsTables();
+  await getChipState(discordId, displayName);
+  const memberId = await resolveMemberId(discordId, displayName);
+  const delta = Math.trunc(amount);
+  if (!Number.isFinite(delta) || delta === 0 || Math.abs(delta) > MAX_GRANT) {
+    throw new RangeError(`grant must be a non-zero integer within ±${MAX_GRANT}`);
+  }
+
+  const [updated] = await db
+    .update(tableChips)
+    .set({
+      balance: sql`GREATEST(0, ${tableChips.balance} + ${delta})`,
+      updatedAt: new Date(),
+    })
+    .where(eq(tableChips.memberId, memberId))
+    .returning(CHIP_COLUMNS);
+
+  return updated ? toState(updated) : getChipState(discordId, displayName);
+}
+
 export async function getLeaderboard(
   limit = 10,
   viewerDiscordId?: string
@@ -355,7 +397,10 @@ export async function getLeaderboard(
     })
     .from(tableChips)
     .innerJoin(members, eq(members.id, tableChips.memberId))
-    .where(isNull(members.deletedAt))
+    // The House does not compete with the players. An admin can grant
+    // themselves chips (see grantChips), so leaving them in would park them at
+    // #1 forever and make the board meaningless for everyone else.
+    .where(and(isNull(members.deletedAt), notAdmin()))
     .orderBy(desc(tableChips.balance), desc(tableChips.handsWon))
     .limit(Math.max(1, Math.min(100, Math.trunc(limit))));
 

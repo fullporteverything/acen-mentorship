@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import KinescopePlayer from "@kinescope/player-iframe-api-loader/react/KinescopePlayer";
-import StudentWatermark from "@/components/StudentWatermark";
+import StudentWatermark, { watermarkText } from "@/components/StudentWatermark";
 import { isKinescopeVideoId } from "@/lib/video-id";
 import {
   shouldResumeWatchProgress,
@@ -31,6 +31,9 @@ export default function VideoPlayer({
   protectedPlaybackConfigured,
 }: VideoPlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<Kinescope.IframePlayer.Player | null>(null);
+  /** Was the video playing when the viewer left? Drives auto-resume. */
+  const resumeOnReturnRef = useRef(false);
   const cleanupPlayerRef = useRef<() => void>(() => {});
   const currentTimeRef = useRef(initialWatchProgress?.currentTime || 0);
   const durationRef = useRef(initialWatchProgress?.duration || 0);
@@ -38,6 +41,8 @@ export default function VideoPlayer({
   const [fullscreen, setFullscreen] = useState(false);
   /** True while the viewer is away — tab hidden or window unfocused. */
   const [away, setAway] = useState(false);
+  /** Bumped to force-remount the watermark if it is torn out of the DOM. */
+  const [watermarkKey, setWatermarkKey] = useState(0);
   const [watchPercent, setWatchPercent] = useState(
     initialWatchProgress?.percent || 0
   );
@@ -48,6 +53,7 @@ export default function VideoPlayer({
   );
   const validVideoId = isKinescopeVideoId(videoId.trim());
   const validEmbedUrl = getKinescopeEmbedUrl(embedUrl);
+  const viewerLabel = watermarkText({ discordId, discordUsername });
   const playerOptions = useMemo(
     () => ({
       url: validEmbedUrl || "",
@@ -57,9 +63,42 @@ export default function VideoPlayer({
         playsInline: true,
         localStorage: { time: false },
       },
-      ui: { language: "en" as const, controls: true },
+      ui: {
+        language: "en" as const,
+        controls: true,
+        // The player's own screenshot button would hand a member a clean,
+        // watermark-free frame in one click. Off.
+        screenshotButton: false,
+        /**
+         * NATIVE WATERMARK — the important one.
+         *
+         * StudentWatermark below draws the same label in OUR DOM, which a
+         * member can delete from devtools in one click. This one is composited
+         * INSIDE Kinescope's cross-origin iframe: our page cannot reach it, so
+         * neither can anyone using our page's devtools. It is what actually
+         * survives into a screen recording or a phone video of the monitor.
+         *
+         * `random` moves it so a fixed crop can't remove it; the visible/hidden
+         * cycle keeps it from sitting over the chart the whole lesson. Any
+         * single appearance is enough to trace a leak back to an account.
+         */
+        watermark: {
+          text: viewerLabel,
+          mode: "random" as const,
+          scale: 0.16,
+          displayTimeout: { visible: 8000, hidden: 5000 },
+        },
+      },
+      theme: {
+        // Both keys are required by the player's option type.
+        watermark: { default: { color: "rgba(255,255,255,0.55)" } },
+        colors: { primary: "#e3c071" },
+      },
+      // Tags Kinescope's OWN view metrics with the member, so a leak can be
+      // traced provider-side even if every pixel of our page is stripped.
+      settings: { externalId: discordId?.trim() || "unknown" },
     }),
-    [validEmbedUrl]
+    [validEmbedUrl, viewerLabel, discordId]
   );
 
   useEffect(() => {
@@ -154,6 +193,7 @@ export default function VideoPlayer({
       };
       const onError = () => setResumeNotice("Playback error — refresh to retry");
 
+      playerRef.current = player;
       player
         .on(player.Events.Loaded, onLoaded)
         .on(player.Events.TimeUpdate, onTimeUpdate)
@@ -167,6 +207,7 @@ export default function VideoPlayer({
           .off(player.Events.Pause, onPause)
           .off(player.Events.Ended, onEnded)
           .off(player.Events.Error, onError);
+        playerRef.current = null;
       };
     },
     [initialWatchProgress, persistProgress]
@@ -192,36 +233,95 @@ export default function VideoPlayer({
         ? "protected playback is unavailable"
         : "";
 
-  // Away guard: while the tab is hidden or the window unfocused, the video
-  // blurs out — a member can't leave a lesson playing on a second monitor and
-  // record it while working elsewhere. The subtle part: clicking INTO the
-  // player moves focus to the iframe and fires window.blur, but
-  // document.hasFocus() stays true while any embedded context holds focus —
-  // so the check runs a tick later and only blurs when focus truly left.
+  /**
+   * Away guard. While the tab is hidden or the window unfocused the video both
+   * BLURS and PAUSES — a member can't leave a lesson running on a second
+   * monitor and record it while working elsewhere.
+   *
+   * The pause is the part that matters. The blur is a CSS filter, so anyone
+   * with devtools deletes it in a click and keeps recording; pausing stops the
+   * frames at the source, inside a cross-origin iframe we can't be talked out
+   * of. It also stops the audio, which the blur never did.
+   *
+   * The subtle bit: clicking INTO the player moves focus to the iframe and
+   * fires window.blur, but document.hasFocus() stays true while any embedded
+   * context holds focus — so the check runs a tick later and only fires when
+   * focus has truly left the page.
+   */
+  const leave = useCallback(() => {
+    setAway(true);
+    const player = playerRef.current;
+    if (!player) return;
+    player
+      .isPaused()
+      .then((paused) => {
+        if (paused) return;
+        resumeOnReturnRef.current = true;
+        return player.pause();
+      })
+      .catch(() => {});
+  }, []);
+
+  const returnToLesson = useCallback(() => {
+    setAway(false);
+    if (!resumeOnReturnRef.current) return;
+    // Resume only what WE paused, so a member who deliberately hit pause before
+    // alt-tabbing doesn't come back to a video that started itself.
+    resumeOnReturnRef.current = false;
+    playerRef.current?.play().catch(() => {});
+  }, []);
+
   useEffect(() => {
     const onBlur = () => {
       window.setTimeout(() => {
-        if (!document.hasFocus()) setAway(true);
+        if (!document.hasFocus()) leave();
       }, 0);
     };
-    const back = () => setAway(false);
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") setAway(true);
-      else if (document.hasFocus()) setAway(false);
+      if (document.visibilityState === "hidden") leave();
+      else if (document.hasFocus()) returnToLesson();
     };
     window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", back);
-    window.addEventListener("pointerdown", back);
-    window.addEventListener("keydown", back);
+    window.addEventListener("focus", returnToLesson);
+    window.addEventListener("pointerdown", returnToLesson);
+    window.addEventListener("keydown", returnToLesson);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", back);
-      window.removeEventListener("pointerdown", back);
-      window.removeEventListener("keydown", back);
+      window.removeEventListener("focus", returnToLesson);
+      window.removeEventListener("pointerdown", returnToLesson);
+      window.removeEventListener("keydown", returnToLesson);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [leave, returnToLesson]);
+
+  /**
+   * Watermark tamper check. StudentWatermark is an ordinary DOM node, so the
+   * one-click devtools "Delete element" gives a clean recording. Every two
+   * seconds we confirm it is still attached and still painted; if it isn't, the
+   * video pauses and the node is remounted.
+   *
+   * Deliberately NOT wired to security strikes. It's a heuristic reading of
+   * computed styles and could in principle misfire — costing a member a pause
+   * and a click is fine, costing them a strike is not.
+   */
+  useEffect(() => {
+    if (!validEmbedUrl) return;
+    const timer = window.setInterval(() => {
+      const mark = wrapperRef.current?.querySelector("[data-s7-watermark]");
+      const style = mark ? getComputedStyle(mark) : null;
+      const intact =
+        Boolean(mark?.isConnected) &&
+        style !== null &&
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        Number(style.opacity) > 0.05;
+      if (intact) return;
+      playerRef.current?.pause().catch(() => {});
+      setWatermarkKey((value) => value + 1);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [validEmbedUrl]);
 
   return (
     <div style={{ width: "100%" }}>
@@ -286,6 +386,7 @@ export default function VideoPlayer({
               }}
             />
             <StudentWatermark
+              key={watermarkKey}
               discordId={discordId}
               discordUsername={discordUsername}
             />
@@ -295,7 +396,7 @@ export default function VideoPlayer({
                 type="button"
                 onClick={() => {
                   window.focus();
-                  setAway(false);
+                  returnToLesson();
                 }}
                 style={{
                   position: "absolute",

@@ -51,6 +51,9 @@ export default function StudentWatermark(props: StudentWatermarkProps) {
   return (
     <div
       aria-hidden="true"
+      // Read by VideoPlayer's tamper check — if this node stops existing or
+      // stops painting, the lesson pauses. Don't rename it.
+      data-s7-watermark=""
       style={{
         position: "absolute",
         inset: 0,

@@ -28,7 +28,18 @@ function withSecurityHeaders(response: NextResponse, nonce: string) {
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  // `picture-in-picture=()` closes a real leak: PiP pops the lesson out of
+  // the page into a floating OS-level window, which escapes BOTH the away
+  // blur and our DOM watermark. Denying it at policy level means the
+  // player never offers the button and script can't request it either.
+  //
+  // NOT added: `display-capture=()`. It would harden getDisplayMedia beyond
+  // what ScreenGuard's monkeypatch can, but the browser would then reject
+  // the call before ScreenGuard sees it — and a policy rejection is
+  // indistinguishable from a member simply clicking Cancel, so we'd either
+  // lose every capture strike or start marking innocent cancels. Keeping
+  // the attempt visible and logged is worth more than the marginal block.
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), picture-in-picture=()");
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
   // Set here too (not only in next.config headers()) so the middleware's own

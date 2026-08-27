@@ -16,7 +16,9 @@ const ISOLATION_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    // picture-in-picture: PiP escapes the lesson away-blur and the DOM
+    // watermark by moving playback into an OS window. See proxy.ts.
+    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), picture-in-picture=()",
   },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },

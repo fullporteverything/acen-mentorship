@@ -2162,3 +2162,29 @@ body.suite7-noselect [data-allow-context] {
   user-select: text;
   -webkit-user-select: text;
 }
+
+/* ── Print block ─────────────────────────────────────────────────────────
+   Ctrl/Cmd+P is intercepted in JS on the Lectures pages, but the browser's
+   own File → Print menu never reaches a keydown handler. This does, and it
+   applies everywhere: a printed page (or "Save as PDF") comes out as the
+   notice below and nothing else. Devtools still defeats it — like everything
+   else here, it is friction on the easy path. */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  body::after {
+    content: "Suite 7 — private material. Printing is disabled.";
+    visibility: visible;
+    display: block;
+    position: fixed;
+    inset: 0;
+    padding-top: 40vh;
+    text-align: center;
+    font-family: Georgia, Cambria, "Times New Roman", serif;
+    font-size: 14pt;
+    letter-spacing: 0.06em;
+    color: #000;
+    background: #fff;
+  }
+}

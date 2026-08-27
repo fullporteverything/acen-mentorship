@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireMember, rethrowTemporaryAuthorizationError } from "@/lib/authz";
 import VpnGuard from "@/components/VpnGuard";
 import ScreenGuard from "@/components/ScreenGuard";
+import RightClickGuard from "@/components/RightClickGuard";
 import SiteMeditation from "@/components/SiteMeditation";
 import SiteTerminal from "@/components/SiteTerminal";
 import { getSecurityMember } from "@/lib/security-store";
@@ -12,6 +13,7 @@ import { getOnboardingStatus } from "@/lib/onboarding-store";
  * Wraps every /dashboard route with the security guards:
  *   VpnGuard  — blocks VPN/proxy/datacenter IPs
  *   ScreenGuard — deters + logs screen-recording attempts, tagged to the member
+ *   RightClickGuard — suppresses the context menu site-wide (deterrent only)
  */
 export default async function DashboardLayout({
   children,
@@ -44,6 +46,10 @@ export default async function DashboardLayout({
         initialLocked={securityMember?.locked}
       >
         {children}
+        {/* Context-menu suppression for every /dashboard route, tightened on
+           the Lectures pages. Admins are exempt, and that call is made HERE
+           on the server — the client is never asked. */}
+        <RightClickGuard isAdmin={isAdmin} />
         <SiteMeditation />
         {/* SUITE 7 — CONSOLE. Mounted ONLY for administrators, and that
            decision is made HERE, on the server, from the session +

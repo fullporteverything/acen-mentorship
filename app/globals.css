@@ -2107,3 +2107,58 @@ a.topnav-rank:hover {
     bottom: 14px;
   }
 }
+
+/* ── Right-click guard ───────────────────────────────────────────────────
+   The note that replaces the browser context menu, plus the Lectures-only
+   selection lock. See components/RightClickGuard.tsx — this is friction,
+   not protection. */
+.suite7-guard-note {
+  position: fixed;
+  left: 50%;
+  bottom: 34px;
+  transform: translateX(-50%);
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border: 1px solid rgba(231, 192, 113, 0.3);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(24, 18, 8, 0.96), rgba(8, 6, 4, 0.96));
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.7);
+  font-family: Georgia, Cambria, "Times New Roman", serif;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: rgba(245, 240, 240, 0.86);
+  pointer-events: none;
+  animation: suite7-guard-in 220ms ease-out;
+}
+.suite7-guard-suit {
+  color: var(--gold);
+  font-size: 12px;
+}
+@keyframes suite7-guard-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .suite7-guard-note { animation: none; }
+}
+
+/* Lectures pages only. Text fields are exempt so the journal, support tickets
+   and every form on the page keep behaving like forms. */
+body.suite7-noselect {
+  user-select: none;
+  -webkit-user-select: none;
+}
+body.suite7-noselect input,
+body.suite7-noselect textarea,
+body.suite7-noselect select,
+body.suite7-noselect [contenteditable=""],
+body.suite7-noselect [contenteditable="true"],
+body.suite7-noselect [data-allow-context] {
+  user-select: text;
+  -webkit-user-select: text;
+}

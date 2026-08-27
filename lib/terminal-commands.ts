@@ -296,6 +296,71 @@ async function runGive(
   }
 }
 
+/**
+ * Reads the seat history for the signed-in account and prints it.
+ *
+ * Built for one question, after four rounds of "it let me in anyway": WHICH
+ * of the ways a refusal can be followed by an admission actually happened.
+ * `revokeReason` on the seat that stopped being current is the answer, and the
+ * idle window it prints doubles as a build marker — if it says 3 minutes, the
+ * running deploy predates the fix and nothing else in the output means much.
+ */
+async function runSeats(
+  _args: readonly string[],
+  _ctx: TerminalContext
+): Promise<string[]> {
+  try {
+    const res = await fetch("/api/admin/sessions/history", { cache: "no-store" });
+    if (res.status === 404) {
+      return [
+        crimson("! endpoint not found — this deploy predates the seat diagnostic"),
+        dim("nothing shipped after the one-session work is live yet"),
+      ];
+    }
+    if (!res.ok) return [crimson(`! ${res.status} — the endpoint authorises every call itself`)];
+    const data = (await res.json()) as {
+      idleWindowMs?: number;
+      sessions?: {
+        sessionId: string;
+        createdAt: string;
+        lastSeenAt: string;
+        staleForMs: number | null;
+        countsAsLive: boolean;
+        revokeReason: string | null;
+        fingerprint: string | null;
+      }[];
+    };
+
+    const idleMinutes = Math.round((data.idleWindowMs ?? 0) / 60_000);
+    const lines = [
+      `${dim("idle window")} ${gold(`${idleMinutes} min`)} ${dim(
+        idleMinutes >= 10 ? "(current build)" : "(OLD BUILD — fixes are not live)"
+      )}`,
+    ];
+
+    const sessions = data.sessions ?? [];
+    if (sessions.length === 0) return [...lines, dim("no seats on record for this account")];
+
+    for (const seat of sessions.slice(0, 8)) {
+      const stale = seat.staleForMs === null ? "?" : `${Math.round(seat.staleForMs / 1000)}s`;
+      const state = seat.countsAsLive
+        ? goldHi("LIVE")
+        : crimson(seat.revokeReason ?? "expired");
+      lines.push(
+        `${state} ${dim(seat.sessionId.slice(0, 8))} ${dim("last beat")} ${stale} ${dim(
+          "ago"
+        )} ${dim(seat.fingerprint ?? "no device")}`
+      );
+    }
+    lines.push(
+      dim("signed_out = a browser called sign-out · superseded = the seat went quiet first")
+    );
+    return lines;
+  } catch (error) {
+    return [crimson(`! ${errorText(error)}`)];
+  }
+}
+
 /* ----------------------------------------------------------------- registry */
 
 /** Build info. Static on purpose — nothing here should leak the deploy. */
@@ -427,6 +492,15 @@ export const COMMANDS: readonly TerminalCommand[] = [
     group: "house",
     description: "Control Room → Security.",
     run: (_args, ctx) => go(ctx, adminTabHref("security")!, "Control Room · security"),
+  },
+  {
+    name: "seats",
+    aliases: ["sessions"],
+    group: "house",
+    description:
+      "Every seat this account has held, live and revoked, with the reason each one ended. Also prints the idle window, which tells you whether the running deploy is current.",
+    usage: "/seats",
+    run: (args, ctx) => runSeats(args, ctx),
   },
   {
     name: "give",

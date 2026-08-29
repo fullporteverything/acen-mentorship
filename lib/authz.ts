@@ -17,6 +17,13 @@ export interface MemberIdentity {
   ownerIds: string[];
   isAdmin: boolean;
   name?: string | null;
+  /**
+   * Discord's unique @handle. Distinct from `name`, which is the display name
+   * a member can change at will and which is not unique across Discord. Use
+   * this wherever the point is to identify a specific person — the lesson
+   * watermark above all.
+   */
+  username?: string | null;
 }
 
 export class AuthorizationError extends Error {
@@ -255,7 +262,13 @@ export async function requireMember(): Promise<MemberIdentity> {
     Boolean(process.env.ADMIN_DISCORD_ID) &&
     discordId === process.env.ADMIN_DISCORD_ID;
 
-  return { discordId, ownerIds, isAdmin, name: user.name };
+  return {
+    discordId,
+    ownerIds,
+    isAdmin,
+    name: user.name,
+    username: user.discordUsername,
+  };
 }
 
 /** Returns a verified administrator identity or throws a fail-closed error. */

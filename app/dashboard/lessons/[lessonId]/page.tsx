@@ -29,6 +29,7 @@ import { getVideoPlayback } from "@/lib/video-status";
 import { autoPassedLessonIds } from "@/lib/progress-link";
 import { getWatchProgressByLesson } from "@/lib/watch-progress-store";
 import { STATUS_LABELS } from "@/lib/status-labels";
+import { watermarkName } from "@/lib/watermark-style";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,14 @@ export default async function LessonPage({
   const identity = await requireMember().catch((error) => rethrowTemporaryAuthorizationError(error) ?? redirect("/"));
   const isAdmin = identity.isAdmin;
   const discordId = identity.discordId;
-  const discordUsername = identity.name?.trim() || "Discord user";
+  /**
+   * The WATERMARK name. Prefer Discord's unique @handle over the display name:
+   * a display name is changeable and not unique, so a leaked frame could name
+   * a member who had nothing to do with it. Falls back to the display name for
+   * sessions issued before the handle was captured — those age out within the
+   * 8-hour session lifetime.
+   */
+  const discordUsername = watermarkName(identity);
   const [progress, addedLessons, overrides, addedSections] = await Promise.all([
     getViewerProgress(discordId),
     getAddedLessons(),

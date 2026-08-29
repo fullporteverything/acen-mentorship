@@ -10,6 +10,12 @@ declare module "next-auth" {
     user: {
       id?: string;
       discordId?: string;
+      /**
+       * Discord's unique @handle — NOT the display name in `name`, which a
+       * member can change and which is not unique. Used by the lesson
+       * watermark, where naming the right person is the entire point.
+       */
+      discordUsername?: string;
       /** Signed JWT proof that the required role was verified at login. */
       memberVerifiedAt?: number;
       /**
@@ -34,6 +40,8 @@ declare module "next-auth/jwt" {
   /** Extra claims we persist on the JWT. */
   interface JWT {
     discordId?: string;
+    /** Discord's unique @handle. See the Session note above. */
+    discordUsername?: string;
     memberVerifiedAt?: number;
     /** Session id for the single-seat registry (see lib/session-store). */
     sid?: string;

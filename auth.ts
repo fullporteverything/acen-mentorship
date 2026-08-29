@@ -115,6 +115,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // registry on every protected request, so a kicked or superseded
       // session stops working without waiting for the JWT to expire.
       session.user.sessionId = typeof token.sid === "string" ? token.sid : undefined;
+      // The @handle, for the lesson watermark. See the jwt callback.
+      session.user.discordUsername =
+        typeof token.discordUsername === "string" ? token.discordUsername : undefined;
       session.user.memberVerifiedAt =
         typeof token.memberVerifiedAt === "number"
           ? token.memberVerifiedAt
@@ -158,6 +161,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           accent_color?: number | null;
           avatar_decoration_data?: { asset?: string } | null;
         };
+        /**
+         * The unique @handle, NOT the display name.
+         *
+         * Auth.js's Discord provider sets `name` from `global_name ?? username`
+         * (see @auth/core/providers/discord), so `session.user.name` is the
+         * display name a member can change whenever they like — and two members
+         * can share one. The watermark exists to name whoever leaked a lesson,
+         * so it needs the handle: unique across Discord since the 2023
+         * discriminator migration, and not editable into someone else's.
+         */
+        token.discordUsername = p?.username ?? undefined;
         token.avatarHash = p?.avatar ?? undefined;
         token.bannerHash = p?.banner ?? undefined;
         token.accentColor = p?.accent_color ?? undefined;

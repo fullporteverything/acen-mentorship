@@ -402,7 +402,17 @@ async function resolveReviews(
       continue;
     }
     const decision = decideFromReply(reply.content, row.amountCents ?? null);
-    if (!decision) continue;
+    if (!decision) {
+      // Say so rather than absorbing it. Silence after a reply is
+      // indistinguishable from being ignored, and the reasonable response to
+      // being ignored is to give up on the queue.
+      await postMessage(
+        reviewChannelId,
+        "Didn't catch an amount there — reply with a figure like `$2,500` (or just `2500`), or ❌ to skip.",
+        reply.id
+      ).catch(() => {});
+      continue;
+    }
     const ok = await resolvePayout({
       messageId: row.messageId,
       status: decision.status,

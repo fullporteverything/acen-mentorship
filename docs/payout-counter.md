@@ -43,6 +43,9 @@ anywhere near Discord's rename limit.
    screenshot), **reply to the bot's post with the figure** — `$2,500` — and it
    counts that. Replying with a different number corrects a misread one.
 
+   A bare number works — `2500` is as good as `$2,500`. If it can't make out an
+   amount in your reply it says so rather than going quiet.
+
    The bot replies to confirm: *"Finished — counted $2,500. Total is now
    $12,750."* It quotes the figure and the new total on purpose, because what
    you are really checking is not that it heard you but that it took the right
@@ -70,7 +73,7 @@ the parser never overrules it.
 | `DISCORD_GUILD_ID` | no | Already set. Only used to build jump links in review posts. |
 | `ANTHROPIC_API_KEY` | recommended | Turns on screenshot reading. Without it, every image-only post goes to the review queue unread and you type the amount in. |
 | `PAYOUT_VISION_MODEL` | no | Defaults to `claude-opus-5`. Set `claude-haiku-4-5` to cut the per-image cost roughly fivefold at some accuracy cost. |
-| `DISCORD_PAYOUT_COUNTER_TEMPLATE` | no | Default `💰 Student Payouts: {total}`. `{total}` compacts (`$342K`), `{exact}` doesn't (`$342,150`). |
+| `DISCORD_PAYOUT_COUNTER_TEMPLATE` | no | Default `💰 {total} Paid Out`. The figure leads because Discord truncates a channel name to the sidebar width — with the label first, the number is the part that gets cut. `{total}` compacts (`$342K`), `{exact}` doesn't (`$342,150`). |
 
 Unset the channel ids and the route returns `{ skipped }` and does nothing — the
 feature is dormant until it's configured.

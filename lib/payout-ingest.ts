@@ -1,5 +1,6 @@
 import {
   extractAmountCents,
+  extractReplyAmountCents,
   parsePayoutMessage,
   type PayoutCandidate,
 } from "./payout-parse";
@@ -170,7 +171,9 @@ export function decideFromReply(
     return { status: "rejected", amountCents: null };
   }
 
-  const typed = extractAmountCents(text);
+  // Reply-context reader: a bare "3501" is an answer to a direct question,
+  // not ambiguous text in a busy channel.
+  const typed = extractReplyAmountCents(text);
   if (typed !== null) return { status: "approved", amountCents: typed };
 
   // A bare "yes" only means something when there is already a number to say

@@ -238,6 +238,27 @@ export function extractAmountCents(text: string): number | null {
   return best;
 }
 
+/**
+ * The amount from a REVIEWER'S REPLY. Accepts a bare number; nothing else does.
+ *
+ * `extractAmountCents` above insists on a `$` or a `k` so that scanning a
+ * channel full of chatter never reads "2025" or "5 min" as money. In a reply to
+ * a bot that just asked "reply with the amount", that rule is exactly wrong: a
+ * person answering the question types `3501`, watches nothing happen, and
+ * concludes the thing is broken. Which is what happened.
+ *
+ * A bare number counts only when the reply is JUST that number — optional `$`,
+ * optional `k`, nothing else. "lol 2024" still reads as nothing, because it is.
+ */
+const BARE_AMOUNT = /^\$?\s*([\d,]+(?:\.\d{1,2})?)\s*([kK])?$/;
+
+export function extractReplyAmountCents(text: string): number | null {
+  const trimmed = (text ?? "").trim();
+  const bare = BARE_AMOUNT.exec(trimmed);
+  if (bare) return toCents(bare[1], bare[2]);
+  return extractAmountCents(trimmed);
+}
+
 /** Pretty-prints cents for the channel name and the admin panel. */
 export function formatUsd(cents: number, { compact = false } = {}): string {
   const dollars = Math.round(cents / 100);

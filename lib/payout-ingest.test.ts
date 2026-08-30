@@ -210,3 +210,25 @@ describe("what a screenshot reading is allowed to do", () => {
     expect(d.note).toContain("$2,500.00");
   });
 });
+
+describe("a reviewer typing just the number", () => {
+  it("takes a bare figure, because that is what people actually type", () => {
+    // The bug this fixes: the bot asks "reply with the amount", a reviewer
+    // replies `3501`, nothing happens, and they conclude it is broken.
+    expect(decideFromReply("3501", null)).toEqual({ status: "approved", amountCents: 350_100 });
+    expect(decideFromReply("4000", null)).toEqual({ status: "approved", amountCents: 400_000 });
+    expect(decideFromReply("34298.48", null)).toEqual({
+      status: "approved",
+      amountCents: 3_429_848,
+    });
+    expect(decideFromReply("$4,000", null)).toEqual({ status: "approved", amountCents: 400_000 });
+    expect(decideFromReply("2.5k", null)).toEqual({ status: "approved", amountCents: 250_000 });
+  });
+
+  it("still refuses a number buried in a sentence with no currency marker", () => {
+    // A bare number counts only when the reply IS the number. Otherwise "lol
+    // 2024" would approve $2,024.
+    expect(decideFromReply("lol 2024", null)).toBeNull();
+    expect(decideFromReply("check it in 5 min", null)).toBeNull();
+  });
+});

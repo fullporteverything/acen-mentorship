@@ -10,8 +10,16 @@ import {
 
 describe("the channel name", () => {
   it("compacts the total, because a sidebar truncates", () => {
-    expect(counterName(342_150_00)).toBe("💰 Student Payouts: $342K");
-    expect(counterName(2_500_00)).toBe("💰 Student Payouts: $2,500");
+    expect(counterName(342_150_00)).toBe("💰 $342K Paid Out");
+    expect(counterName(2_500_00)).toBe("💰 $2,500 Paid Out");
+  });
+
+  it("puts the figure first so truncation eats the label, not the number", () => {
+    // Discord clips a channel name to the sidebar width. With the label first,
+    // "💰 Student Payouts: $12,750" renders as "💰 Student Pay…" — the number,
+    // the only reason the channel exists, is exactly what gets cut.
+    const name = counterName(1_275_000);
+    expect(name.indexOf("$12,750")).toBeLessThan(name.indexOf("Paid"));
   });
 
   it("supports a custom template and an exact figure", () => {
@@ -19,9 +27,9 @@ describe("the channel name", () => {
   });
 
   it("survives an empty ledger and junk input", () => {
-    expect(counterName(0)).toBe("💰 Student Payouts: $0");
-    expect(counterName(Number.NaN)).toBe("💰 Student Payouts: $0");
-    expect(counterName(-5)).toBe("💰 Student Payouts: $0");
+    expect(counterName(0)).toBe("💰 $0 Paid Out");
+    expect(counterName(Number.NaN)).toBe("💰 $0 Paid Out");
+    expect(counterName(-5)).toBe("💰 $0 Paid Out");
   });
 
   it("never exceeds Discord's 100 character limit", () => {

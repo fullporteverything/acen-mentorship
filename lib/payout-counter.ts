@@ -14,7 +14,13 @@ import { formatUsd } from "./payout-parse";
 /** Comfortably inside the 2-per-10-minutes ceiling even if a tick runs twice. */
 export const RENAME_MIN_INTERVAL_MS = 9 * 60 * 1000;
 
-const DEFAULT_TEMPLATE = "💰 Student Payouts: {total}";
+/**
+ * The FIGURE COMES FIRST. Discord's sidebar truncates a channel name to fit its
+ * width, so "💰 Student Payouts: $12,750" renders as "💰 Student Pay…" — every
+ * character of the one thing the channel exists to show is the part that gets
+ * cut. Leading with the number means truncation eats the label instead.
+ */
+const DEFAULT_TEMPLATE = "💰 {total} Paid Out";
 
 /**
  * Builds the channel name.

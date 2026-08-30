@@ -243,19 +243,19 @@ export function listAwaitingReview(limit: number): Promise<StudentPayoutRow[]> {
  * `visionAt IS NULL` is the whole guard against paying to read the same
  * screenshot on every tick: it is stamped whether the read succeeded, failed,
  * or refused to count anything.
+ *
+ * Deliberately does NOT require a recorded attachment URL. Rows scanned before
+ * that column existed have none, which quietly excluded exactly the backlog
+ * this feature was built for. The vision pass re-fetches the message anyway —
+ * Discord's CDN links expire — so it can find out for itself whether there is
+ * an image, and stamp the row either way.
  */
 export function listNeedingVision(limit: number): Promise<StudentPayoutRow[]> {
   return ensurePayoutTables().then(() =>
     db
       .select()
       .from(studentPayouts)
-      .where(
-        and(
-          eq(studentPayouts.status, "pending"),
-          isNull(studentPayouts.visionAt),
-          isNotNull(studentPayouts.attachmentUrl)
-        )
-      )
+      .where(and(eq(studentPayouts.status, "pending"), isNull(studentPayouts.visionAt)))
       .orderBy(asc(studentPayouts.messageId))
       .limit(limit)
   );

@@ -85,13 +85,33 @@ export function visionEnabled(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
 }
 
+const EXTENSIONS: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+
+function typeFromName(url: string): string | null {
+  const path = url.split("?")[0] ?? "";
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return EXTENSIONS[ext] ?? null;
+}
+
 /** Picks the one attachment worth reading, or null if there isn't one. */
 export function firstReadableImage(
-  attachments: { url: string; content_type?: string; size?: number }[] | undefined
+  attachments:
+    | { url: string; filename?: string; content_type?: string; size?: number }[]
+    | undefined
 ): { url: string; mediaType: string } | null {
   for (const attachment of attachments ?? []) {
-    const type = attachment.content_type?.split(";")[0]?.trim().toLowerCase();
-    if (!type || !IMAGE_TYPES.has(type)) continue;
+    const declared = attachment.content_type?.split(";")[0]?.trim().toLowerCase();
+    // Fall back to the extension: content_type is usually present but is not
+    // guaranteed, and skipping a real screenshot over a missing header would
+    // be an invisible failure.
+    const type = declared && IMAGE_TYPES.has(declared) ? declared : typeFromName(attachment.url);
+    if (!type) continue;
     if ((attachment.size ?? 0) > MAX_IMAGE_BYTES) continue;
     return { url: attachment.url, mediaType: type };
   }

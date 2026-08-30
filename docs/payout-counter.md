@@ -67,9 +67,10 @@ the parser never overrules it.
 ## The `/paid` command
 
 Anyone in the server can run `/paid` and get a two-sentence answer with the live
-total. The reply is **ephemeral** — only the person who ran it sees it — so the
-command can't be used to spam a channel. Change `EPHEMERAL` in
-`lib/discord-interactions.ts` if you'd rather it posted publicly.
+total, posted publicly so everyone in the channel sees it — someone running
+`/paid` is doing the marketing for you. Pass `{ ephemeral: true }` to
+`messageReply` in `app/api/discord/interactions/route.ts` to make it private
+instead.
 
 Setting it up is two steps, both one-off:
 

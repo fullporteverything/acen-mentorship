@@ -61,5 +61,7 @@ export async function POST(req: Request) {
 
   // An unknown command still needs a reply, or the user is left staring at a
   // spinner until Discord times it out.
-  return NextResponse.json(messageReply("Unknown command."));
+  // Ephemeral: an unknown command is useful to whoever typed it and noise to
+  // everyone else in the channel.
+  return NextResponse.json(messageReply("Unknown command.", { ephemeral: true }));
 }

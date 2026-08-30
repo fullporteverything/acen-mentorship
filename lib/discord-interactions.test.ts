@@ -2,7 +2,11 @@ import crypto from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { paidResponseContent, verifyDiscordSignature } from "./discord-interactions";
+import {
+  messageReply,
+  paidResponseContent,
+  verifyDiscordSignature,
+} from "./discord-interactions";
 
 /** A throwaway Ed25519 pair, standing in for Discord's. */
 function keypair() {
@@ -80,5 +84,15 @@ describe("what /paid says", () => {
     const text = paidResponseContent(null);
     expect(text).not.toContain("$");
     expect(text.length).toBeGreaterThan(40);
+  });
+});
+
+describe("who sees the reply", () => {
+  it("posts the answer publicly — someone running it is doing the marketing", () => {
+    expect(messageReply("x").data.flags).toBeUndefined();
+  });
+
+  it("keeps errors private, since they help nobody else in the channel", () => {
+    expect(messageReply("x", { ephemeral: true }).data.flags).toBe(64);
   });
 });

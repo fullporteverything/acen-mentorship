@@ -55,7 +55,7 @@ export const INTERACTION_PING = 1;
 export const INTERACTION_COMMAND = 2;
 const REPLY_PONG = 1;
 const REPLY_MESSAGE = 4;
-/** Only the person who ran the command sees it — so /paid can't be used to spam. */
+/** Discord's flag for a reply only the person who ran the command can see. */
 const EPHEMERAL = 64;
 
 /** What gets registered with Discord. */
@@ -84,6 +84,16 @@ export function pongReply() {
   return { type: REPLY_PONG };
 }
 
-export function messageReply(content: string) {
-  return { type: REPLY_MESSAGE, data: { content, flags: EPHEMERAL } };
+/**
+ * Public by default: the answer to /paid is a figure worth other people seeing,
+ * and someone running it in a channel is doing the marketing for you.
+ *
+ * `ephemeral` is kept for replies nobody else benefits from — an error is
+ * useful to the person who caused it and noise to everyone else.
+ */
+export function messageReply(content: string, { ephemeral = false } = {}) {
+  return {
+    type: REPLY_MESSAGE,
+    data: { content, ...(ephemeral ? { flags: EPHEMERAL } : {}) },
+  };
 }

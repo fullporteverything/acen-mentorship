@@ -79,6 +79,16 @@ the parser never overrules it.
 Unset the channel ids and the route returns `{ skipped }` and does nothing — the
 feature is dormant until it's configured.
 
+## What it costs
+
+Only new screenshots, once each, ever. Every row carries a `vision_at` stamp,
+set whether the read succeeded, failed, or refused to count anything, and vision
+only picks up rows that have never been looked at. Text-only posts and ordinary
+chatter never reach it at all. Re-scans, `reset=1`, redeploys and overlapping
+ticks re-read nothing; `revision=1` is the only thing that does, and it exists
+for recovering from a failed run. A tick that finds no new screenshots costs
+nothing.
+
 ## Checking on it
 
 ```
@@ -87,7 +97,8 @@ curl "https://<site>/api/discord/payouts/tick?key=$CRON_SECRET&dry=1"
 
 `diag=1` reports what each channel actually is, a sample of what comes back, the
 stored verdict on every pending row, your recent replies with the three things
-that must line up for one to count, and one real vision read. `revision=1` lets
+that must line up for one to count, and — only with `&probe=1` — one real vision read. That probe is the single
+part of the diagnostic that spends money, which is why it is opt-in. `revision=1` lets
 vision re-read the pending screenshots — the once-ever guard is right in normal
 operation, but a run that failed for an environmental reason would otherwise
 poison those rows permanently.

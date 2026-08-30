@@ -178,7 +178,13 @@ export async function GET(req: Request) {
     // exactly happens when it tries to read one screenshot.
     if (url.searchParams.get("diag") === "1") {
       return NextResponse.json(
-        await diagnose(sourceChannelId, reviewChannelId, counterChannelId, reviewers)
+        await diagnose(
+          sourceChannelId,
+          reviewChannelId,
+          counterChannelId,
+          reviewers,
+          url.searchParams.get("probe") === "1"
+        )
       );
     }
 
@@ -536,7 +542,8 @@ async function diagnose(
   sourceChannelId: string,
   reviewChannelId: string | null,
   counterChannelId: string | null,
-  reviewers: Set<string>
+  reviewers: Set<string>,
+  probeVision: boolean
 ) {
   const describe = async (label: string, id: string | null) => {
     if (!id) return { label, configured: false };
@@ -616,8 +623,14 @@ async function diagnose(
   // ── why did vision read nothing? ─────────────────────────────────────────
   // Actually performs one read, so the answer is what really happens rather
   // than what ought to. Costs one image.
+  // Behind ?probe=1 because it is the ONE part of the diagnostic that spends
+  // money: it performs a real image read. Worse, probing a row that is still
+  // pending reads an image the next tick will read again — the diagnostic
+  // would be quietly doubling the cost of the thing it is inspecting.
   let visionProbe: unknown = { skipped: "vision disabled" };
-  if (visionEnabled()) {
+  if (!probeVision) {
+    visionProbe = { skipped: "add &probe=1 to actually read an image (costs one vision call)" };
+  } else if (visionEnabled()) {
     // listPending, not listNeedingVision: the probe exists to show what happens
     // when it reads one, and a row that has already been tried is exactly the
     // one we need to look at.

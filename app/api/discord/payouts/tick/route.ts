@@ -776,6 +776,13 @@ async function readScreenshots(
     };
 
     if (decision.status === "approved" && decision.amountCents !== null) {
+      // STAMPED BEFORE RESOLVING, and this order is the point: the stamp only
+      // applies to rows still pending, so stamping after the row flips to
+      // approved does nothing at all. It was harmless — an approved row is
+      // never picked up again anyway — but that made "we never pay to read the
+      // same image twice" rest on a second condition rather than on the guard
+      // that exists to guarantee it. Now the guard actually holds on its own.
+      await markVisionAttempted(row.messageId, decision.note);
       const ok = await resolvePayout({
         messageId: row.messageId,
         status: "approved",
@@ -785,8 +792,6 @@ async function readScreenshots(
         decidedBy: "vision",
       });
       if (ok) approved += 1;
-      // Stamped either way, so a row that lost a race is not re-read tomorrow.
-      await markVisionAttempted(row.messageId, decision.note);
       await refreshPost(true);
       continue;
     }

@@ -160,7 +160,7 @@ export async function GET(req: Request) {
     // channel that holds messages, and is Discord actually giving us the text?
     if (url.searchParams.get("diag") === "1") {
       return NextResponse.json(
-        await diagnose(sourceChannelId, reviewChannelId, counterChannelId)
+        await diagnose(sourceChannelId, reviewChannelId, counterChannelId, reviewers)
       );
     }
 
@@ -509,7 +509,8 @@ const CHANNEL_KIND: Record<number, string> = {
 async function diagnose(
   sourceChannelId: string,
   reviewChannelId: string | null,
-  counterChannelId: string | null
+  counterChannelId: string | null,
+  reviewers: Set<string>
 ) {
   const describe = async (label: string, id: string | null) => {
     if (!id) return { label, configured: false };
@@ -554,12 +555,76 @@ async function diagnose(
     sampleError = String(error);
   }
 
+  // ── why did a reply do nothing? ──────────────────────────────────────────
+  // Three things have to line up for a reply to count, and from the outside a
+  // failure of any one of them looks identical: the reply has to BE a reply
+  // (carry a message_reference), its author has to be a configured reviewer,
+  // and the post it answers has to be one we recorded. Show all three.
+  let replies: unknown[] = [];
+  let replyError: string | null = null;
+  if (reviewChannelId) {
+    try {
+      const recent = await fetchMessages(reviewChannelId, { limit: 15 });
+      replies = await Promise.all(
+        recent
+          .filter((m) => !m.author.bot)
+          .map(async (m) => {
+            const parentId = m.message_reference?.message_id ?? null;
+            const row = parentId ? await findByReviewMessageId(parentId) : null;
+            return {
+              author: m.author.username,
+              authorId: m.author.id,
+              isReviewer: reviewers.has(m.author.id),
+              content: (m.content ?? "").slice(0, 40),
+              repliesToReviewPost: Boolean(parentId),
+              matchedRow: row ? { status: row.status, amountCents: row.amountCents } : null,
+              wouldDecide: row ? decideFromReply(m.content ?? "", row.amountCents ?? null) : null,
+            };
+          })
+      );
+    } catch (error) {
+      replyError = String(error);
+    }
+  }
+
+  // ── why did vision read nothing? ─────────────────────────────────────────
+  // Actually performs one read, so the answer is what really happens rather
+  // than what ought to. Costs one image.
+  let visionProbe: unknown = { skipped: "vision disabled" };
+  if (visionEnabled()) {
+    const [row] = await listNeedingVision(1);
+    if (!row) {
+      visionProbe = { skipped: "no pending row awaiting a read" };
+    } else {
+      try {
+        const message = await fetchMessage(sourceChannelId, row.messageId);
+        const image = firstReadableImage(message.attachments);
+        visionProbe = {
+          messageId: row.messageId,
+          attachments: message.attachments?.map((a) => ({
+            content_type: a.content_type ?? null,
+            size: a.size ?? null,
+            name: a.filename ?? null,
+          })),
+          picked: image ? { mediaType: image.mediaType } : null,
+          result: image ? await readPayoutScreenshot(image) : "no readable image on the message",
+        };
+      } catch (error) {
+        visionProbe = { messageId: row.messageId, error: String(error) };
+      }
+    }
+  }
+
   return {
     diag: true,
     channels,
     sampleCount: sample.length,
     sample,
     sampleError,
+    reviewers: reviewers.size,
+    replies,
+    replyError,
+    visionProbe,
     state: await getSyncState(sourceChannelId),
     counts: await payoutCounts(),
     reading: sample.length === 0
@@ -604,11 +669,14 @@ async function readScreenshots(
       continue;
     }
 
-    const reading = await readPayoutScreenshot(image);
-    if (!reading) {
-      await markVisionAttempted(row.messageId, "screenshot could not be read");
+    const result = await readPayoutScreenshot(image);
+    if (!result.ok) {
+      // The reason goes on the row, so a broken integration is distinguishable
+      // from a screenshot that genuinely has no amount on it.
+      await markVisionAttempted(row.messageId, `screenshot could not be read — ${result.error}`);
       continue;
     }
+    const reading = result.reading;
     read += 1;
 
     const decision = decideFromVision(reading);

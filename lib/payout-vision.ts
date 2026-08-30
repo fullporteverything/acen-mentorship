@@ -119,30 +119,48 @@ export function firstReadableImage(
 }
 
 /**
- * Reads one screenshot. Returns null when vision is off or the call failed —
- * never throws, because a vision outage must degrade to "a human looks at it",
- * which is exactly the behaviour that existed before this file.
+ * The outcome of one read, failure included.
+ *
+ * Returning the REASON rather than null matters: a vision call that quietly
+ * returns nothing leaves a row saying "no amount readable" that is
+ * indistinguishable from a screenshot with genuinely no amount on it, and the
+ * owner has no way to tell a broken integration from a bad screenshot. The
+ * error text ends up on the review post.
+ */
+export type VisionResult =
+  | { ok: true; reading: VisionReading }
+  | { ok: false; error: string };
+
+/**
+ * Reads one screenshot. Never throws — a vision outage must degrade to "a human
+ * looks at it", which is the behaviour that existed before this file.
  */
 export async function readPayoutScreenshot(image: {
   url: string;
   mediaType: string;
-}): Promise<VisionReading | null> {
-  if (!visionEnabled()) return null;
+}): Promise<VisionResult> {
+  if (!visionEnabled()) return { ok: false, error: "ANTHROPIC_API_KEY not set" };
 
   try {
     // Sent as bytes rather than as a URL: Discord's CDN links are signed and
     // short-lived, and a fetch failing on Anthropic's side would be invisible
     // here. Downloading first also enforces the size cap ourselves.
     const res = await fetch(image.url, { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return null;
+    if (!res.ok) return { ok: false, error: `image download failed: HTTP ${res.status}` };
     const bytes = await res.arrayBuffer();
-    if (bytes.byteLength > MAX_IMAGE_BYTES) return null;
+    if (bytes.byteLength > MAX_IMAGE_BYTES) {
+      return { ok: false, error: `image too large: ${bytes.byteLength} bytes` };
+    }
     const data = Buffer.from(bytes).toString("base64");
 
     const client = new Anthropic();
     const response = await client.messages.create({
       model: process.env.PAYOUT_VISION_MODEL?.trim() || "claude-opus-5",
-      max_tokens: 1024,
+      // Not 1024. Thinking is on by default on this model and is billed against
+      // the same budget, so a tight cap can be spent entirely on reasoning —
+      // the request then ends at max_tokens having produced no answer at all,
+      // which looks exactly like "the screenshot had nothing on it".
+      max_tokens: 4096,
       system: SYSTEM,
       // A short extraction with a fixed schema. Low effort is the right setting
       // and keeps the per-image cost down on a job that runs over every
@@ -160,7 +178,12 @@ export async function readPayoutScreenshot(image: {
     });
 
     const text = response.content.find((block) => block.type === "text");
-    if (!text || text.type !== "text") return null;
+    if (!text || text.type !== "text") {
+      return {
+        ok: false,
+        error: `no answer in response (stop_reason: ${response.stop_reason})`,
+      };
+    }
     const parsed = JSON.parse(text.text) as {
       kind: ScreenshotKind;
       amountUsd: number | null;
@@ -172,13 +195,16 @@ export async function readPayoutScreenshot(image: {
       ? parsed.amountUsd
       : null;
     return {
-      kind: parsed.kind,
-      amountCents: usd !== null && usd > 0 ? Math.round(usd * 100) : null,
-      confidence: parsed.confidence,
-      evidence: (parsed.evidence ?? "").slice(0, 300),
+      ok: true,
+      reading: {
+        kind: parsed.kind,
+        amountCents: usd !== null && usd > 0 ? Math.round(usd * 100) : null,
+        confidence: parsed.confidence,
+        evidence: (parsed.evidence ?? "").slice(0, 300),
+      },
     };
   } catch (error) {
     console.error("[payouts] vision read failed", error);
-    return null;
+    return { ok: false, error: String(error).slice(0, 300) };
   }
 }

@@ -3,6 +3,7 @@ import {
   parsePayoutMessage,
   type PayoutCandidate,
 } from "./payout-parse";
+import type { VisionReading } from "./payout-vision";
 
 /**
  * SUITE 7 — THE PURE HALF OF THE PAYOUT COUNTER.
@@ -101,6 +102,51 @@ export function looksBlind(
   return messages.every(
     (m) => (m.content ?? "").length === 0 && (m.attachments?.length ?? 0) === 0
   );
+}
+
+/** The same sanity bounds the text parser uses. Outside these, a human looks. */
+export const VISION_MIN_CENTS = 5_00;
+export const VISION_MAX_CENTS = 500_000_00;
+
+/**
+ * What a screenshot reading is allowed to do.
+ *
+ * The rule is narrow on purpose: a reading counts itself ONLY when the model
+ * says the screenshot is a payout confirmation, says so with high confidence,
+ * and produces an amount inside the plausible range. Everything else keeps its
+ * number as a suggestion and still goes in front of a human.
+ *
+ * The reason is the failure mode, not the accuracy rate. A misread payout is
+ * off by a bit; a confidently-read ACCOUNT BALANCE is a $50,000 account size
+ * added to a public claim about what students have withdrawn. Those are not the
+ * same kind of wrong, so the classification — not the OCR — is what gates it.
+ */
+export function decideFromVision(reading: VisionReading): {
+  status: PayoutStatus;
+  amountCents: number | null;
+  note: string;
+} {
+  const amount =
+    reading.amountCents !== null &&
+    reading.amountCents >= VISION_MIN_CENTS &&
+    reading.amountCents <= VISION_MAX_CENTS
+      ? reading.amountCents
+      : null;
+
+  if (reading.kind === "payout_confirmation" && reading.confidence === "high" && amount !== null) {
+    return { status: "approved", amountCents: amount, note: `read from screenshot: ${reading.evidence}` };
+  }
+
+  const why =
+    reading.kind !== "payout_confirmation"
+      ? `screenshot looks like ${reading.kind.replace(/_/g, " ")}, not a payout`
+      : amount === null
+        ? "no plausible amount readable"
+        : `only ${reading.confidence} confidence`;
+  // The suggestion rides along even when it is not trusted — a reviewer
+  // pressing ✅ on a pre-filled number is the difference between a queue that
+  // gets cleared and one that does not.
+  return { status: "pending", amountCents: amount, note: `${why} (read: ${reading.evidence})` };
 }
 
 export const APPROVE_EMOJI = "✅";

@@ -12,6 +12,7 @@
     "migration:blob:import-isolated": "tsx scripts/migrate-blob-to-neon.ts --import-isolated"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
     "@auth/core": "^0.41.3",
     "@kinescope/player-iframe-api-loader": "^0.9.0",
     "@neondatabase/serverless": "^1.1.0",

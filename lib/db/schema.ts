@@ -872,6 +872,13 @@ export const studentPayouts = pgTable(
     status: varchar("status", { length: 16 }).notNull().default("pending"),
     /** The bot's post in the review channel, once it has been made. */
     reviewMessageId: varchar("review_message_id", { length: 32 }),
+    /** First readable image on the message, if any — what vision reads. */
+    attachmentUrl: text("attachment_url"),
+    /** What the screenshot was judged to BE. The gate, not the OCR. */
+    visionKind: varchar("vision_kind", { length: 24 }),
+    visionConfidence: varchar("vision_confidence", { length: 8 }),
+    /** Set once vision has looked, so no image is ever paid for twice. */
+    visionAt: timestamp("vision_at", { withTimezone: true }),
     decidedBy: varchar("decided_by", { length: 32 }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     postedAt: timestamp("posted_at", { withTimezone: true }),

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { payoutSyncState, studentPayouts, type StudentPayoutRow } from "@/lib/db/schema";
@@ -42,6 +42,15 @@ export async function ensurePayoutTables(): Promise<void> {
       posted_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now()
     )
+  `);
+  // Added after the table shipped, so ADD COLUMN IF NOT EXISTS rather than a
+  // migration — same self-creating contract as the CREATE above.
+  await db.execute(sql`
+    ALTER TABLE student_payouts
+      ADD COLUMN IF NOT EXISTS attachment_url text,
+      ADD COLUMN IF NOT EXISTS vision_kind varchar(24),
+      ADD COLUMN IF NOT EXISTS vision_confidence varchar(8),
+      ADD COLUMN IF NOT EXISTS vision_at timestamptz
   `);
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS student_payouts_status_index ON student_payouts (status)
@@ -142,6 +151,7 @@ export interface CandidateRow {
   reason: string;
   status: PayoutStatus;
   postedAt: Date | null;
+  attachmentUrl: string | null;
 }
 
 /**
@@ -162,13 +172,28 @@ export async function recordCandidates(rows: CandidateRow[]): Promise<number> {
   return inserted.length;
 }
 
-/** Pending rows the bot has not yet posted to the review channel. */
+/**
+ * Rows the bot has not yet shown to a human: everything still pending, plus
+ * anything VISION counted on its own.
+ *
+ * The second half is the point. An auto-counted payout that never appears
+ * anywhere is a number moving on a public channel with nobody able to see why
+ * or take it back. Posting it makes it reversible — ❌ or a reply removes it.
+ */
 export function listUnpostedPending(limit: number): Promise<StudentPayoutRow[]> {
   return ensurePayoutTables().then(() =>
     db
       .select()
       .from(studentPayouts)
-      .where(and(eq(studentPayouts.status, "pending"), isNull(studentPayouts.reviewMessageId)))
+      .where(
+        and(
+          isNull(studentPayouts.reviewMessageId),
+          or(
+            eq(studentPayouts.status, "pending"),
+            and(eq(studentPayouts.status, "approved"), eq(studentPayouts.decidedBy, "vision"))
+          )
+        )
+      )
       // Oldest first: the queue drains in the order it filled, so nothing
       // sits at the bottom forever.
       .orderBy(asc(studentPayouts.messageId))
@@ -176,18 +201,93 @@ export function listUnpostedPending(limit: number): Promise<StudentPayoutRow[]> 
   );
 }
 
-/** Pending rows already posted — the ones whose reactions we poll. */
+/** How long a vision-counted payout stays reversible by reaction. */
+const VISION_REVERSAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Posted rows whose reactions are worth polling: anything still pending, plus
+ * vision-counted rows inside the reversal window.
+ *
+ * The window exists because polling costs two API calls per row per tick. An
+ * unbounded set of settled rows would grow forever and crowd out the ones
+ * actually waiting on an answer.
+ */
 export function listAwaitingReview(limit: number): Promise<StudentPayoutRow[]> {
+  const reversibleSince = new Date(Date.now() - VISION_REVERSAL_WINDOW_MS);
   return ensurePayoutTables().then(() =>
     db
       .select()
       .from(studentPayouts)
       .where(
-        and(eq(studentPayouts.status, "pending"), isNotNull(studentPayouts.reviewMessageId))
+        and(
+          isNotNull(studentPayouts.reviewMessageId),
+          or(
+            eq(studentPayouts.status, "pending"),
+            and(
+              eq(studentPayouts.status, "approved"),
+              eq(studentPayouts.decidedBy, "vision"),
+              gt(studentPayouts.decidedAt, reversibleSince)
+            )
+          )
+        )
       )
       .orderBy(asc(studentPayouts.messageId))
       .limit(limit)
   );
+}
+
+/**
+ * Pending rows with an image nobody has looked at yet.
+ *
+ * `visionAt IS NULL` is the whole guard against paying to read the same
+ * screenshot on every tick: it is stamped whether the read succeeded, failed,
+ * or refused to count anything.
+ */
+export function listNeedingVision(limit: number): Promise<StudentPayoutRow[]> {
+  return ensurePayoutTables().then(() =>
+    db
+      .select()
+      .from(studentPayouts)
+      .where(
+        and(
+          eq(studentPayouts.status, "pending"),
+          isNull(studentPayouts.visionAt),
+          isNotNull(studentPayouts.attachmentUrl)
+        )
+      )
+      .orderBy(asc(studentPayouts.messageId))
+      .limit(limit)
+  );
+}
+
+/** Records what vision saw, leaving the row pending for a human. */
+export async function applyVision(opts: {
+  messageId: string;
+  kind: string;
+  confidence: string;
+  amountCents: number | null;
+  reason: string;
+}): Promise<void> {
+  await ensurePayoutTables();
+  await db
+    .update(studentPayouts)
+    .set({
+      visionKind: opts.kind,
+      visionConfidence: opts.confidence,
+      visionAt: new Date(),
+      amountCents: opts.amountCents,
+      reason: opts.reason,
+    })
+    .where(and(eq(studentPayouts.messageId, opts.messageId), eq(studentPayouts.status, "pending")));
+}
+
+/** Stamps vision as attempted without a verdict, so a failure is not retried forever. */
+export async function markVisionAttempted(messageId: string, reason: string): Promise<void> {
+  await ensurePayoutTables();
+  await db
+    .update(studentPayouts)
+    .set({ visionAt: new Date(), reason })
+    .where(and(eq(studentPayouts.messageId, messageId), eq(studentPayouts.status, "pending")));
 }
 
 export async function markReviewPosted(
@@ -202,9 +302,12 @@ export async function markReviewPosted(
 }
 
 /**
- * Applies a human decision. Scoped to rows still `pending`, so two reviewers
- * acting at once (or a reply and a reaction arriving in the same tick) settle
- * on whichever landed first instead of fighting.
+ * Applies a decision.
+ *
+ * Scoped to rows still `pending` OR counted by vision — so two reviewers acting
+ * at once settle on whichever landed first, while a human can still overrule
+ * the machine. A decision a PERSON made is final here; nothing in this file can
+ * overwrite it.
  */
 export async function resolvePayout(opts: {
   messageId: string;
@@ -221,7 +324,15 @@ export async function resolvePayout(opts: {
       decidedBy: opts.decidedBy,
       decidedAt: new Date(),
     })
-    .where(and(eq(studentPayouts.messageId, opts.messageId), eq(studentPayouts.status, "pending")))
+    .where(
+      and(
+        eq(studentPayouts.messageId, opts.messageId),
+        or(
+          eq(studentPayouts.status, "pending"),
+          and(eq(studentPayouts.status, "approved"), eq(studentPayouts.decidedBy, "vision"))
+        )
+      )
+    )
     .returning({ messageId: studentPayouts.messageId });
   return updated.length > 0;
 }

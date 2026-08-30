@@ -19,13 +19,28 @@ One scheduled route does everything: `GET /api/discord/payouts/tick`, run every
    It reads the words around the number, not just the number, so `I lost $300`,
    `goal is $10k`, `$150 eval fee` and `congrats on the $2k bro` are all thrown
    out. Confident matches are counted with no human involved.
-3. **Ask.** Anything unclear — `$2,500 🔥` with no payout word, or a screenshot
+3. **Read the screenshots.** Any pending post with an image is read by Claude,
+   which reports what the screenshot *is* before what it says — a payout
+   confirmation, an account balance, a trade's P&L, or something else. Only a
+   confidently identified **payout confirmation** counts itself. That gate is
+   the whole point: plain OCR would read a $50,000 account size perfectly and
+   add it to a public claim about what students have withdrawn. Everything else
+   keeps its number as a suggestion and still goes to a human, so a ✅ is one
+   click instead of a typing job. 8 images per run, and each image is read once
+   ever — never re-read on a later tick.
+
+   Anything it counts on its own is still posted to the review channel, marked
+   **Counted automatically**, with ❌ to remove it or a reply to correct the
+   figure. Auto-counted rows stay reversible by reaction for 7 days, and by
+   reply indefinitely.
+
+4. **Ask.** Anything unclear — `$2,500 🔥` with no payout word, or a screenshot
    with no readable amount — goes to a review channel as a bot post with ✅ and
    ❌ already on it. Five per run, so a first backfill can't flood the channel.
-4. **Decide.** React ✅ to count it, ❌ to skip it. If there is no amount (a bare
+5. **Decide.** React ✅ to count it, ❌ to skip it. If there is no amount (a bare
    screenshot), **reply to the bot's post with the figure** — `$2,500` — and it
    counts that. Replying with a different number corrects a misread one.
-5. **Rename.** The counter channel is renamed only when the visible text
+6. **Rename.** The counter channel is renamed only when the visible text
    actually changed. Discord allows **2 renames per 10 minutes per channel** and
    silently ignores the excess, which is why the cron is on 10 minutes and why
    an unchanged name never spends a rename.
@@ -45,6 +60,8 @@ the parser never overrules it.
 | `DISCORD_PAYOUT_COUNTER_CHANNEL_ID` | recommended | The channel to rename. Make it a **voice** channel nobody can connect to — that is how every member counter is built, and voice names keep spaces and capitals. |
 | `PAYOUT_REVIEWER_IDS` | no | Comma-separated Discord ids allowed to approve. Defaults to `ADMIN_DISCORD_ID`. With neither set, nothing can be approved by hand. |
 | `DISCORD_GUILD_ID` | no | Already set. Only used to build jump links in review posts. |
+| `ANTHROPIC_API_KEY` | recommended | Turns on screenshot reading. Without it, every image-only post goes to the review queue unread and you type the amount in. |
+| `PAYOUT_VISION_MODEL` | no | Defaults to `claude-opus-5`. Set `claude-haiku-4-5` to cut the per-image cost roughly fivefold at some accuracy cost. |
 | `DISCORD_PAYOUT_COUNTER_TEMPLATE` | no | Default `💰 Student Payouts: {total}`. `{total}` compacts (`$342K`), `{exact}` doesn't (`$342,150`). |
 
 Unset the channel ids and the route returns `{ skipped }` and does nothing — the

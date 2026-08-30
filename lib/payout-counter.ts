@@ -61,18 +61,23 @@ export function reviewPostContent(opts: {
   amountCents: number | null;
   reason: string;
   messageLink: string;
+  /** True when this was already counted automatically off a screenshot. */
+  autoCounted?: boolean;
 }): string {
   const amount =
     opts.amountCents === null ? "no amount readable" : formatUsd(opts.amountCents);
-  return [
-    `**Payout needs a look** — ${opts.authorName}`,
-    `Amount: **${amount}**`,
-    `Why: ${opts.reason}`,
-    opts.messageLink,
-    opts.amountCents === null
+  // An auto-counted payout is reported, not asked about — but it is still
+  // posted, because a number that moves on a public channel with no record of
+  // why and no way to take it back is worse than one nobody automated.
+  const heading = opts.autoCounted
+    ? `**Counted automatically** — ${opts.authorName}`
+    : `**Payout needs a look** — ${opts.authorName}`;
+  const footer = opts.autoCounted
+    ? "Already in the total. ❌ to remove it, or reply with the right amount to correct it."
+    : opts.amountCents === null
       ? "Reply with the amount (e.g. `$2,500`) to count it, or ❌ to skip."
-      : "✅ to count it, ❌ to skip. Reply with a different amount to correct it.",
-  ].join("\n");
+      : "✅ to count it, ❌ to skip. Reply with a different amount to correct it.";
+  return [heading, `Amount: **${amount}**`, `Why: ${opts.reason}`, opts.messageLink, footer].join("\n");
 }
 
 /** Jump link to the original message, so a reviewer can read it in context. */

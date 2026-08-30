@@ -68,7 +68,13 @@ export interface DiscordMessage {
   content: string;
   author: { id: string; username: string; global_name?: string | null; bot?: boolean };
   timestamp: string;
-  attachments: { id: string; url: string }[];
+  attachments: {
+    id: string;
+    url: string;
+    filename?: string;
+    content_type?: string;
+    size?: number;
+  }[];
   /**
    * Present when the message is a reply. This is how an approval reply in the
    * review channel is tied back to the bot's own review post — the reviewer
@@ -111,6 +117,12 @@ export interface DiscordChannel {
  */
 export function getChannel(channelId: string): Promise<DiscordChannel> {
   return call<DiscordChannel>(`/channels/${channelId}`);
+}
+
+/** One message by id. Used to get a FRESH attachment URL — Discord's CDN links
+ * are signed and expire, so a URL stored at scan time is no good an hour later. */
+export function fetchMessage(channelId: string, messageId: string): Promise<DiscordMessage> {
+  return call<DiscordMessage>(`/channels/${channelId}/messages/${messageId}`);
 }
 
 export function postMessage(channelId: string, content: string): Promise<DiscordMessage> {

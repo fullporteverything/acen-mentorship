@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   addReaction,
+  fetchMessage,
   fetchMessages,
   fetchReactors,
   getChannel,
@@ -14,6 +15,7 @@ import {
   REJECT_EMOJI,
   decideFromReactions,
   decideFromReply,
+  decideFromVision,
   decideIngest,
   looksBlind,
   reviewerIds,
@@ -26,11 +28,14 @@ import {
 } from "@/lib/payout-counter";
 import { formatUsd } from "@/lib/payout-parse";
 import {
+  applyVision,
   clearSyncState,
   findByReviewMessageId,
   getSyncState,
   listAwaitingReview,
+  listNeedingVision,
   listUnpostedPending,
+  markVisionAttempted,
   markReviewPosted,
   payoutCounts,
   recordCandidates,
@@ -39,6 +44,11 @@ import {
   totalApprovedCents,
   type CandidateRow,
 } from "@/lib/payout-store";
+import {
+  firstReadableImage,
+  readPayoutScreenshot,
+  visionEnabled,
+} from "@/lib/payout-vision";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -83,6 +93,13 @@ const MAX_INCREMENTAL_PAGES = 5;
 const REVIEW_POST_BUDGET = 5;
 /** Reaction polling costs 2 API calls per row, so cap what one run checks. */
 const REVIEW_POLL_BUDGET = 15;
+/**
+ * Screenshots read per run. Unlike every other budget here this one costs
+ * MONEY — a vision call per image — so it is deliberately small and paced. A
+ * backfill of a few hundred screenshots drains over a couple of hours instead
+ * of arriving as one surprising bill.
+ */
+const VISION_BUDGET = 8;
 
 /** Snowflakes are numeric strings; longer wins, then lexicographic. */
 function isNewer(a: string, b: string | null | undefined): boolean {
@@ -158,13 +175,18 @@ export async function GET(req: Request) {
         ? await resolveReviews(reviewChannelId, reviewers, state.reviewCursorId)
         : { approved: 0, rejected: 0, reviewCursorId: state.reviewCursorId };
 
-    // ── 3 QUEUE ──────────────────────────────────────────────────────────────
+    // ── 3 READ SCREENSHOTS ───────────────────────────────────────────────────
+    const vision = dryRun
+      ? { read: 0, approved: 0 }
+      : await readScreenshots(sourceChannelId);
+
+    // ── 4 QUEUE ──────────────────────────────────────────────────────────────
     let queued = 0;
     if (reviewChannelId && !dryRun) {
       queued = await postReviews(reviewChannelId, sourceChannelId, guildId);
     }
 
-    // ── 4 RENAME ─────────────────────────────────────────────────────────────
+    // ── 5 RENAME ─────────────────────────────────────────────────────────────
     const totalCents = await totalApprovedCents();
     const desired = counterName(totalCents, process.env.DISCORD_PAYOUT_COUNTER_TEMPLATE);
     let renamed = false;
@@ -197,6 +219,7 @@ export async function GET(req: Request) {
       recorded: scanned.recorded,
       backfillComplete: scanned.state.backfillComplete,
       review: { queued, approved: resolved.approved, rejected: resolved.rejected },
+      vision: { enabled: visionEnabled(), ...vision },
       total: formatUsd(totalCents),
       totalCents,
       counter: { desired, renamed, channelConfigured: Boolean(counterChannelId) },
@@ -208,6 +231,7 @@ export async function GET(req: Request) {
           : null,
         reviewChannelId ? null : "DISCORD_PAYOUT_REVIEW_CHANNEL_ID unset — unclear posts will queue but never be shown to anyone",
         reviewers.size ? null : "no reviewers configured (PAYOUT_REVIEWER_IDS / ADMIN_DISCORD_ID) — nothing can be approved by hand",
+        visionEnabled() ? null : "ANTHROPIC_API_KEY unset — screenshots go to review unread instead of being read automatically",
       ].filter(Boolean),
     });
   } catch (error) {
@@ -281,6 +305,10 @@ async function scan(
       // unreadable for the one purpose it exists to serve.
       if (decision.status === "ignored") continue;
       rows.push({
+        // Recorded so the row knows there is something to read. The URL itself
+        // is signed and expires, so the vision pass re-fetches the message for
+        // a fresh one rather than trusting this.
+        attachmentUrl: firstReadableImage(message.attachments)?.url ?? null,
         messageId: message.id,
         channelId,
         authorDiscordId: message.author.id,
@@ -349,7 +377,13 @@ async function resolveReviews(
     const parentId = reply.message_reference?.message_id;
     if (!parentId || !reviewers.has(reply.author.id)) continue;
     const row = await findByReviewMessageId(parentId);
-    if (!row || row.status !== "pending") continue;
+    // Pending rows, and rows vision counted on its own — a reply is how the
+    // owner corrects a number the machine got wrong. A decision a PERSON
+    // already made is left alone.
+    if (!row) continue;
+    if (row.status !== "pending" && !(row.status === "approved" && row.decidedBy === "vision")) {
+      continue;
+    }
     const decision = decideFromReply(reply.content, row.amountCents ?? null);
     if (!decision) continue;
     const ok = await resolvePayout({
@@ -408,6 +442,7 @@ async function postReviews(
         amountCents: row.amountCents ?? null,
         reason: row.reason || "needs a look",
         messageLink: messageLink(guildId, sourceChannelId, row.messageId),
+        autoCounted: row.status === "approved",
       })
     );
     // Recorded BEFORE the reactions are seeded. If seeding fails, the row is
@@ -506,4 +541,73 @@ async function diagnose(
         ? "Messages came back with no text. That is the Message Content intent being enforced — switch it on in the Discord Developer Portal."
         : "Messages and text are both coming through; the parser's decisions are shown per message above.",
   };
+}
+
+/**
+ * Step 3 — read the screenshots nobody has read yet.
+ *
+ * Most posts in a payouts channel are a picture and nothing else, so this is
+ * the difference between a counter that maintains itself and a queue of things
+ * for the owner to type in. What it is NOT allowed to do is decide on its own
+ * that a balance screenshot is a payout — see decideFromVision.
+ */
+async function readScreenshots(
+  sourceChannelId: string
+): Promise<{ read: number; approved: number }> {
+  if (!visionEnabled()) return { read: 0, approved: 0 };
+
+  const queue = await listNeedingVision(VISION_BUDGET);
+  let read = 0;
+  let approved = 0;
+
+  for (const row of queue) {
+    // Re-fetch for a fresh CDN link: Discord signs attachment URLs and they
+    // expire, so the one stored at scan time is usually already dead.
+    let image: { url: string; mediaType: string } | null = null;
+    try {
+      const message = await fetchMessage(sourceChannelId, row.messageId);
+      image = firstReadableImage(message.attachments);
+    } catch {
+      // Deleted message, or the channel moved. Stamp it so we stop retrying.
+      await markVisionAttempted(row.messageId, "screenshot could not be fetched");
+      continue;
+    }
+    if (!image) {
+      await markVisionAttempted(row.messageId, "no readable image on the message");
+      continue;
+    }
+
+    const reading = await readPayoutScreenshot(image);
+    if (!reading) {
+      await markVisionAttempted(row.messageId, "screenshot could not be read");
+      continue;
+    }
+    read += 1;
+
+    const decision = decideFromVision(reading);
+    if (decision.status === "approved" && decision.amountCents !== null) {
+      const ok = await resolvePayout({
+        messageId: row.messageId,
+        status: "approved",
+        amountCents: decision.amountCents,
+        // Recorded as the decider so the audit trail never implies a human
+        // signed off on a number no human ever saw.
+        decidedBy: "vision",
+      });
+      if (ok) approved += 1;
+      // Stamped either way, so a row that lost a race is not re-read tomorrow.
+      await markVisionAttempted(row.messageId, decision.note);
+      continue;
+    }
+
+    await applyVision({
+      messageId: row.messageId,
+      kind: reading.kind,
+      confidence: reading.confidence,
+      amountCents: decision.amountCents,
+      reason: decision.note,
+    });
+  }
+
+  return { read, approved };
 }

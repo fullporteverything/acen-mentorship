@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { RENAME_MIN_INTERVAL_MS, counterName, shouldRename } from "./payout-counter";
+import {
+  RENAME_MIN_INTERVAL_MS,
+  counterName,
+  reviewPostContent,
+  shouldRename,
+} from "./payout-counter";
 
 describe("the channel name", () => {
   it("compacts the total, because a sidebar truncates", () => {
@@ -47,5 +52,33 @@ describe("when to spend the one rename we get", () => {
   it("does not treat a clock skewed into the future as 'ages ago'", () => {
     const future = new Date(now + 60 * 60 * 1000);
     expect(shouldRename({ desired: "b", current: "a", lastRenamedAt: future, now })).toBe(false);
+  });
+});
+
+describe("the review post", () => {
+  const base = {
+    authorName: "sam",
+    reason: "read from screenshot: Payout approved $2,500.00",
+    messageLink: "https://discord.com/channels/1/2/3",
+  };
+
+  it("asks a question when a human still has to decide", () => {
+    const post = reviewPostContent({ ...base, amountCents: 250_000 });
+    expect(post).toContain("needs a look");
+    expect(post).toContain("✅ to count it");
+  });
+
+  it("asks for the number when there isn't one", () => {
+    const post = reviewPostContent({ ...base, amountCents: null });
+    expect(post).toContain("no amount readable");
+    expect(post).toContain("Reply with the amount");
+  });
+
+  it("reports rather than asks when it already counted it — and offers a way back", () => {
+    // A number that moves on a public channel with no record of why and no way
+    // to take it back is worse than one nobody automated.
+    const post = reviewPostContent({ ...base, amountCents: 250_000, autoCounted: true });
+    expect(post).toContain("Counted automatically");
+    expect(post).toContain("❌ to remove it");
   });
 });

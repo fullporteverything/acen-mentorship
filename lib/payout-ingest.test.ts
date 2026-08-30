@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   decideFromReactions,
   decideFromReply,
+  decideFromVision,
   decideIngest,
   looksBlind,
   reviewerIds,
   type IngestedMessage,
 } from "./payout-ingest";
+import type { VisionReading } from "./payout-vision";
 
 const msg = (over: Partial<IngestedMessage> = {}): IngestedMessage => ({
   id: "1",
@@ -158,5 +160,53 @@ describe("noticing that Discord is handing us blank messages", () => {
     expect(
       looksBlind([blank, blank, { content: "", attachments: [{ id: "a" }] }])
     ).toBe(false);
+  });
+});
+
+describe("what a screenshot reading is allowed to do", () => {
+  const reading = (over: Partial<VisionReading> = {}): VisionReading => ({
+    kind: "payout_confirmation",
+    amountCents: 250_000,
+    confidence: "high",
+    evidence: "Payout request approved — $2,500.00",
+    ...over,
+  });
+
+  it("counts a confidently-identified payout confirmation", () => {
+    const d = decideFromVision(reading());
+    expect(d.status).toBe("approved");
+    expect(d.amountCents).toBe(250_000);
+  });
+
+  it("NEVER counts a balance or a P&L, however confident", () => {
+    // The failure this exists to stop: a $50,000 account size read perfectly
+    // and added to a public claim about what students have withdrawn. Being
+    // right about the number is not the same as being right about the claim.
+    expect(decideFromVision(reading({ kind: "account_balance", amountCents: 5_000_000 })).status)
+      .toBe("pending");
+    expect(decideFromVision(reading({ kind: "trade_pnl", amountCents: 184_000 })).status)
+      .toBe("pending");
+    expect(decideFromVision(reading({ kind: "other" })).status).toBe("pending");
+    expect(decideFromVision(reading({ kind: "unreadable", amountCents: null })).status)
+      .toBe("pending");
+  });
+
+  it("does not count a hedged reading", () => {
+    expect(decideFromVision(reading({ confidence: "medium" })).status).toBe("pending");
+    expect(decideFromVision(reading({ confidence: "low" })).status).toBe("pending");
+  });
+
+  it("does not count an implausible amount", () => {
+    expect(decideFromVision(reading({ amountCents: 2_000_000_00 })).status).toBe("pending");
+    expect(decideFromVision(reading({ amountCents: 1 })).status).toBe("pending");
+    expect(decideFromVision(reading({ amountCents: null })).status).toBe("pending");
+  });
+
+  it("still passes the number along as a suggestion when it refuses to count it", () => {
+    // A reviewer pressing ✅ on a pre-filled number is the difference between
+    // a queue that gets cleared and one that gets abandoned.
+    const d = decideFromVision(reading({ confidence: "low" }));
+    expect(d.amountCents).toBe(250_000);
+    expect(d.note).toContain("$2,500.00");
   });
 });

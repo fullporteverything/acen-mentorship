@@ -4,6 +4,7 @@ import {
   addReaction,
   fetchMessages,
   fetchReactors,
+  getChannel,
   postMessage,
   renameChannel,
   type DiscordMessage,
@@ -24,6 +25,7 @@ import {
 } from "@/lib/payout-counter";
 import { formatUsd } from "@/lib/payout-parse";
 import {
+  clearSyncState,
   findByReviewMessageId,
   getSyncState,
   listAwaitingReview,
@@ -130,6 +132,22 @@ export async function GET(req: Request) {
   const dryRun = url.searchParams.get("dry") === "1";
 
   try {
+    // ?diag=1 — reads nothing into the ledger and writes nothing anywhere.
+    // Answers the two questions a silent scanner cannot: is this the kind of
+    // channel that holds messages, and is Discord actually giving us the text?
+    if (url.searchParams.get("diag") === "1") {
+      return NextResponse.json(
+        await diagnose(sourceChannelId, reviewChannelId, counterChannelId)
+      );
+    }
+
+    // ?reset=1 — forget the cursor so the next run re-reads the whole channel.
+    // Harmless to repeat: rows are keyed by message id, so a re-scan re-inserts
+    // nothing and cannot disturb a decision already made.
+    if (url.searchParams.get("reset") === "1") {
+      await clearSyncState(sourceChannelId);
+    }
+
     const state = await getSyncState(sourceChannelId);
     const scanned = await scan(sourceChannelId, state.backfillComplete, state);
 
@@ -382,4 +400,91 @@ async function postReviews(
     await addReaction(reviewChannelId, posted.id, REJECT_EMOJI).catch(() => {});
   }
   return queued;
+}
+
+/** Channel type numbers are meaningless on their own; name them. */
+const CHANNEL_KIND: Record<number, string> = {
+  0: "text",
+  2: "voice",
+  4: "category",
+  5: "announcement",
+  10: "announcement thread",
+  11: "public thread",
+  12: "private thread",
+  13: "stage",
+  15: "FORUM",
+  16: "MEDIA",
+};
+
+/**
+ * The "why did it find nothing" report.
+ *
+ * A scanner that reads an empty list cannot tell you whether the channel is
+ * empty, whether it is a forum (whose posts live in threads, not in the channel
+ * itself), or whether Discord is withholding message text because the Message
+ * Content intent is off. All three look identical from the inside, and all
+ * three end with a counter stuck at $0 — so this asks directly.
+ */
+async function diagnose(
+  sourceChannelId: string,
+  reviewChannelId: string | null,
+  counterChannelId: string | null
+) {
+  const describe = async (label: string, id: string | null) => {
+    if (!id) return { label, configured: false };
+    try {
+      const channel = await getChannel(id);
+      return {
+        label,
+        configured: true,
+        id,
+        name: channel.name,
+        type: channel.type,
+        kind: CHANNEL_KIND[channel.type] ?? `unknown (${channel.type})`,
+      };
+    } catch (error) {
+      return { label, configured: true, id, error: String(error) };
+    }
+  };
+
+  const channels = await Promise.all([
+    describe("source (payouts)", sourceChannelId),
+    describe("review", reviewChannelId),
+    describe("counter", counterChannelId),
+  ]);
+
+  let sample: unknown[] = [];
+  let sampleError: string | null = null;
+  try {
+    const batch = await fetchMessages(sourceChannelId, { limit: 5 });
+    sample = batch.map((m) => ({
+      id: m.id,
+      author: displayName(m.author),
+      bot: Boolean(m.author.bot),
+      // The length, not the text. Zero length across the board on messages that
+      // clearly had words in them is the signature of the Message Content
+      // intent being enforced.
+      contentLength: (m.content ?? "").length,
+      preview: (m.content ?? "").slice(0, 80),
+      attachments: m.attachments?.length ?? 0,
+      decision: decideIngest(m),
+    }));
+  } catch (error) {
+    sampleError = String(error);
+  }
+
+  return {
+    diag: true,
+    channels,
+    sampleCount: sample.length,
+    sample,
+    sampleError,
+    state: await getSyncState(sourceChannelId),
+    counts: await payoutCounts(),
+    reading: sample.length === 0
+      ? "The payouts channel returned no messages. If its kind above is FORUM or MEDIA, that is the cause: posts live in threads, not in the channel itself."
+      : sample.every((m) => (m as { contentLength: number }).contentLength === 0)
+        ? "Messages came back with no text. That is the Message Content intent being enforced — switch it on in the Discord Developer Portal."
+        : "Messages and text are both coming through; the parser's decisions are shown per message above.",
+  };
 }

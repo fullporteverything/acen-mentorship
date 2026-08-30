@@ -93,6 +93,26 @@ export function fetchMessages(
   return call<DiscordMessage[]>(`/channels/${channelId}/messages?${q}`);
 }
 
+export interface DiscordChannel {
+  id: string;
+  name?: string;
+  /** 0 text · 2 voice · 5 announcement · 11/12 thread · 15 forum · 16 media */
+  type: number;
+  parent_id?: string | null;
+}
+
+/**
+ * What KIND of channel this is.
+ *
+ * Worth a round trip because the messages endpoint does not distinguish "this
+ * channel is empty" from "this channel does not hold messages at all" — a forum
+ * returns an empty list either way, and a scanner reading that as "end of
+ * history" declares itself finished having read nothing.
+ */
+export function getChannel(channelId: string): Promise<DiscordChannel> {
+  return call<DiscordChannel>(`/channels/${channelId}`);
+}
+
 export function postMessage(channelId: string, content: string): Promise<DiscordMessage> {
   return call<DiscordMessage>(`/channels/${channelId}/messages`, {
     method: "POST",

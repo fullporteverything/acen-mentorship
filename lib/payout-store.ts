@@ -121,6 +121,17 @@ export async function saveSyncState(
     .onConflictDoUpdate({ target: payoutSyncState.channelId, set });
 }
 
+/**
+ * Forgets where the scanner got to, so the next run re-reads the channel from
+ * the beginning. Safe by construction: rows are keyed by message id, so a full
+ * re-scan lands on the rows that already exist and re-inserts nothing. Decisions
+ * already made survive it.
+ */
+export async function clearSyncState(channelId: string): Promise<void> {
+  await ensurePayoutTables();
+  await db.delete(payoutSyncState).where(eq(payoutSyncState.channelId, channelId));
+}
+
 export interface CandidateRow {
   messageId: string;
   channelId: string;

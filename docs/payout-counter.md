@@ -31,6 +31,10 @@ anywhere near Discord's rename limit.
    click instead of a typing job. 8 images per run, and each image is read once
    ever — never re-read on a later tick.
 
+   **Images only** — PNG, JPEG, GIF, WebP. Video can't be read (a GIF is read
+   as a single frame). A screen recording goes to the review queue saying so,
+   and asks you to type the amount, which costs nothing.
+
    Anything it counts on its own is still posted to the review channel, marked
    **Counted automatically**, with ❌ to remove it or a reply to correct the
    figure. Auto-counted rows stay reversible by reaction for 7 days, and by

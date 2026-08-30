@@ -2,6 +2,11 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import { MAX_IMAGE_BYTES } from "./payout-attachments";
+
+// Re-exported so callers have one import for "reading a screenshot".
+export { firstReadableImage, unreadableReason } from "./payout-attachments";
+
 /**
  * SUITE 7 — READING A PAYOUT OFF A SCREENSHOT.
  *
@@ -44,10 +49,6 @@ export interface VisionReading {
   evidence: string;
 }
 
-/** Anthropic accepts these; anything else is skipped rather than guessed at. */
-const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
-/** Comfortably under the API's per-image ceiling, and a sane download cap. */
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 const SYSTEM = `You read screenshots posted by retail futures/forex traders in a mentorship Discord and report what they show.
 
@@ -83,39 +84,6 @@ const SCHEMA = {
 /** Whether vision is switched on at all. */
 export function visionEnabled(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
-}
-
-const EXTENSIONS: Record<string, string> = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-};
-
-function typeFromName(url: string): string | null {
-  const path = url.split("?")[0] ?? "";
-  const ext = path.split(".").pop()?.toLowerCase() ?? "";
-  return EXTENSIONS[ext] ?? null;
-}
-
-/** Picks the one attachment worth reading, or null if there isn't one. */
-export function firstReadableImage(
-  attachments:
-    | { url: string; filename?: string; content_type?: string; size?: number }[]
-    | undefined
-): { url: string; mediaType: string } | null {
-  for (const attachment of attachments ?? []) {
-    const declared = attachment.content_type?.split(";")[0]?.trim().toLowerCase();
-    // Fall back to the extension: content_type is usually present but is not
-    // guaranteed, and skipping a real screenshot over a missing header would
-    // be an invisible failure.
-    const type = declared && IMAGE_TYPES.has(declared) ? declared : typeFromName(attachment.url);
-    if (!type) continue;
-    if ((attachment.size ?? 0) > MAX_IMAGE_BYTES) continue;
-    return { url: attachment.url, mediaType: type };
-  }
-  return null;
 }
 
 /**

@@ -53,6 +53,7 @@ import {
 import {
   firstReadableImage,
   readPayoutScreenshot,
+  unreadableReason,
   visionEnabled,
 } from "@/lib/payout-vision";
 
@@ -731,16 +732,18 @@ async function readScreenshots(
     // Re-fetch for a fresh CDN link: Discord signs attachment URLs and they
     // expire, so the one stored at scan time is usually already dead.
     let image: { url: string; mediaType: string } | null = null;
+    let whyNot = "no readable image on the message";
     try {
       const message = await fetchMessage(sourceChannelId, row.messageId);
       image = firstReadableImage(message.attachments);
+      if (!image) whyNot = unreadableReason(message.attachments);
     } catch {
       // Deleted message, or the channel moved. Stamp it so we stop retrying.
       await markVisionAttempted(row.messageId, "screenshot could not be fetched");
       continue;
     }
     if (!image) {
-      await markVisionAttempted(row.messageId, "no readable image on the message");
+      await markVisionAttempted(row.messageId, whyNot);
       continue;
     }
 

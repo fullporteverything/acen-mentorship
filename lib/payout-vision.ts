@@ -153,7 +153,13 @@ export async function readPayoutScreenshot(image: {
     }
     const data = Buffer.from(bytes).toString("base64");
 
-    const client = new Anthropic();
+    // An identity-linked API key must name the workspace every request acts
+    // in, or the API refuses with a 400 before it ever looks at the image.
+    // Workspace-scoped keys don't need it, so this is set only when present.
+    const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+    const client = new Anthropic(
+      workspaceId ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } } : {}
+    );
     const response = await client.messages.create({
       model: process.env.PAYOUT_VISION_MODEL?.trim() || "claude-opus-5",
       // Not 1024. Thinking is on by default on this model and is billed against

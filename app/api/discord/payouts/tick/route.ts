@@ -623,7 +623,26 @@ async function diagnose(
     // one we need to look at.
     const [row] = await listPending(1);
     if (!row) {
-      visionProbe = { skipped: "nothing pending to read" };
+      // Nothing pending is the GOOD state, but it must not mean the probe can
+      // no longer answer "can I read an image right now" — that question stays
+      // useful long after the queue is empty. Fall back to any recent
+      // screenshot in the channel purely as a connectivity check.
+      try {
+        const recent = await fetchMessages(sourceChannelId, { limit: 25 });
+        const withImage = recent
+          .map((m) => ({ m, image: firstReadableImage(m.attachments) }))
+          .find((entry) => entry.image);
+        visionProbe = withImage?.image
+          ? {
+              connectivityCheckOnly: true,
+              messageId: withImage.m.id,
+              picked: { mediaType: withImage.image.mediaType },
+              result: await readPayoutScreenshot(withImage.image),
+            }
+          : { skipped: "nothing pending, and no recent screenshot to test against" };
+      } catch (error) {
+        visionProbe = { skipped: "nothing pending", error: String(error) };
+      }
     } else {
       try {
         const message = await fetchMessage(sourceChannelId, row.messageId);

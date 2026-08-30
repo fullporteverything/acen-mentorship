@@ -7,6 +7,10 @@
     {
       "path": "/api/security/baseline/rebuild",
       "schedule": "10 4 * * *"
+    },
+    {
+      "path": "/api/discord/payouts/tick",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

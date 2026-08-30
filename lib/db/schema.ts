@@ -842,3 +842,66 @@ export const memberSessionBaseline = pgTable("member_session_baseline", {
 export type MemberSessionRow = typeof memberSessions.$inferSelect;
 export type MemberSessionSightingRow = typeof memberSessionSightings.$inferSelect;
 export type MemberSessionBaselineRow = typeof memberSessionBaseline.$inferSelect;
+
+/**
+ * One row per Discord message in the payouts channel that produced a candidate
+ * amount. Keyed by the message id, so re-scanning the channel — which the
+ * backfill does on the first run after deploy — can never double count.
+ *
+ * `status` is the whole state machine:
+ *   approved  counted in the public total
+ *   pending   waiting on a human in the review channel
+ *   rejected  a human said no
+ *   ignored   the parser placed it as not-a-payout; no human needed
+ *
+ * Self-created at runtime (see lib/payout-store) to match this definition.
+ */
+export const studentPayouts = pgTable(
+  "student_payouts",
+  {
+    messageId: varchar("message_id", { length: 32 }).primaryKey(),
+    channelId: varchar("channel_id", { length: 32 }).notNull(),
+    authorDiscordId: varchar("author_discord_id", { length: 32 }).notNull(),
+    authorName: text("author_name"),
+    /** Null only while a screenshot-only post waits for a human to supply one. */
+    amountCents: integer("amount_cents"),
+    /** The literal text the amount came from, shown in the review post. */
+    matched: text("matched"),
+    /** Why the parser decided what it decided — the audit trail. */
+    reason: text("reason"),
+    status: varchar("status", { length: 16 }).notNull().default("pending"),
+    /** The bot's post in the review channel, once it has been made. */
+    reviewMessageId: varchar("review_message_id", { length: 32 }),
+    decidedBy: varchar("decided_by", { length: 32 }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("student_payouts_status_index").on(table.status),
+    index("student_payouts_review_message_index").on(table.reviewMessageId),
+  ]
+);
+
+/**
+ * Where the scanner got to. One row per source channel. Deleting the row makes
+ * the next run re-scan the entire channel from scratch, which is safe: every
+ * message re-lands on its existing row.
+ */
+export const payoutSyncState = pgTable("payout_sync_state", {
+  channelId: varchar("channel_id", { length: 32 }).primaryKey(),
+  /** Newest message id ever seen — the incremental cursor. */
+  lastMessageId: varchar("last_message_id", { length: 32 }),
+  /** How far back the backfill has walked. Null once it is done. */
+  backfillBeforeId: varchar("backfill_before_id", { length: 32 }),
+  backfillComplete: boolean("backfill_complete").notNull().default(false),
+  /** Newest message id read out of the REVIEW channel (approval replies). */
+  reviewCursorId: varchar("review_cursor_id", { length: 32 }),
+  /** What the counter channel is currently named, so we only rename on change. */
+  lastCounterName: text("last_counter_name"),
+  lastRenamedAt: timestamp("last_renamed_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type StudentPayoutRow = typeof studentPayouts.$inferSelect;
+export type PayoutSyncStateRow = typeof payoutSyncState.$inferSelect;

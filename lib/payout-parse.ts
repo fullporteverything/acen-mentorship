@@ -220,6 +220,24 @@ export function parsePayoutMessage(
   return { ok: false, reason: "no usable amount", needsReview: false };
 }
 
+/**
+ * Permissive amount reader, for ONE caller only: a reviewer replying to the
+ * bot's review post with the right number ("$2,500").
+ *
+ * It skips every context rule above on purpose. Those rules exist to guess at a
+ * stranger's intent; here a human has already read the message and typed the
+ * figure deliberately, so second-guessing them would just make the review
+ * queue impossible to clear. Returns the largest amount found, or null.
+ */
+export function extractAmountCents(text: string): number | null {
+  let best: number | null = null;
+  for (const m of (text ?? "").matchAll(MONEY)) {
+    const cents = toCents(m[1] ?? m[3], m[2] ?? m[4]);
+    if (cents !== null && (best === null || cents > best)) best = cents;
+  }
+  return best;
+}
+
 /** Pretty-prints cents for the channel name and the admin panel. */
 export function formatUsd(cents: number, { compact = false } = {}): string {
   const dollars = Math.round(cents / 100);

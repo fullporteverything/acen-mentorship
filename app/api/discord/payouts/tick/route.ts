@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   addReaction,
+  editMessage,
   fetchMessage,
   fetchMessages,
   fetchReactors,
@@ -157,15 +158,6 @@ export async function GET(req: Request) {
   const dryRun = url.searchParams.get("dry") === "1";
 
   try {
-    // ?diag=1 — reads nothing into the ledger and writes nothing anywhere.
-    // Answers the two questions a silent scanner cannot: is this the kind of
-    // channel that holds messages, and is Discord actually giving us the text?
-    if (url.searchParams.get("diag") === "1") {
-      return NextResponse.json(
-        await diagnose(sourceChannelId, reviewChannelId, counterChannelId, reviewers)
-      );
-    }
-
     // ?reset=1 — forget the cursor so the next run re-reads the whole channel.
     // Harmless to repeat: rows are keyed by message id, so a re-scan re-inserts
     // nothing and cannot disturb a decision already made.
@@ -175,9 +167,20 @@ export async function GET(req: Request) {
 
     // ?revision=1 — let vision re-read the pending screenshots. The once-ever
     // guard is right in normal operation but permanently poisons every row a
-    // failed run touched; this is the way back.
+    // failed run touched; this is the way back. Handled BEFORE the diagnostic
+    // returns, so the two can be used together.
     const revisioned =
       url.searchParams.get("revision") === "1" ? await clearVisionAttempts() : 0;
+
+    // ?diag=1 — reads nothing into the ledger and writes nothing anywhere.
+    // Answers the questions a silent scanner cannot: is this the kind of
+    // channel that holds messages, is Discord giving us the text, and what
+    // exactly happens when it tries to read one screenshot.
+    if (url.searchParams.get("diag") === "1") {
+      return NextResponse.json(
+        await diagnose(sourceChannelId, reviewChannelId, counterChannelId, reviewers)
+      );
+    }
 
     const state = await getSyncState(sourceChannelId);
     const scanned = await scan(sourceChannelId, state.backfillComplete, state);
@@ -191,7 +194,7 @@ export async function GET(req: Request) {
     // ── 3 READ SCREENSHOTS ───────────────────────────────────────────────────
     const vision = dryRun
       ? { read: 0, approved: 0 }
-      : await readScreenshots(sourceChannelId);
+      : await readScreenshots(sourceChannelId, reviewChannelId, guildId);
 
     // The total is read here, after every decision this run has been applied,
     // so the acknowledgement below and the channel name agree with each other.
@@ -615,9 +618,12 @@ async function diagnose(
   // than what ought to. Costs one image.
   let visionProbe: unknown = { skipped: "vision disabled" };
   if (visionEnabled()) {
-    const [row] = await listNeedingVision(1);
+    // listPending, not listNeedingVision: the probe exists to show what happens
+    // when it reads one, and a row that has already been tried is exactly the
+    // one we need to look at.
+    const [row] = await listPending(1);
     if (!row) {
-      visionProbe = { skipped: "no pending row awaiting a read" };
+      visionProbe = { skipped: "nothing pending to read" };
     } else {
       try {
         const message = await fetchMessage(sourceChannelId, row.messageId);
@@ -679,7 +685,9 @@ async function diagnose(
  * that a balance screenshot is a payout — see decideFromVision.
  */
 async function readScreenshots(
-  sourceChannelId: string
+  sourceChannelId: string,
+  reviewChannelId: string | null,
+  guildId: string | undefined
 ): Promise<{ read: number; approved: number }> {
   if (!visionEnabled()) return { read: 0, approved: 0 };
 
@@ -715,6 +723,26 @@ async function readScreenshots(
     read += 1;
 
     const decision = decideFromVision(reading);
+
+    // Keep an ALREADY-POSTED review message current. Without this, a post made
+    // before the screenshot was read still says "no amount readable" forever,
+    // and the reviewer is asked to type in a figure the bot has since worked
+    // out for itself — the queue would look untouched however well vision did.
+    const refreshPost = async (autoCounted: boolean) => {
+      if (!reviewChannelId || !row.reviewMessageId) return;
+      await editMessage(
+        reviewChannelId,
+        row.reviewMessageId,
+        reviewPostContent({
+          authorName: row.authorName || "member",
+          amountCents: decision.amountCents,
+          reason: decision.note,
+          messageLink: messageLink(guildId, sourceChannelId, row.messageId),
+          autoCounted,
+        })
+      ).catch(() => {});
+    };
+
     if (decision.status === "approved" && decision.amountCents !== null) {
       const ok = await resolvePayout({
         messageId: row.messageId,
@@ -727,6 +755,7 @@ async function readScreenshots(
       if (ok) approved += 1;
       // Stamped either way, so a row that lost a race is not re-read tomorrow.
       await markVisionAttempted(row.messageId, decision.note);
+      await refreshPost(true);
       continue;
     }
 
@@ -737,6 +766,7 @@ async function readScreenshots(
       amountCents: decision.amountCents,
       reason: decision.note,
     });
+    await refreshPost(false);
   }
 
   return { read, approved };

@@ -146,6 +146,18 @@ export function postMessage(
   });
 }
 
+/** Rewrites one of the bot's own messages. Used to keep a review post current. */
+export function editMessage(
+  channelId: string,
+  messageId: string,
+  content: string
+): Promise<DiscordMessage> {
+  return call<DiscordMessage>(`/channels/${channelId}/messages/${messageId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+  });
+}
+
 export function addReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
   return call<void>(
     `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`,

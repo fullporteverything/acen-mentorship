@@ -64,6 +64,26 @@ Rows are keyed by Discord message id, so re-scanning — or deleting the state r
 to force a full re-scan — can never double count. Once a human has decided a row,
 the parser never overrules it.
 
+## The `/paid` command
+
+Anyone in the server can run `/paid` and get a two-sentence answer with the live
+total. The reply is **ephemeral** — only the person who ran it sees it — so the
+command can't be used to spam a channel. Change `EPHEMERAL` in
+`lib/discord-interactions.ts` if you'd rather it posted publicly.
+
+Setting it up is two steps, both one-off:
+
+1. Discord Developer Portal → your app → **General Information** → copy the
+   **Public Key** into `DISCORD_PUBLIC_KEY`. Then set **Interactions Endpoint
+   URL** to `https://<site>/api/discord/interactions`. Discord verifies the URL
+   by sending a deliberately invalid request and expecting a 401, so save this
+   only after the deploy carrying `DISCORD_PUBLIC_KEY` is live.
+2. Register the command:
+   `https://<site>/api/discord/interactions/register?key=$CRON_SECRET`
+
+Registration is per-guild, so it appears immediately rather than taking up to an
+hour to propagate. It uses PUT, so running it twice can't create duplicates.
+
 ## Environment variables
 
 | Variable | Required | What it is |
@@ -76,6 +96,7 @@ the parser never overrules it.
 | `PAYOUT_REVIEWER_IDS` | no | Comma-separated Discord ids allowed to approve, **in addition to** `ADMIN_DISCORD_ID`. With neither set, nothing can be approved by hand. Anyone on this list can move a public figure, so keep it to accounts you control. A reply from an account not on it gets told so rather than silently dropped. |
 | `DISCORD_GUILD_ID` | no | Already set. Only used to build jump links in review posts. |
 | `ANTHROPIC_API_KEY` | recommended | Turns on screenshot reading. Without it, every image-only post goes to the review queue unread and you type the amount in. |
+| `DISCORD_PUBLIC_KEY` | for `/paid` | From the Developer Portal → General Information. Every slash-command request is verified against it; without it the endpoint rejects everything. |
 | `ANTHROPIC_WORKSPACE_ID` | sometimes | Required if your API key is **identity-linked** — those keys must name the workspace each request acts in, and without it every read fails with a 400 before the image is even looked at. Not needed for a workspace-scoped key. Console → Settings → Workspaces. |
 | `PAYOUT_VISION_MODEL` | no | Defaults to `claude-opus-5`. Set `claude-haiku-4-5` to cut the per-image cost roughly fivefold at some accuracy cost. |
 | `DISCORD_PAYOUT_COUNTER_TEMPLATE` | no | Default `💰 {exact} Paid Out`. The figure leads because Discord truncates a channel name to the sidebar width — with the label first, the number is the part that gets cut. It is exact rather than rounded because this is a public claim about student earnings, and a precise figure reads as a ledger where a round one reads as marketing. Swap `{exact}` for `{total}` to compact it (`$342K`) once the number outgrows the sidebar. |

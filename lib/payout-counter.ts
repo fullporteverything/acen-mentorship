@@ -19,8 +19,18 @@ export const RENAME_MIN_INTERVAL_MS = 9 * 60 * 1000;
  * width, so "💰 Student Payouts: $12,750" renders as "💰 Student Pay…" — every
  * character of the one thing the channel exists to show is the part that gets
  * cut. Leading with the number means truncation eats the label instead.
+ *
+ * And the figure is EXACT, not compacted. "$46K" is shorter and reads fine, but
+ * this number is a public claim about what students have withdrawn: the kind of
+ * claim someone eventually asks you to substantiate. A rounded one invites the
+ * question of which way it was rounded. $45,799 answers that before it is
+ * asked, and it is the more impressive number besides — a precise figure reads
+ * as a ledger, a round one reads as marketing.
+ *
+ * `{total}` still compacts, for anyone who wants it once the number is large
+ * enough that precision stops fitting.
  */
-const DEFAULT_TEMPLATE = "💰 {total} Paid Out";
+const DEFAULT_TEMPLATE = "💰 {exact} Paid Out";
 
 /**
  * Builds the channel name.

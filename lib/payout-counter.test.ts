@@ -9,9 +9,15 @@ import {
 } from "./payout-counter";
 
 describe("the channel name", () => {
-  it("compacts the total, because a sidebar truncates", () => {
-    expect(counterName(342_150_00)).toBe("💰 $342K Paid Out");
-    expect(counterName(2_500_00)).toBe("💰 $2,500 Paid Out");
+  it("shows the exact figure by default, not a rounded one", () => {
+    // A public claim about student earnings should read as a ledger, not as
+    // marketing. "$46K" invites the question of which way it was rounded.
+    expect(counterName(342_150_00)).toBe("💰 $342,150 Paid Out");
+    expect(counterName(45_799_48)).toBe("💰 $45,799 Paid Out");
+  });
+
+  it("still compacts on request, for when the number outgrows the sidebar", () => {
+    expect(counterName(342_150_00, "💰 {total} Paid Out")).toBe("💰 $342K Paid Out");
   });
 
   it("puts the figure first so truncation eats the label, not the number", () => {
@@ -22,7 +28,7 @@ describe("the channel name", () => {
     expect(name.indexOf("$12,750")).toBeLessThan(name.indexOf("Paid"));
   });
 
-  it("supports a custom template and an exact figure", () => {
+  it("supports a custom template", () => {
     expect(counterName(342_150_00, "payouts-{exact}")).toBe("payouts-$342,150");
   });
 

@@ -78,7 +78,7 @@ the parser never overrules it.
 | `ANTHROPIC_API_KEY` | recommended | Turns on screenshot reading. Without it, every image-only post goes to the review queue unread and you type the amount in. |
 | `ANTHROPIC_WORKSPACE_ID` | sometimes | Required if your API key is **identity-linked** — those keys must name the workspace each request acts in, and without it every read fails with a 400 before the image is even looked at. Not needed for a workspace-scoped key. Console → Settings → Workspaces. |
 | `PAYOUT_VISION_MODEL` | no | Defaults to `claude-opus-5`. Set `claude-haiku-4-5` to cut the per-image cost roughly fivefold at some accuracy cost. |
-| `DISCORD_PAYOUT_COUNTER_TEMPLATE` | no | Default `💰 {total} Paid Out`. The figure leads because Discord truncates a channel name to the sidebar width — with the label first, the number is the part that gets cut. `{total}` compacts (`$342K`), `{exact}` doesn't (`$342,150`). |
+| `DISCORD_PAYOUT_COUNTER_TEMPLATE` | no | Default `💰 {exact} Paid Out`. The figure leads because Discord truncates a channel name to the sidebar width — with the label first, the number is the part that gets cut. It is exact rather than rounded because this is a public claim about student earnings, and a precise figure reads as a ledger where a round one reads as marketing. Swap `{exact}` for `{total}` to compact it (`$342K`) once the number outgrows the sidebar. |
 
 Unset the channel ids and the route returns `{ skipped }` and does nothing — the
 feature is dormant until it's configured.

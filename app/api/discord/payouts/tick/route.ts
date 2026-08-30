@@ -93,14 +93,28 @@ function displayName(author: DiscordMessage["author"]): string {
 }
 
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
+  // Trimmed on BOTH sides. Pasting a secret into a dashboard field or a shell
+  // picks up a trailing space or newline about half the time, and an exact
+  // comparison turns that into a 401 that looks identical to a wrong secret —
+  // which sends you hunting for the wrong problem.
+  const secret = process.env.CRON_SECRET?.trim();
   if (!secret) return NextResponse.json({ error: "not configured" }, { status: 503 });
 
   const url = new URL(req.url);
-  const presented =
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? url.searchParams.get("key");
+  const presented = (
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? url.searchParams.get("key")
+  )?.trim();
   if (presented !== secret) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      {
+        error: "unauthorized",
+        // Says nothing about the secret itself, but names the cause that is
+        // right nine times out of ten: env vars are baked into a deployment at
+        // build time, so changing CRON_SECRET does nothing until a redeploy.
+        hint: "CRON_SECRET is set, but the key presented does not match it. If you changed it recently, redeploy — env vars only reach a deployment when it is built.",
+      },
+      { status: 401 }
+    );
   }
 
   const sourceChannelId = process.env.DISCORD_PAYOUT_CHANNEL_ID?.trim();

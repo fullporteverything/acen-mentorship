@@ -23,6 +23,49 @@ export const runtime = "nodejs";
  * a timeout, and a slow database costs the reader the figure rather than the
  * whole reply.
  */
+/**
+ * GET /api/discord/interactions?key=CRON_SECRET — is this endpoint set up?
+ *
+ * "The application did not respond" is Discord's message for every failure on
+ * this path: no endpoint URL configured, a wrong public key, a route that 500s,
+ * a cold start over three seconds. They are indistinguishable from the Discord
+ * side, so this answers the half that lives on ours.
+ */
+export async function GET(req: Request) {
+  const secret = process.env.CRON_SECRET?.trim();
+  const url = new URL(req.url);
+  const presented = (
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? url.searchParams.get("key")
+  )?.trim();
+  if (!secret || presented !== secret) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const key = process.env.DISCORD_PUBLIC_KEY?.trim();
+  // Shape only. A Discord application's public key is not a secret — it is
+  // published in the portal — but there is no reason to echo it either.
+  const looksRight = Boolean(key && /^[0-9a-f]{64}$/i.test(key));
+  return NextResponse.json({
+    endpoint: "ready",
+    publicKeyConfigured: Boolean(key),
+    publicKeyLength: key?.length ?? 0,
+    publicKeyLooksValid: looksRight,
+    // Verification is exercised for real: a key that cannot be imported fails
+    // every request, and this catches that here rather than in Discord.
+    verifierUsable: looksRight
+      ? verifyDiscordSignature({
+          rawBody: "{}",
+          signature: "00".repeat(64),
+          timestamp: "0",
+          publicKey: key,
+        }) === false
+      : false,
+    next: looksRight
+      ? "Set Interactions Endpoint URL in the Developer Portal to this URL (without the ?key=)."
+      : "Set DISCORD_PUBLIC_KEY (Developer Portal → General Information → Public Key), then redeploy.",
+  });
+}
+
 export async function POST(req: Request) {
   // Read the RAW body — the signature covers the exact bytes Discord sent, so
   // parsing first and re-serializing would break verification.

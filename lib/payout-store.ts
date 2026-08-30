@@ -326,6 +326,38 @@ export async function markConfirmed(messageId: string): Promise<void> {
     .where(eq(studentPayouts.messageId, messageId));
 }
 
+/**
+ * Forgets that vision has looked at the pending rows, so the next run reads
+ * them again.
+ *
+ * The counterpart to the once-ever guard: that guard is right in normal
+ * operation — nobody should pay twice to read the same screenshot — but it also
+ * means a run that failed for an environmental reason (a bad token cap, an
+ * outage, a missing key) permanently poisons every row it touched. This is the
+ * way back. Only touches rows still pending, so nothing decided is disturbed.
+ */
+export async function clearVisionAttempts(): Promise<number> {
+  await ensurePayoutTables();
+  const cleared = await db
+    .update(studentPayouts)
+    .set({ visionAt: null })
+    .where(and(eq(studentPayouts.status, "pending"), isNotNull(studentPayouts.visionAt)))
+    .returning({ messageId: studentPayouts.messageId });
+  return cleared.length;
+}
+
+/** Pending rows with their stored verdicts — for the diagnostic. */
+export function listPending(limit: number): Promise<StudentPayoutRow[]> {
+  return ensurePayoutTables().then(() =>
+    db
+      .select()
+      .from(studentPayouts)
+      .where(eq(studentPayouts.status, "pending"))
+      .orderBy(asc(studentPayouts.messageId))
+      .limit(limit)
+  );
+}
+
 export async function markReviewPosted(
   messageId: string,
   reviewMessageId: string

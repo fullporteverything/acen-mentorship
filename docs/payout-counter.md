@@ -69,7 +69,7 @@ the parser never overrules it.
 | `DISCORD_PAYOUT_CHANNEL_ID` | yes | The channel students post payouts in. |
 | `DISCORD_PAYOUT_REVIEW_CHANNEL_ID` | recommended | Staff-only channel for the queue. Without it, unclear posts pile up unseen. |
 | `DISCORD_PAYOUT_COUNTER_CHANNEL_ID` | recommended | The channel to rename. Make it a **voice** channel nobody can connect to — that is how every member counter is built, and voice names keep spaces and capitals. |
-| `PAYOUT_REVIEWER_IDS` | no | Comma-separated Discord ids allowed to approve. Defaults to `ADMIN_DISCORD_ID`. With neither set, nothing can be approved by hand. |
+| `PAYOUT_REVIEWER_IDS` | no | Comma-separated Discord ids allowed to approve, **in addition to** `ADMIN_DISCORD_ID`. With neither set, nothing can be approved by hand. Anyone on this list can move a public figure, so keep it to accounts you control. A reply from an account not on it gets told so rather than silently dropped. |
 | `DISCORD_GUILD_ID` | no | Already set. Only used to build jump links in review posts. |
 | `ANTHROPIC_API_KEY` | recommended | Turns on screenshot reading. Without it, every image-only post goes to the review queue unread and you type the amount in. |
 | `PAYOUT_VISION_MODEL` | no | Defaults to `claude-opus-5`. Set `claude-haiku-4-5` to cut the per-image cost roughly fivefold at some accuracy cost. |
@@ -83,6 +83,13 @@ feature is dormant until it's configured.
 ```
 curl "https://<site>/api/discord/payouts/tick?key=$CRON_SECRET&dry=1"
 ```
+
+`diag=1` reports what each channel actually is, a sample of what comes back, the
+stored verdict on every pending row, your recent replies with the three things
+that must line up for one to count, and one real vision read. `revision=1` lets
+vision re-read the pending screenshots — the once-ever guard is right in normal
+operation, but a run that failed for an environmental reason would otherwise
+poison those rows permanently.
 
 `dry=1` reads the channel and reports what it found without touching Discord —
 no review posts, no approvals, no rename — and without advancing the cursor.

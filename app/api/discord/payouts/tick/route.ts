@@ -34,7 +34,9 @@ import {
   findByReviewMessageId,
   getSyncState,
   listAwaitingReview,
+  clearVisionAttempts,
   listNeedingVision,
+  listPending,
   listUnconfirmedDecisions,
   listUnpostedPending,
   markConfirmed,
@@ -171,6 +173,12 @@ export async function GET(req: Request) {
       await clearSyncState(sourceChannelId);
     }
 
+    // ?revision=1 — let vision re-read the pending screenshots. The once-ever
+    // guard is right in normal operation but permanently poisons every row a
+    // failed run touched; this is the way back.
+    const revisioned =
+      url.searchParams.get("revision") === "1" ? await clearVisionAttempts() : 0;
+
     const state = await getSyncState(sourceChannelId);
     const scanned = await scan(sourceChannelId, state.backfillComplete, state);
 
@@ -242,6 +250,7 @@ export async function GET(req: Request) {
       counter: { desired, renamed, channelConfigured: Boolean(counterChannelId) },
       counts: await payoutCounts(),
       blind: scanned.blind,
+      visionRetriesCleared: revisioned,
       notes: [
         scanned.blind
           ? "Discord returned messages with no text and no attachments. That is the Message Content intent being enforced — turn it on in the Developer Portal (Bot → Privileged Gateway Intents), then re-run with &reset=1. Nothing was recorded and the cursor was left where it was."
@@ -392,7 +401,21 @@ async function resolveReviews(
   for (const reply of replies) {
     if (isNewer(reply.id, cursor)) cursor = reply.id;
     const parentId = reply.message_reference?.message_id;
-    if (!parentId || !reviewers.has(reply.author.id)) continue;
+    if (!parentId) continue;
+    if (!reviewers.has(reply.author.id)) {
+      // Someone answered the question and was ignored because they are not on
+      // the reviewer list. Silently dropping it is how a correct answer goes
+      // missing for an hour with nobody able to see why — say so instead.
+      const parentRow = await findByReviewMessageId(parentId);
+      if (parentRow && decideFromReply(reply.content, parentRow.amountCents ?? null)) {
+        await postMessage(
+          reviewChannelId,
+          "That looks right, but this account isn't on the payout reviewer list — so it wasn't counted. Add its ID to `PAYOUT_REVIEWER_IDS` to let it decide.",
+          reply.id
+        ).catch(() => {});
+      }
+      continue;
+    }
     const row = await findByReviewMessageId(parentId);
     // Pending rows, and rows vision counted on its own — a reply is how the
     // owner corrects a number the machine got wrong. A decision a PERSON
@@ -625,6 +648,18 @@ async function diagnose(
     replies,
     replyError,
     visionProbe,
+    // What is actually stored on the rows waiting for a human — including the
+    // reason vision gave up, which is otherwise invisible once the review post
+    // has already been made.
+    pending: (await listPending(10)).map((row) => ({
+      messageId: row.messageId,
+      author: row.authorName,
+      amountCents: row.amountCents,
+      reason: row.reason,
+      visionKind: row.visionKind,
+      visionConfidence: row.visionConfidence,
+      visionTried: Boolean(row.visionAt),
+    })),
     state: await getSyncState(sourceChannelId),
     counts: await payoutCounts(),
     reading: sample.length === 0

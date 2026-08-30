@@ -79,6 +79,30 @@ export function decideIngest(message: IngestedMessage): IngestDecision {
   return { status: "ignored", amountCents: null, matched: null, reason: result.reason };
 }
 
+/**
+ * Is Discord handing us blank messages?
+ *
+ * With the Message Content intent off, a bot reading a channel gets real
+ * messages — ids, authors, timestamps — with `content` and `attachments`
+ * stripped to nothing. Every one of them then parses as "empty message" and is
+ * ignored, so the scan looks like a channel full of chatter with no payouts in
+ * it: no error, no warning, a counter sitting at $0 forever, and a backfill
+ * marked complete so it never tries again.
+ *
+ * That is the worst kind of failure — a confident wrong answer — and it is
+ * cheap to detect. A real channel does not consist entirely of messages with no
+ * text AND no attachment. Requires a few messages before calling it, so a quiet
+ * channel with one sticker in it is never mistaken for a blind read.
+ */
+export function looksBlind(
+  messages: readonly { content?: string; attachments?: unknown[] }[]
+): boolean {
+  if (messages.length < 3) return false;
+  return messages.every(
+    (m) => (m.content ?? "").length === 0 && (m.attachments?.length ?? 0) === 0
+  );
+}
+
 export const APPROVE_EMOJI = "✅";
 export const REJECT_EMOJI = "❌";
 

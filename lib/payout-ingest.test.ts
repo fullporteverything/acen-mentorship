@@ -4,6 +4,7 @@ import {
   decideFromReactions,
   decideFromReply,
   decideIngest,
+  looksBlind,
   reviewerIds,
   type IngestedMessage,
 } from "./payout-ingest";
@@ -134,5 +135,28 @@ describe("who may approve", () => {
       PAYOUT_REVIEWER_IDS: "a, b ,",
     });
     expect([...ids].sort()).toEqual(["a", "admin", "b"]);
+  });
+});
+
+describe("noticing that Discord is handing us blank messages", () => {
+  const blank = { content: "", attachments: [] };
+
+  it("spots a channel read with the Message Content intent off", () => {
+    // The failure this exists to catch: every message parses as empty, the
+    // scan reports success having recorded nothing, and marks the backfill
+    // complete — so the counter sits at $0 and never tries again.
+    expect(looksBlind([blank, blank, blank, blank, blank])).toBe(true);
+  });
+
+  it("does not cry wolf over a genuinely quiet channel", () => {
+    expect(looksBlind([blank, blank])).toBe(false);
+    expect(looksBlind([])).toBe(false);
+    expect(
+      looksBlind([blank, blank, { content: "gm", attachments: [] }])
+    ).toBe(false);
+    // Attachments present means content is flowing, even with no text.
+    expect(
+      looksBlind([blank, blank, { content: "", attachments: [{ id: "a" }] }])
+    ).toBe(false);
   });
 });

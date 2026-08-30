@@ -15,6 +15,7 @@ import {
   decideFromReactions,
   decideFromReply,
   decideIngest,
+  looksBlind,
   reviewerIds,
 } from "@/lib/payout-ingest";
 import {
@@ -180,7 +181,7 @@ export async function GET(req: Request) {
       renamed = true;
     }
 
-    if (!dryRun) {
+    if (!dryRun && !scanned.blind) {
       await saveSyncState(sourceChannelId, {
         ...scanned.state,
         reviewCursorId: resolved.reviewCursorId,
@@ -200,7 +201,11 @@ export async function GET(req: Request) {
       totalCents,
       counter: { desired, renamed, channelConfigured: Boolean(counterChannelId) },
       counts: await payoutCounts(),
+      blind: scanned.blind,
       notes: [
+        scanned.blind
+          ? "Discord returned messages with no text and no attachments. That is the Message Content intent being enforced — turn it on in the Developer Portal (Bot → Privileged Gateway Intents), then re-run with &reset=1. Nothing was recorded and the cursor was left where it was."
+          : null,
         reviewChannelId ? null : "DISCORD_PAYOUT_REVIEW_CHANNEL_ID unset — unclear posts will queue but never be shown to anyone",
         reviewers.size ? null : "no reviewers configured (PAYOUT_REVIEWER_IDS / ADMIN_DISCORD_ID) — nothing can be approved by hand",
       ].filter(Boolean),
@@ -227,10 +232,12 @@ async function scan(
 ): Promise<{
   seen: number;
   recorded: number;
+  blind: boolean;
   state: { lastMessageId: string | null; backfillBeforeId: string | null; backfillComplete: boolean };
 }> {
   let seen = 0;
   let recorded = 0;
+  let blind = false;
   let newest = state.lastMessageId;
   let before = state.backfillBeforeId;
   let complete = backfillComplete;
@@ -255,6 +262,15 @@ async function scan(
       break;
     }
     seen += batch.length;
+
+    // Every message blank means Discord is withholding content, not that the
+    // channel is full of empty posts. Stop immediately: reading further would
+    // just walk the whole history writing nothing, and finish by marking the
+    // backfill complete — which is the state that makes the failure permanent.
+    if (looksBlind(batch)) {
+      blind = true;
+      break;
+    }
 
     const rows: CandidateRow[] = [];
     for (const message of batch) {
@@ -294,10 +310,13 @@ async function scan(
   return {
     seen,
     recorded,
+    blind,
     state: {
       lastMessageId: newest,
-      backfillBeforeId: complete ? null : before,
-      backfillComplete: complete,
+      // A blind read learned nothing, so it must not be allowed to record
+      // progress of any kind — least of all "backfill complete".
+      backfillBeforeId: blind ? state.backfillBeforeId : complete ? null : before,
+      backfillComplete: blind ? backfillComplete : complete,
     },
   };
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { payoutSyncState, studentPayouts, type StudentPayoutRow } from "@/lib/db/schema";
@@ -50,7 +50,8 @@ export async function ensurePayoutTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS attachment_url text,
       ADD COLUMN IF NOT EXISTS vision_kind varchar(24),
       ADD COLUMN IF NOT EXISTS vision_confidence varchar(8),
-      ADD COLUMN IF NOT EXISTS vision_at timestamptz
+      ADD COLUMN IF NOT EXISTS vision_at timestamptz,
+      ADD COLUMN IF NOT EXISTS confirmed_at timestamptz
   `);
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS student_payouts_status_index ON student_payouts (status)
@@ -288,6 +289,41 @@ export async function markVisionAttempted(messageId: string, reason: string): Pr
     .update(studentPayouts)
     .set({ visionAt: new Date(), reason })
     .where(and(eq(studentPayouts.messageId, messageId), eq(studentPayouts.status, "pending")));
+}
+
+/**
+ * Decisions a human made that the bot has not acknowledged yet.
+ *
+ * Without this, replying "$2,500" to a review post is met with silence, and the
+ * only way to know it worked is to watch the channel name change ten minutes
+ * later — so the honest reading of the silence is "it ignored me". Excludes
+ * vision's own decisions: those already announce themselves.
+ */
+export function listUnconfirmedDecisions(limit: number): Promise<StudentPayoutRow[]> {
+  return ensurePayoutTables().then(() =>
+    db
+      .select()
+      .from(studentPayouts)
+      .where(
+        and(
+          isNull(studentPayouts.confirmedAt),
+          isNotNull(studentPayouts.reviewMessageId),
+          isNotNull(studentPayouts.decidedBy),
+          ne(studentPayouts.decidedBy, "vision"),
+          or(eq(studentPayouts.status, "approved"), eq(studentPayouts.status, "rejected"))
+        )
+      )
+      .orderBy(asc(studentPayouts.messageId))
+      .limit(limit)
+  );
+}
+
+export async function markConfirmed(messageId: string): Promise<void> {
+  await ensurePayoutTables();
+  await db
+    .update(studentPayouts)
+    .set({ confirmedAt: new Date() })
+    .where(eq(studentPayouts.messageId, messageId));
 }
 
 export async function markReviewPosted(

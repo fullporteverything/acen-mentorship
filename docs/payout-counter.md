@@ -8,7 +8,9 @@ a Discord channel, and the number lives in a Discord channel name.
 ## How it works
 
 One scheduled route does everything: `GET /api/discord/payouts/tick`, run every
-10 minutes by Vercel Cron (`vercel.json`).
+5 minutes by Vercel Cron (`vercel.json`). The rename is throttled separately —
+see step 6 — so a faster cron makes the queue more responsive without going
+anywhere near Discord's rename limit.
 
 1. **Scan.** The first run has no cursor, so it walks the entire history of the
    payouts channel backwards — that is the "count what's already there" pass. It
@@ -40,10 +42,16 @@ One scheduled route does everything: `GET /api/discord/payouts/tick`, run every
 5. **Decide.** React ✅ to count it, ❌ to skip it. If there is no amount (a bare
    screenshot), **reply to the bot's post with the figure** — `$2,500` — and it
    counts that. Replying with a different number corrects a misread one.
+
+   The bot replies to confirm: *"Finished — counted $2,500. Total is now
+   $12,750."* It quotes the figure and the new total on purpose, because what
+   you are really checking is not that it heard you but that it took the right
+   number rather than keeping its own guess.
 6. **Rename.** The counter channel is renamed only when the visible text
    actually changed. Discord allows **2 renames per 10 minutes per channel** and
-   silently ignores the excess, which is why the cron is on 10 minutes and why
-   an unchanged name never spends a rename.
+   silently ignores the excess, so the rename holds its own 9-minute floor
+   regardless of how often the route runs, and an unchanged name never spends
+   one at all.
 
 Rows are keyed by Discord message id, so re-scanning — or deleting the state row
 to force a full re-scan — can never double count. Once a human has decided a row,

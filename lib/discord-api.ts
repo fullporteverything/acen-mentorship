@@ -125,13 +125,23 @@ export function fetchMessage(channelId: string, messageId: string): Promise<Disc
   return call<DiscordMessage>(`/channels/${channelId}/messages/${messageId}`);
 }
 
-export function postMessage(channelId: string, content: string): Promise<DiscordMessage> {
+export function postMessage(
+  channelId: string,
+  content: string,
+  replyToMessageId?: string
+): Promise<DiscordMessage> {
   return call<DiscordMessage>(`/channels/${channelId}/messages`, {
     method: "POST",
     body: JSON.stringify({
       content,
-      // Never let a bot post ping the server. These messages are for the owner.
-      allowed_mentions: { parse: [] },
+      ...(replyToMessageId
+        ? // fail_if_not_exists:false so a deleted parent posts a plain message
+          // rather than throwing — a confirmation is not worth an error for.
+          { message_reference: { message_id: replyToMessageId, fail_if_not_exists: false } }
+        : {}),
+      // Never let a bot post ping anyone — `replied_user` included, or every
+      // confirmation would notify the person it is replying to.
+      allowed_mentions: { parse: [], replied_user: false },
     }),
   });
 }

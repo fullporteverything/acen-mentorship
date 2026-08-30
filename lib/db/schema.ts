@@ -880,6 +880,8 @@ export const studentPayouts = pgTable(
     /** Set once vision has looked, so no image is ever paid for twice. */
     visionAt: timestamp("vision_at", { withTimezone: true }),
     decidedBy: varchar("decided_by", { length: 32 }),
+    /** When the bot told the reviewer their decision landed. */
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     postedAt: timestamp("posted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

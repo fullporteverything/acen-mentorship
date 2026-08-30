@@ -22,6 +22,7 @@ import {
 } from "@/lib/payout-ingest";
 import {
   counterName,
+  decisionConfirmation,
   messageLink,
   reviewPostContent,
   shouldRename,
@@ -34,7 +35,9 @@ import {
   getSyncState,
   listAwaitingReview,
   listNeedingVision,
+  listUnconfirmedDecisions,
   listUnpostedPending,
+  markConfirmed,
   markVisionAttempted,
   markReviewPosted,
   payoutCounts,
@@ -100,6 +103,8 @@ const REVIEW_POLL_BUDGET = 15;
  * of arriving as one surprising bill.
  */
 const VISION_BUDGET = 8;
+/** Acknowledgements per run. Only ever as many as there were decisions. */
+const CONFIRM_BUDGET = 10;
 
 /** Snowflakes are numeric strings; longer wins, then lexicographic. */
 function isNewer(a: string, b: string | null | undefined): boolean {
@@ -180,14 +185,21 @@ export async function GET(req: Request) {
       ? { read: 0, approved: 0 }
       : await readScreenshots(sourceChannelId);
 
-    // ── 4 QUEUE ──────────────────────────────────────────────────────────────
+    // The total is read here, after every decision this run has been applied,
+    // so the acknowledgement below and the channel name agree with each other.
+    const totalCents = await totalApprovedCents();
+
+    // ── 4 CONFIRM ────────────────────────────────────────────────────────────
+    const confirmed =
+      reviewChannelId && !dryRun ? await confirmDecisions(reviewChannelId, totalCents) : 0;
+
+    // ── 5 QUEUE ──────────────────────────────────────────────────────────────
     let queued = 0;
     if (reviewChannelId && !dryRun) {
       queued = await postReviews(reviewChannelId, sourceChannelId, guildId);
     }
 
-    // ── 5 RENAME ─────────────────────────────────────────────────────────────
-    const totalCents = await totalApprovedCents();
+    // ── 6 RENAME ─────────────────────────────────────────────────────────────
     const desired = counterName(totalCents, process.env.DISCORD_PAYOUT_COUNTER_TEMPLATE);
     let renamed = false;
     if (
@@ -218,7 +230,12 @@ export async function GET(req: Request) {
       scanned: scanned.seen,
       recorded: scanned.recorded,
       backfillComplete: scanned.state.backfillComplete,
-      review: { queued, approved: resolved.approved, rejected: resolved.rejected },
+      review: {
+        queued,
+        approved: resolved.approved,
+        rejected: resolved.rejected,
+        confirmed,
+      },
       vision: { enabled: visionEnabled(), ...vision },
       total: formatUsd(totalCents),
       totalCents,
@@ -610,4 +627,47 @@ async function readScreenshots(
   }
 
   return { read, approved };
+}
+
+/**
+ * Step 4 — tell the reviewer their decision landed.
+ *
+ * Replying "$2,500" to a review post used to be met with silence: nothing
+ * happened in the channel, and the only evidence it worked was the channel name
+ * changing ten minutes later. The honest reading of that silence is "it ignored
+ * me", so the next thing a person does is reply again — or stop using the queue.
+ *
+ * The acknowledgement quotes the figure AND the new running total, because what
+ * is really being checked is not that the bot heard something, but that it took
+ * the right number rather than quietly keeping its own guess.
+ *
+ * Stamped after posting: a duplicate acknowledgement is noise, but a missing one
+ * is the exact problem this fixes, so the order favours re-sending over losing.
+ */
+async function confirmDecisions(
+  reviewChannelId: string,
+  totalCents: number
+): Promise<number> {
+  const pending = await listUnconfirmedDecisions(CONFIRM_BUDGET);
+  let sent = 0;
+  for (const row of pending) {
+    if (!row.reviewMessageId) continue;
+    try {
+      await postMessage(
+        reviewChannelId,
+        decisionConfirmation({
+          status: row.status === "approved" ? "approved" : "rejected",
+          amountCents: row.amountCents ?? null,
+          totalCents,
+        }),
+        row.reviewMessageId
+      );
+    } catch {
+      // Leave it unconfirmed and try again next run.
+      continue;
+    }
+    await markConfirmed(row.messageId);
+    sent += 1;
+  }
+  return sent;
 }

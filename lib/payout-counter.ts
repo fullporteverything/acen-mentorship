@@ -80,6 +80,26 @@ export function reviewPostContent(opts: {
   return [heading, `Amount: **${amount}**`, `Why: ${opts.reason}`, opts.messageLink, footer].join("\n");
 }
 
+/**
+ * What the bot says back once a decision has actually been applied.
+ *
+ * It names the figure and the new running total rather than just saying "ok",
+ * because the thing a reviewer is really checking is not that the bot heard
+ * them — it is that it heard the RIGHT NUMBER. "Finished" alone would be
+ * indistinguishable from it having quietly kept its own guess.
+ */
+export function decisionConfirmation(opts: {
+  status: "approved" | "rejected";
+  amountCents: number | null;
+  totalCents: number;
+}): string {
+  if (opts.status === "rejected") {
+    return `Finished — skipped, not counted. Total stays **${formatUsd(opts.totalCents)}**.`;
+  }
+  const amount = opts.amountCents === null ? "no amount" : formatUsd(opts.amountCents);
+  return `Finished — counted **${amount}**. Total is now **${formatUsd(opts.totalCents)}**.`;
+}
+
 /** Jump link to the original message, so a reviewer can read it in context. */
 export function messageLink(guildId: string | undefined, channelId: string, messageId: string): string {
   return `https://discord.com/channels/${guildId || "@me"}/${channelId}/${messageId}`;

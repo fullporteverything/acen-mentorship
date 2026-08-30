@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/discord/payouts/tick",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   RENAME_MIN_INTERVAL_MS,
   counterName,
+  decisionConfirmation,
   reviewPostContent,
   shouldRename,
 } from "./payout-counter";
@@ -82,3 +83,23 @@ describe("the review post", () => {
     expect(post).toContain("❌ to remove it");
   });
 });
+
+describe("acknowledging a reviewer's decision", () => {
+  it("names the figure AND the new total, not just 'ok'", () => {
+    // What a reviewer is checking is not that the bot heard them — it is that
+    // it took the RIGHT number rather than quietly keeping its own guess.
+    const msg = decisionConfirmation({
+      status: "approved",
+      amountCents: 250_000,
+      totalCents: 1_275_000,
+    });
+    expect(msg).toContain("$2,500");
+    expect(msg).toContain("$12,750");
+  });
+
+  it("says so plainly when the payout was skipped", () => {
+    const msg = decisionConfirmation({ status: "rejected", amountCents: null, totalCents: 1_275_000 });
+    expect(msg).toContain("not counted");
+    expect(msg).toContain("$12,750");
+  });
+})

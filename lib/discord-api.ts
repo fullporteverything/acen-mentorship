@@ -125,6 +125,54 @@ export function fetchMessage(channelId: string, messageId: string): Promise<Disc
   return call<DiscordMessage>(`/channels/${channelId}/messages/${messageId}`);
 }
 
+/** Every channel in the guild. Used to know where to sweep. */
+export function listGuildChannels(guildId: string): Promise<DiscordChannel[]> {
+  return call<DiscordChannel[]>(`/guilds/${guildId}/channels`);
+}
+
+export interface DiscordMember {
+  user?: { id: string; username: string; bot?: boolean };
+  roles: string[];
+  joined_at: string;
+}
+
+export function getGuildMember(guildId: string, userId: string): Promise<DiscordMember> {
+  return call<DiscordMember>(`/guilds/${guildId}/members/${userId}`);
+}
+
+/**
+ * Removes a member from the guild. A KICK, not a ban — they can come back.
+ *
+ * That is deliberate for an automated control: a wrongly kicked member rejoins
+ * with an invite link, where a wrongly banned one has to ask the owner to undo
+ * something they may not know happened.
+ *
+ * `reason` lands in the guild's audit log, which is the only durable record of
+ * why an account vanished.
+ */
+export function kickMember(guildId: string, userId: string, reason: string): Promise<void> {
+  return call<void>(`/guilds/${guildId}/members/${userId}`, {
+    method: "DELETE",
+    headers: { "X-Audit-Log-Reason": auditReason(reason) },
+  });
+}
+
+export function deleteMessage(
+  channelId: string,
+  messageId: string,
+  reason: string
+): Promise<void> {
+  return call<void>(`/channels/${channelId}/messages/${messageId}`, {
+    method: "DELETE",
+    headers: { "X-Audit-Log-Reason": auditReason(reason) },
+  });
+}
+
+/** Audit-log reasons are a header, so they must be short and ASCII-safe. */
+function auditReason(reason: string): string {
+  return encodeURIComponent(reason.slice(0, 400));
+}
+
 export function postMessage(
   channelId: string,
   content: string,

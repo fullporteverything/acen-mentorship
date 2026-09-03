@@ -11,6 +11,10 @@
     {
       "path": "/api/discord/payouts/tick",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/discord/guard/sweep",
+      "schedule": "*/2 * * * *"
     }
   ]
 }
